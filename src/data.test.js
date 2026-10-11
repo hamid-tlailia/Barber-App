@@ -12,6 +12,9 @@ test('sample appointments reference real clients and services, and include today
   const data = defaultData();
   assert.ok(data.clients.length > 0);
   assert.ok(data.services.length > 0);
+  assert.ok(data.staff.length > 0);
+  assert.ok(data.products.length > 0);
+  assert.ok(data.products.some(product => product.quantity <= product.minStock));
   assert.ok(data.appointments.some(a => a.date === localISO()));
   for (const appointment of data.appointments) {
     assert.ok(data.clients.some(c => c.id === appointment.clientId));
@@ -42,10 +45,24 @@ test('first suggested slot skips occupied time and honors selected date', () => 
   assert.deepEqual(nextOpenSlot(appointments, 30, '2026-10-12', new Date(2026, 9, 11, 8)), { date: '2026-10-12', time: '10:00' });
 });
 
+test('assigned barbers have independent calendars while unassigned appointments remain blocking', () => {
+  const appointments = [{ id: 'a1', staffId: 't1', date: '2026-10-12', time: '10:00', duration: 50, status: 'confirmed' }];
+  assert.equal(hasAppointmentConflict(appointments, { date: '2026-10-12', time: '10:15', duration: 30, staffId: 't2' }), false);
+  assert.equal(hasAppointmentConflict(appointments, { date: '2026-10-12', time: '10:15', duration: 30, staffId: 't1' }), true);
+  assert.equal(hasAppointmentConflict(appointments, { date: '2026-10-12', time: '10:15', duration: 30 }), true);
+  const busyMorning = [{ id: 'a2', staffId: 't1', date: '2026-10-12', time: '09:00', duration: 120, status: 'confirmed' }];
+  assert.deepEqual(nextOpenSlot(busyMorning, 30, '2026-10-12', new Date(2026, 9, 11, 8), 't2'), { date: '2026-10-12', time: '09:00' });
+  assert.deepEqual(nextOpenSlot(busyMorning, 30, '2026-10-12', new Date(2026, 9, 11, 8), 't1'), { date: '2026-10-12', time: '11:00' });
+});
+
 test('invalid saved data safely falls back to sample data', () => {
   globalThis.localStorage = { getItem: () => '{invalid' };
   assert.ok(loadData().appointments.length > 0);
   globalThis.localStorage = { getItem: () => JSON.stringify({ clients: [], services: [], appointments: [], shopName: 'اختبار' }) };
-  assert.equal(loadData().shopName, 'اختبار');
+  const migrated = loadData();
+  assert.equal(migrated.shopName, 'اختبار');
+  assert.deepEqual(migrated.staff, []);
+  assert.deepEqual(migrated.products, []);
+  assert.deepEqual(migrated.stockMovements, []);
   delete globalThis.localStorage;
 });
