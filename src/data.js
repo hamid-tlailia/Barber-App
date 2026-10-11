@@ -29,15 +29,47 @@ export const defaultData = () => {
     { id: 's3', name: 'شعر ولحية', price: 75, duration: 50 },
     { id: 's4', name: 'عناية متكاملة', price: 110, duration: 75 },
   ];
+  const staff = [
+    { id: 't1', name: 'سامر العتيبي', phone: '5550 0192', role: 'كبير الحلاقين', specialty: 'قصات عصرية وتدرّج', commission: 35, createdAt: addDays(today, -120) },
+    { id: 't2', name: 'عمر الكواري', phone: '5550 1380', role: 'حلاق', specialty: 'اللحية والعناية', commission: 30, createdAt: addDays(today, -80) },
+    { id: 't3', name: 'راشد المري', phone: '5550 6421', role: 'حلاق', specialty: 'الأطفال والقصات الكلاسيكية', commission: 30, createdAt: addDays(today, -48) },
+  ];
+  const products = [
+    { id: 'p1', name: 'شمع تصفيف مطفي', category: 'تصفيف الشعر', quantity: 14, minStock: 5, cost: 18, price: 35, unit: 'علبة', updatedAt: today },
+    { id: 'p2', name: 'زيت اللحية الفاخر', category: 'العناية باللحية', quantity: 8, minStock: 4, cost: 24, price: 45, unit: 'زجاجة', updatedAt: today },
+    { id: 'p3', name: 'شامبو منعش', category: 'العناية بالشعر', quantity: 3, minStock: 5, cost: 20, price: 39, unit: 'زجاجة', updatedAt: today },
+    { id: 'p4', name: 'شفرة حلاقة احترافية', category: 'أدوات الحلاقة', quantity: 24, minStock: 10, cost: 2, price: 6, unit: 'قطعة', updatedAt: today },
+    { id: 'p5', name: 'بودرة تكثيف الشعر', category: 'تصفيف الشعر', quantity: 6, minStock: 3, cost: 30, price: 55, unit: 'علبة', updatedAt: today },
+  ];
   const make = (id, clientId, serviceId, day, time, status, paid = false) => {
     const service = services.find(s => s.id === serviceId);
-    return { id, clientId, serviceId, serviceName: service.name, price: service.price, duration: service.duration,
-      date: addDays(today, day), time, status, paymentStatus: paid ? 'paid' : 'unpaid',
-      paymentMethod: paid ? 'cash' : '', paidAt: paid ? addDays(today, day) : '', notes: '', createdAt: addDays(today, day - 2) };
+    const appointmentNumber = Number(id.slice(1));
+    return {
+      id,
+      clientId,
+      serviceId,
+      staffId: appointmentNumber % 3 === 0 ? 't3' : appointmentNumber % 2 === 0 ? 't2' : 't1',
+      serviceName: service.name,
+      price: service.price,
+      duration: service.duration,
+      date: addDays(today, day),
+      time,
+      status,
+      paymentStatus: paid ? 'paid' : 'unpaid',
+      paymentMethod: paid ? 'cash' : '',
+      paidAt: paid ? addDays(today, day) : '',
+      notes: '',
+      createdAt: addDays(today, day - 2),
+    };
   };
   return {
-    shopName: 'صالون مِقص', ownerName: 'أهلاً، يا حلاق',
-    clients, services,
+    shopName: 'صالون مِقص',
+    ownerName: 'أهلاً، يا حلاق',
+    clients,
+    services,
+    staff,
+    products,
+    stockMovements: [],
     appointments: [
       make('a1', 'c1', 's1', 0, '09:00', 'completed', true),
       make('a2', 'c2', 's3', 0, '10:30', 'confirmed'),
@@ -55,10 +87,22 @@ export const defaultData = () => {
   };
 };
 
+const isDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
 export const loadData = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && Array.isArray(saved.clients) && Array.isArray(saved.services) && Array.isArray(saved.appointments)) return saved;
+    if (saved && Array.isArray(saved.clients) && Array.isArray(saved.services) && Array.isArray(saved.appointments)) {
+      // Additive migration keeps older browser data intact while introducing new modules.
+      return {
+        ...saved,
+        staff: Array.isArray(saved.staff) ? saved.staff : [],
+        products: Array.isArray(saved.products) ? saved.products : [],
+        stockMovements: Array.isArray(saved.stockMovements) ? saved.stockMovements : [],
+        shopName: typeof saved.shopName === 'string' ? saved.shopName : 'صالون مِقص',
+        ownerName: typeof saved.ownerName === 'string' ? saved.ownerName : 'أهلاً بك',
+      };
+    }
   } catch { /* Fall back to sample data if storage is unavailable or invalid. */ }
   return defaultData();
 };
@@ -73,24 +117,26 @@ export const timeLabel = time => {
 };
 export const sortAppointments = (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
 
-export const hasAppointmentConflict = (appointments, { id, date, time, duration, status }) => {
+export const hasAppointmentConflict = (appointments, { id, date, time, duration, status, staffId }) => {
   if (status === 'cancelled') return false;
   const start = Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
   return appointments.some(a => {
     if (a.id === id || a.date !== date || a.status === 'cancelled') return false;
+    // When both bookings have a barber assigned, only that barber's calendar blocks the slot.
+    if (staffId && a.staffId && staffId !== a.staffId) return false;
     const otherStart = Number(a.time.slice(0, 2)) * 60 + Number(a.time.slice(3));
     return start < otherStart + a.duration && otherStart < start + duration;
   });
 };
 
-export const nextOpenSlot = (appointments, duration = 30, startDate = localISO(), now = new Date()) => {
+export const nextOpenSlot = (appointments, duration = 30, startDate = localISO(), now = new Date(), staffId = '') => {
   const today = localISO(now);
   for (let day = 0; day < 14; day++) {
     const date = addDays(startDate, day);
     for (let minute = 9 * 60; minute + duration <= 20 * 60; minute += 30) {
       if (date === today && minute < now.getHours() * 60 + now.getMinutes() + 15) continue;
       const time = `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
-      if (!hasAppointmentConflict(appointments, { date, time, duration })) return { date, time };
+      if (!hasAppointmentConflict(appointments, { date, time, duration, staffId })) return { date, time };
     }
   }
   return { date: addDays(startDate, 14), time: '09:00' };
@@ -98,3 +144,4 @@ export const nextOpenSlot = (appointments, duration = 30, startDate = localISO()
 
 export const statusText = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد', completed: 'مكتمل', cancelled: 'ملغي' };
 export const paymentText = { cash: 'نقداً', card: 'بطاقة', transfer: 'تحويل' };
+export const isDateString = isDate;

@@ -1,12 +1,12 @@
 {
-  "name": "مِقص | إدارة صالون الحلاقة",
+  "name": "مِقص | نظام إدارة صالون الحلاقة",
   "short_name": "مِقص",
-  "description": "إدارة المواعيد والزبائن والدفعات لصالون الحلاقة",
+  "description": "إدارة المواعيد والزبائن والفريق والمخزون والدفعات لصالون الحلاقة",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d0f12",
-  "theme_color": "#101114",
+  "background_color": "#11110f",
+  "theme_color": "#11110f",
   "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }
