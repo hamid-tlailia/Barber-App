@@ -1,0 +1,9 @@
+# الدوال المجدولة وWebhook واتساب تتحقق من الهوية بنفسها (CRON_SECRET وتوقيع Meta)، لذا لا تحتاج JWT.
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+[functions.send-reminders]
+verify_jwt = false
+
+[functions.daily-report]
+verify_jwt = false
