@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
+  Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
 import { dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, uid, LOCALE } from '../data.js';
@@ -8,11 +8,13 @@ import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { buyLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
+import { notifyNow, pushState, pushSupported } from '../lib/native.js';
 
 const weekdays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 export default function Settings() {
-  const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh } = useApp();
+  const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh, enablePush, toast } = useApp();
+  const [push, setPush] = useState(pushState);
   const [open, setOpen] = useState(null);
   useEffect(() => { if (intent?.open) setOpen(intent.open); if (intent) setIntent(null); }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
   const owner = role === 'owner';
@@ -43,6 +45,15 @@ export default function Settings() {
     {groups.map(group => <Section key={group.title} title={group.title}>
       <div className="list">{group.items.filter(Boolean).map(item => <Row key={item.id} leading={<span className="dot-icon tone-accent"><item.icon size={18} /></span>} title={item.label} onClick={() => setOpen(item.id)} />)}</div>
     </Section>)}
+    {pushSupported && <Section title="الإشعارات">
+      <div className="list">
+        <Row leading={<span className={`dot-icon tone-${push.status === 'registered' ? 'green' : 'orange'}`}><Bell size={18} /></span>}
+          title="إشعار الحجوزات الجديدة"
+          subtitle={{ registered: 'مفعّلة على هذا الهاتف ✓', registering: 'جارٍ التسجيل...', denied: 'مرفوضة — فعّلها من إعدادات الهاتف ← التطبيقات ← مِقص ← الإشعارات', 'not-granted': 'لم يُمنح الإذن بعد', error: `خطأ: ${push.error}`, unknown: 'غير مفعّلة' }[push.status] || push.status}
+          trailing={<Button size="sm" variant={push.status === 'registered' ? 'ghost' : 'primary'} onClick={async () => { setPush({ status: 'registering' }); const r = await enablePush(); setTimeout(() => setPush({ ...pushState }), 1500); setPush({ ...r }); }}>{push.status === 'registered' ? 'إعادة' : 'تفعيل'}</Button>} />
+        <Row title="إرسال إشعار تجريبي" subtitle="للتأكد أن الهاتف يعرض الإشعارات" onClick={() => { notifyNow('📅 إشعار تجريبي', 'هكذا سيظهر الحجز الجديد'); toast('أُرسل — انظر شريط الإشعارات'); }} />
+      </div>
+    </Section>}
     <Section title="المظهر">
       <div className="list">
         <Row title="الألوان" trailing={<Segmented size="sm" items={[{ id: 'light', label: 'فاتح' }, { id: 'dark', label: 'داكن' }, { id: 'system', label: 'تلقائي' }]} value={theme.mode} onChange={theme.setMode} />} />

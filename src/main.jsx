@@ -193,10 +193,11 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
   }, [Boolean(data)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // تسجيل الجهاز لإشعارات Firebase (حجز جديد حتى والتطبيق مغلق).
-  useEffect(() => {
-    if (!cloudEnabled || shop.id === 'local') return;
-    registerPush(token => api.saveDeviceToken(shop.id, token).catch(() => {}), payload => { if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId }); });
-  }, [shop.id]);
+  const enablePush = useCallback(() => registerPush(
+    token => api.saveDeviceToken(shop.id, token).catch(() => {}),
+    payload => { if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId }); },
+  ), [shop.id]);
+  useEffect(() => { if (cloudEnabled && shop.id !== 'local') enablePush(); }, [enablePush]);
 
   useEffect(() => { if (data) scheduleAppointmentAlerts(data, shop.staff_id); }, [data?.appointments]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -220,7 +221,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
   const staffMember = shop.staff_id ? data.staff.find(member => member.id === shop.staff_id) : null;
   const context = {
     data, setData, ...helpers, shop, role, license, vocab, go, intent, setIntent, toast: showToast, theme, sync, syncNow,
-    reloadShops, switchShop, addBranch, shops, admin, refresh: () => setTick(t => t + 1), staffMember, can: name => allowed.includes(name),
+    reloadShops, switchShop, addBranch, shops, admin, enablePush, refresh: () => setTick(t => t + 1), staffMember, can: name => allowed.includes(name),
     isManager: role === 'owner' || role === 'manager',
   };
   const Page = PAGES[page].component;

@@ -72,18 +72,27 @@ export async function scheduleAppointmentAlerts(data, staffId) {
 }
 
 // إشعارات Firebase (تصل حتى والتطبيق مغلق). تُفعَّل فقط عند بناء التطبيق مع google-services.json.
-let pushReady = false;
-export async function registerPush(saveToken, onOpen) {
-  if (!isNative || pushReady || import.meta.env?.VITE_PUSH !== '1') return;
-  pushReady = true;
+export const pushSupported = isNative && import.meta.env?.VITE_PUSH === '1';
+let pushListeners = false;
+export let pushState = { status: pushSupported ? 'unknown' : 'unsupported', error: '' };
+
+export async function registerPush(saveToken, onOpen, { ask = true } = {}) {
+  if (!pushSupported) return pushState;
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
     let permission = await PushNotifications.checkPermissions();
-    if (permission.receive === 'prompt') permission = await PushNotifications.requestPermissions();
-    if (permission.receive !== 'granted') return;
-    await PushNotifications.createChannel({ id: 'bookings', name: 'الحجوزات الجديدة', importance: 5, sound: 'default', vibration: true }).catch(() => {});
-    await PushNotifications.addListener('registration', ({ value }) => saveToken(value));
-    await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => onOpen?.(notification.data || {}));
+    // على أندرويد قد تكون الحالة prompt أو prompt-with-rationale — نطلب الإذن في الحالتين.
+    if (permission.receive !== 'granted' && permission.receive !== 'denied' && ask) permission = await PushNotifications.requestPermissions();
+    if (permission.receive !== 'granted') { pushState = { status: permission.receive === 'denied' ? 'denied' : 'not-granted', error: '' }; return pushState; }
+    if (!pushListeners) {
+      pushListeners = true;
+      await PushNotifications.createChannel({ id: 'bookings', name: 'الحجوزات الجديدة', importance: 5, sound: 'default', vibration: true }).catch(() => {});
+      await PushNotifications.addListener('registration', ({ value }) => { pushState = { status: 'registered', error: '' }; saveToken(value); });
+      await PushNotifications.addListener('registrationError', ({ error }) => { pushState = { status: 'error', error: String(error) }; });
+      await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => onOpen?.(notification.data || {}));
+    }
+    pushState = { status: 'registering', error: '' };
     await PushNotifications.register();
-  } catch { pushReady = false; }
+  } catch (error) { pushState = { status: 'error', error: String(error?.message || error) }; }
+  return pushState;
 }
