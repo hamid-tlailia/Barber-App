@@ -2,9 +2,25 @@
   "appId": "com.appcraft.miqass",
   "appName": "مِقص",
   "webDir": "dist",
-  "android": { "allowMixedContent": false },
+  "android": {
+    "allowMixedContent": false
+  },
   "plugins": {
-    "SplashScreen": { "launchAutoHide": false, "backgroundColor": "#121110", "showSpinner": false },
-    "LocalNotifications": { "iconColor": "#b5762f" }
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#121110",
+      "showSpinner": false
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_notify",
+      "iconColor": "#D59A4E"
+    },
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
   }
 }

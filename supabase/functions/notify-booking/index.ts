@@ -78,7 +78,7 @@ Deno.serve(async req => {
         token: device,
         notification: { title, body },
         data: { appointmentId: String(a.id ?? ''), shopId: String(shop_id) },
-        android: { priority: 'high', notification: { sound: 'default', channel_id: 'bookings' } },
+        android: { priority: 'high', notification: { sound: 'default', channel_id: 'bookings', icon: 'ic_stat_notify', color: '#D59A4E' } },
       } }),
     });
     if (res.ok) sent++;
