@@ -1,5 +1,5 @@
 // مكونات الواجهة المشتركة: بسيطة، كبيرة، وواضحة للمس.
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Check, ChevronLeft, Search, TriangleAlert, X } from 'lucide-react';
 import { statusText } from './data.js';
 
@@ -64,19 +64,82 @@ export function Empty({ icon: Icon, title, text, action }) {
   return <div className="empty"><span className="empty-icon"><Icon size={30} /></span><strong>{title}</strong>{text && <p>{text}</p>}{action}</div>;
 }
 
-// نافذة منبثقة: لوحة سفلية على الهاتف، ونافذة وسطية على الشاشات الكبيرة.
+// نافذة منبثقة: لوحة سفلية على الهاتف تُسحب للأسفل لإغلاقها (مثل التطبيقات)، ونافذة وسطية على الشاشات الكبيرة.
+const CLOSE_MS = 240;
+const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
 export function Sheet({ title, subtitle, onClose, children, footer, size = 'md' }) {
+  const backdrop = useRef(null);
+  const panel = useRef(null);
+  const drag = useRef(null);
+  const [closing, setClosing] = useState(false);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  const requestClose = useCallback((mode = 'tap') => {
+    if (closing) return;
+    if (reduceMotion()) { closeRef.current(); return; }
+    setClosing(mode === 'drag' ? 'drag' : 'tap');
+    setTimeout(() => closeRef.current(), CLOSE_MS);
+  }, [closing]);
+
   useEffect(() => {
-    const onKey = event => { if (event.key === 'Escape') onClose(); };
+    // Escape / زر الرجوع يغلق النافذة العلوية فقط عند تداخل النوافذ.
+    const onKey = event => {
+      if (event.key !== 'Escape') return;
+      const all = document.querySelectorAll('.sheet-backdrop');
+      if (all[all.length - 1] === backdrop.current) requestClose();
+    };
     document.addEventListener('keydown', onKey);
     document.body.classList.add('sheet-open');
-    return () => { document.removeEventListener('keydown', onKey); document.body.classList.remove('sheet-open'); };
-  }, [onClose]);
-  return <div className="sheet-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className={`sheet sheet-${size}`} role="dialog" aria-modal="true" aria-label={title}>
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (document.querySelectorAll('.sheet-backdrop').length <= 1) document.body.classList.remove('sheet-open');
+    };
+  }, [requestClose]);
+
+  // السحب للأسفل من المقبض أو شريط العنوان (مثل تطبيقات الهاتف).
+  const onPointerDown = event => {
+    if (event.pointerType === 'mouse' || window.matchMedia?.('(min-width: 700px)').matches) return;
+    if (!event.target.closest('.sheet-grip, .sheet-head') || event.target.closest('button, input, a')) return;
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* pointer already released */ }
+    drag.current = { startY: event.clientY, lastY: event.clientY, lastT: performance.now(), velocity: 0, dy: 0, active: false };
+  };
+  const onPointerMove = event => {
+    const d = drag.current;
+    if (!d) return;
+    const dy = event.clientY - d.startY;
+    if (!d.active) { if (Math.abs(dy) < 4) return; d.active = true; }
+    const now = performance.now();
+    d.velocity = (event.clientY - d.lastY) / Math.max(1, now - d.lastT);
+    d.lastY = event.clientY; d.lastT = now;
+    d.dy = Math.max(0, event.clientY - d.startY) - Math.max(0, d.startY - event.clientY) * 0.15;
+    panel.current.style.transition = 'none';
+    panel.current.style.transform = `translateY(${Math.max(-12, d.dy)}px)`;
+    backdrop.current.style.setProperty('--dim', String(Math.max(0, 1 - d.dy / (panel.current.offsetHeight || 600))));
+  };
+  const onPointerUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d?.active) return;
+    const shouldClose = d.dy > Math.min(140, (panel.current.offsetHeight || 600) * 0.3) || (d.velocity > 0.6 && d.dy > 30);
+    panel.current.style.transition = '';
+    backdrop.current.style.removeProperty('--dim');
+    if (shouldClose) {
+      // يكمل النزول من موضع الإصبع بنفس الاتجاه بدل القفز.
+      panel.current.style.transition = `transform ${CLOSE_MS}ms cubic-bezier(.4, 0, 1, 1)`;
+      panel.current.style.transform = 'translateY(105%)';
+      requestClose('drag');
+    } else panel.current.style.transform = '';
+  };
+
+  return <div ref={backdrop} className={`sheet-backdrop ${closing ? `closing closing-${closing}` : ''}`} onMouseDown={event => { if (event.target === event.currentTarget) requestClose(); }}>
+    <div ref={panel} className={`sheet sheet-${size}`} role="dialog" aria-modal="true" aria-label={title}
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+      <div className="sheet-grip" aria-hidden="true"><span /></div>
       <header className="sheet-head">
         <div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>
-        <IconButton icon={X} label="إغلاق" onClick={onClose} />
+        <IconButton icon={X} label="إغلاق" onClick={() => requestClose()} />
       </header>
       <div className="sheet-body">{children}</div>
       {footer && <footer className="sheet-foot">{footer}</footer>}
