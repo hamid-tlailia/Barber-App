@@ -30,9 +30,10 @@ export function useShopData(shop, onRemoteBookings) {
     try {
       const pending = meta.current.pending;
       if (pending.length) {
-        await pushChanges(shopId, dataRef.current, pending);
+        const { rejected } = await pushChanges(shopId, dataRef.current, pending);
         // تُحذف فقط التغييرات التي رُفعت؛ ما أُضيف أثناء الرفع يبقى للدورة التالية.
         meta.current.pending = meta.current.pending.filter(change => !pending.includes(change));
+        if (rejected.length) setTimeout(() => remoteCb.current?.rejected?.(rejected), 0);
       }
       const firstPull = !meta.current.cursor;
       const { rows, cursor } = await pullChanges(shopId, meta.current.cursor);

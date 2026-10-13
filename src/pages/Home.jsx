@@ -32,7 +32,7 @@ export default function Home() {
   return <div className="stack-lg">
     <div className="hello">
       <span>{hour < 12 ? L('صباح الخير', 'Good morning') : L('مساء الخير', 'Good evening')} 👋</span>
-      <small>{dateLabel(today)}</small>
+      <small>{dateLabel(today, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</small>
     </div>
 
     <div className="stats">

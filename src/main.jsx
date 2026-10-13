@@ -153,6 +153,8 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
     if (!(import.meta.env.VITE_PUSH === '1' && document.hidden)) notifyNow(L('📅 حجز جديد', '📅 New booking'), text); // في الخلفية يصل إشعار Firebase بدلاً منه
     toastRef.current?.(text, 'success', { label: L('فتح', 'Open'), run: () => goRef.current?.('appointments', { open: a.id }) });
   }, []);
+  // تغييرات رفضها الخادم (صلاحيات) لا تبقى عالقة: نُبلغ بها مرة واحدة.
+  onRemoteBookings.rejected = list => toastRef.current?.(L(`تعذّر حفظ ${list.length} تغيير على السحابة — لا تملك صلاحية`, `${list.length} change(s) could not be saved to the cloud — permission denied`), 'error');
   const toastRef = useRef(null);
   const goRef = useRef(null);
   const { data, setData, sync, syncNow } = useShopData(shop, onRemoteBookings);
@@ -164,8 +166,15 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
   const [, setTick] = useState(0);
   toastRef.current = showToast;
 
-  const go = useCallback((destination, nextIntent = null) => {
-    setPageState(allowed.includes(destination) ? destination : 'home');
+  // سجل التنقل: زر الرجوع يعود للصفحة السابقة (مثل «المزيد») بدل القفز للرئيسية.
+  const trail = useRef([]);
+  const go = useCallback((destination, nextIntent = null, { back = false } = {}) => {
+    const next = allowed.includes(destination) ? destination : 'home';
+    setPageState(current => {
+      if (!back && current !== next) trail.current = [...trail.current.filter(p => p !== next), current].slice(-8);
+      if (TABS.includes(next) && next !== 'more') trail.current = next === 'home' ? [] : ['home'];
+      return next;
+    });
     setIntent(nextIntent);
     window.scrollTo({ top: 0 });
   }, [allowed]);
@@ -175,7 +184,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
   useEffect(() => {
     const handler = event => {
       if (document.querySelector('.overlay-screen')) return; // شاشة إضافة الفرع تعالج الرجوع بنفسها
-      if (page !== 'home') { event.preventDefault?.(); go('home'); }
+      if (page !== 'home') { event.preventDefault?.(); go(trail.current.pop() || 'home', null, { back: true }); }
     };
     document.addEventListener('app-back', handler);
     return () => document.removeEventListener('app-back', handler);
@@ -252,7 +261,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
         <header className="topbar">
           <div className="topbar-title"><h1>{page === 'home' ? (data.shopName || L('مِقص', 'Miqass')) : page === 'clients' ? vocab.clients : page === 'team' ? vocab.team : PAGES[page].label}</h1></div>
           <div className="topbar-actions">
-            {SyncIcon && <button type="button" className={`sync-pill sync-${sync.state}`} onClick={syncNow} title={sync.error || L('مزامنة', 'Sync')}><SyncIcon size={16} className={sync.state === 'syncing' ? 'spin' : ''} />{sync.pending ? <span>{sync.pending}</span> : null}</button>}
+            {SyncIcon && <button type="button" className={`sync-pill sync-${sync.state}`} onClick={() => { syncNow(); if (sync.state === 'error') showToast(L(`تعذّرت المزامنة: ${sync.error}`, `Sync failed: ${sync.error}`), 'error'); }} title={sync.error || L('مزامنة', 'Sync')}><SyncIcon size={16} className={sync.state === 'syncing' ? 'spin' : ''} />{sync.pending ? <span>{sync.pending}</span> : null}</button>}
             {admin && <button type="button" className={`icon-btn ${page === 'admin' ? 'active' : ''}`} onClick={() => go('admin')} aria-label={L('لوحة المطوّر', 'Developer panel')}><ShieldCheck size={19} /></button>}
             {allowed.includes('settings') && !tabs.includes('settings') && <button type="button" className={`icon-btn ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')} aria-label={L('الإعدادات', 'Settings')}><Settings2 size={19} /></button>}
           </div>

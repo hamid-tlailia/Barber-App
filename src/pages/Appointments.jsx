@@ -4,7 +4,7 @@ import {
   ListPlus, MapPin, MessageCircle, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
 import {
-  addDays, appointmentTotal, availableSlots, balanceDue, buildItems, conflicts, dateLabel, depositPaid, fillTemplate, isPaid,
+  addDays, appointmentTotal, availableSlots, balanceDue, buildItems, conflicts, dateLabel, dateFor, depositPaid, fillTemplate, isPaid, messageFor, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { noShowRisk, waitlistMatches } from '../smart.js';
@@ -49,6 +49,7 @@ export default function Appointments() {
   const current = open && data.appointments.find(a => a.id === open);
 
   return <div className="stack">
+    <small className="strip-month">{dateLabel(date, { month: 'long', year: 'numeric' })}</small>
     <div className="day-nav">
       <IconButton icon={PrevChevron} label={L('السابق', 'Previous')} onClick={() => setStartDay(addDays(startDay, -7))} />
       <div className="day-strip">{days.map(d => <button type="button" key={d} className={`day ${d === date ? 'active' : ''} ${d === localISO() ? 'today' : ''}`} onClick={() => setDate(d)}>
@@ -111,7 +112,7 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
     if (status !== 'completed') onClose();
   };
   const remind = () => {
-    openExternal(whatsappLink(client?.phone, fillTemplate(data.settings.templates.reminder, vars)));
+    openExternal(whatsappLink(client?.phone, fillTemplate(messageFor(data.settings, 'reminder', client), { ...vars, date: dateFor(client, a.date), time: timeFor(client, a.time) })));
     logMessage('reminder', a.clientId, a.id);
     patch('appointments', a.id, { reminderSentAt: localISO() });
   };
@@ -121,7 +122,7 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
     <div className="list">{suggest.map(w => {
       const c = data.clients.find(x => x.id === w.clientId);
       return <Row key={w.id} leading={<Avatar name={c?.name} />} title={c?.name} subtitle={w.note || (w.date ? dateLabel(w.date) : L('أي يوم', 'Any day'))} trailing={<Button size="sm" variant="secondary" icon={MessageCircle} onClick={() => {
-        openExternal(whatsappLink(c?.phone, fillTemplate(data.settings.templates.waitlist, { ...vars, name: c?.name?.split(' ')[0] })));
+        openExternal(whatsappLink(c?.phone, fillTemplate(messageFor(data.settings, 'waitlist', c), { ...vars, name: c?.name?.split(' ')[0], date: dateFor(c, a.date), time: timeFor(c, a.time) })));
         logMessage('waitlist', w.clientId, a.id);
         // ننقل الموعد الملغى للعميل من قائمة الانتظار مباشرة (يمكن تعديله لاحقاً).
         const id = uid();
@@ -203,7 +204,15 @@ export function BookingWizard({ initial, onClose, onDone }) {
   const [deposit, setDeposit] = useState(edit?.deposit ?? null);
   const finalDeposit = deposit ?? Math.max(serviceDeposit, riskDeposit);
   const others = data.appointments.filter(a => a.id !== edit?.id);
-  const slots = useMemo(() => items.length ? availableSlots(others, { date, items, staffId, settings: data.settings, location }) : [], [date, serviceIds.join(), staffId, location, data.appointments]); // eslint-disable-line react-hooks/exhaustive-deps
+  const slots = useMemo(() => items.length ? availableSlots(others, { date, items, staffId, settings: data.settings, location, staff: data.staff }) : [], [date, serviceIds.join(), staffId, location, data.appointments, data.staff]); // eslint-disable-line react-hooks/exhaustive-deps
+  // انتهى دوام اليوم (أو امتلأ): ننتقل تلقائياً لأقرب يوم فيه أوقات متاحة.
+  const [movedFrom, setMovedFrom] = useState('');
+  useEffect(() => {
+    if (edit || movedFrom || !items.length || slots.length || date !== localISO()) return;
+    const next = Array.from({ length: 13 }, (_, i) => addDays(date, i + 1))
+      .find(d => availableSlots(others, { date: d, items, staffId, settings: data.settings, location, staff: data.staff }).length);
+    if (next) { setMovedFrom(date); setDate(next); setTime(''); }
+  }, [slots.length, date, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const categories = [...new Set(data.services.map(s => s.category || L('عام', 'General')))];
   const pkg = client && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && serviceIds.includes(p.serviceId) && (!p.expiresAt || p.expiresAt >= localISO()));
 
@@ -252,9 +261,11 @@ export function BookingWizard({ initial, onClose, onDone }) {
     </div>}
 
     {key === 'time' && <div className="stack">
-      {data.staff.length > 0 && role !== 'staff' && <Field label={L(`${vocab.pro} (اختياري)`, `${vocab.pro} (optional)`)}><Chips items={[{ id: '', label: L('أي شخص متاح', 'Anyone available') }, ...data.staff.filter(s => s.active !== false).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} /></Field>}
+      {data.staff.length > 0 && role !== 'staff' && <Field label={L(`${vocab.pro} (اختياري)`, `${vocab.pro} (optional)`)}><Chips items={[{ id: '', label: L('أي شخص متاح', 'Anyone available') }, ...data.staff.filter(s => s.active !== false && (s.id === staffId || !((s.daysOff || []).map(Number).includes(new Date(`${date}T12:00:00`).getDay()) || (s.leaves || []).includes(date)))).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} /></Field>}
       {data.settings.kind !== 'men' || location === 'home' ? <Field label={L('مكان الخدمة', 'Service location')}><Chips items={[{ id: 'salon', label: L('في الصالون', 'In salon') }, { id: 'home', label: L('منزلية', 'At home') }]} value={location} onChange={v => { setLocation(v); setTime(''); }} /></Field> : null}
       {location === 'home' && <Field label={L('العنوان', 'Address')}><input value={address} onChange={e => setAddress(e.target.value)} placeholder={L('المنطقة، الشارع، رقم المبنى', 'Area, street, building no.')} /></Field>}
+      {movedFrom && date !== movedFrom && <Alert tone="blue" icon={CalendarPlus}>{L('لا أوقات متبقية اليوم — عرضنا أقرب يوم متاح', 'No times left today — showing the next available day')}</Alert>}
+      <small className="strip-month">{dateLabel(date, { month: 'long', year: 'numeric' })}</small>
       <div className="day-strip day-strip-wide">{Array.from({ length: 14 }, (_, i) => addDays(localISO(), i)).map(d => <button type="button" key={d} className={`day ${d === date ? 'active' : ''}`} onClick={() => { setDate(d); setTime(''); }}>
         <small>{dateLabel(d, { weekday: 'short' })}</small><strong>{dateLabel(d, { day: 'numeric' })}</strong>
       </button>)}</div>

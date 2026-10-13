@@ -1,14 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Copy, KeyRound, MessageCircle, PauseCircle, PlayCircle, Trash2, UserPlus, UsersRound } from 'lucide-react';
-import { money, num, roleText, uid, whatsappLink } from '../data.js';
+import { dateLabel, isStaffOff, localISO, money, num, roleText, uid, whatsappLink } from '../data.js';
 import { commissions } from '../smart.js';
 import { api, cloudEnabled, errorText, publicBase } from '../lib/sync.js';
-import { L } from '../i18n.js';
+import { L, isEn } from '../i18n.js';
 
 const appLink = /localhost|capacitor:/.test(publicBase) ? '' : publicBase;
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, openExternal, useApp, NumInput } from '../ui.jsx';
 
 const ranges = [{ id: 'today', label: L('اليوم', 'Today') }, { id: 'week', label: L('الأسبوع', 'Week') }, { id: 'month', label: L('الشهر', 'Month') }, { id: 'lastMonth', label: L('الشهر الماضي', 'Last month') }];
+const weekdays = isEn
+  ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  : ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const nationalities = [
+  ['قطري', 'Qatari'], ['مصري', 'Egyptian'], ['سوري', 'Syrian'], ['لبناني', 'Lebanese'], ['أردني', 'Jordanian'], ['فلسطيني', 'Palestinian'],
+  ['مغربي', 'Moroccan'], ['تونسي', 'Tunisian'], ['جزائري', 'Algerian'], ['سوداني', 'Sudanese'], ['يمني', 'Yemeni'], ['عراقي', 'Iraqi'],
+  ['هندي', 'Indian'], ['باكستاني', 'Pakistani'], ['بنغلاديشي', 'Bangladeshi'], ['سريلانكي', 'Sri Lankan'], ['نيبالي', 'Nepali'], ['فلبيني', 'Filipino'],
+  ['إندونيسي', 'Indonesian'], ['تايلاندي', 'Thai'], ['تركي', 'Turkish'], ['إيراني', 'Iranian'], ['كيني', 'Kenyan'], ['إثيوبي', 'Ethiopian'],
+].map(([ar, en]) => L(ar, en));
 const colors = ['#b97932', '#557fa0', '#8870aa', '#328566', '#bb5c53', '#3f7f86'];
 
 export default function Team() {
@@ -31,7 +40,8 @@ export default function Team() {
     {rows.length ? <div className="team-grid">{rows.map(({ member, revenue, services, commission, tips }) => <button type="button" key={member.id} className={`team-card ${member.active === false ? 'inactive' : ''}`} onClick={() => setForm(member)}>
       <Avatar name={member.name} size="xl" color={member.color} />
       <strong>{member.name}</strong>
-      <small>{member.role}</small>
+      <small>{member.role}{member.nationality ? ` · ${member.nationality}` : ''}</small>
+      {member.active !== false && isStaffOff(member, localISO()) && <Badge tone="orange">{L('إجازة اليوم', 'Off today')}</Badge>}
       <div className="team-figures">
         <span><b>{num(services)}</b><small>{L('خدمة', services === 1 ? 'service' : 'services')}</small></span>
         <span><b>{money(revenue)}</b><small>{L('إيراد', 'revenue')}</small></span>
@@ -52,7 +62,12 @@ function StaffForm({ member, onClose }) {
   const { upsert, remove, toast, vocab, data } = useApp();
   const [v, setV] = useState({ name: '', phone: '', role: vocab.pro, specialty: '', commission: 30, color: colors[data.staff.length % colors.length], active: true, ...member });
   const [confirm, setConfirm] = useState(false);
+  const [leaveDate, setLeaveDate] = useState('');
   const set = (key, numeric) => e => setV({ ...v, [key]: numeric ? Number(e.target.value) : e.target.value });
+  const today = localISO();
+  const leaves = v.leaves || [];
+  const setLeaves = list => setV({ ...v, leaves: [...new Set(list)].filter(d => d >= today).sort() });
+  const offToday = leaves.includes(today);
   return <Sheet title={member ? member.name : L(`إضافة ${vocab.pro}`, `Add ${vocab.pro}`)} onClose={onClose} footer={<>
     {member && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>{L('حذف', 'Delete')}</Button>}
     <div className="spacer" />
@@ -64,10 +79,25 @@ function StaffForm({ member, onClose }) {
         <Field label={L('المسمى', 'Title')}><input value={v.role} onChange={set('role')} /></Field>
         <Field label={L('الهاتف', 'Phone')}><input type="tel" dir="ltr" value={v.phone} onChange={set('phone')} /></Field>
       </div>
-      <Field label={L('التخصص', 'Specialty')}><input value={v.specialty} onChange={set('specialty')} /></Field>
+      <div className="grid-2">
+        <Field label={L('التخصص', 'Specialty')}><input value={v.specialty} onChange={set('specialty')} /></Field>
+        <Field label={L('الجنسية (اختياري)', 'Nationality (optional)')}><input list="staff-nationalities" value={v.nationality || ''} onChange={set('nationality')} />
+          <datalist id="staff-nationalities">{nationalities.map(n => <option key={n} value={n} />)}</datalist></Field>
+      </div>
       <Field label={L('نسبة العمولة ٪', 'Commission %')}><NumInput min="0" max="100" value={v.commission} onChange={set('commission', true)} /></Field>
       <Field label={L('اللون في الجدول', 'Calendar color')}><div className="color-row">{colors.map(c => <button type="button" key={c} style={{ background: c }} className={v.color === c ? 'active' : ''} onClick={() => setV({ ...v, color: c })} aria-label={c} />)}</div></Field>
       <Toggle checked={v.active !== false} onChange={on => setV({ ...v, active: on })} label={L('نشط ويقبل حجوزات', 'Active and accepting bookings')} />
+      <Field label={L('أيام الراحة الأسبوعية', 'Weekly days off')}><Chips multiple items={weekdays.map((d, i) => ({ id: i, label: d }))} value={(v.daysOff || []).map(Number)} onChange={daysOff => setV({ ...v, daysOff: [...daysOff].sort() })} /></Field>
+      <Toggle checked={offToday} onChange={on => setLeaves(on ? [...leaves, today] : leaves.filter(d => d !== today))} label={L('إجازة اليوم', 'Off today')} hint={L('لا تُعرض له مواعيد متاحة اليوم', 'No available times will be offered for them today')} />
+      <Field label={L('الإجازات القادمة', 'Upcoming leave')}>
+        <div className="stack">
+          {leaves.filter(d => d >= today).length > 0 && <div className="chips">{leaves.filter(d => d >= today).map(d => <button type="button" key={d} className="chip active" onClick={() => setLeaves(leaves.filter(x => x !== d))} aria-label={L('إزالة', 'Remove')}>{dateLabel(d, { weekday: 'short', day: 'numeric', month: 'short' })} ✕</button>)}</div>}
+          <div className="row-buttons">
+            <input type="date" min={today} value={leaveDate} onChange={e => setLeaveDate(e.target.value)} />
+            <Button size="sm" variant="secondary" disabled={!leaveDate || leaveDate < today} onClick={() => { setLeaves([...leaves, leaveDate]); setLeaveDate(''); }}>{L('إضافة', 'Add')}</Button>
+          </div>
+        </div>
+      </Field>
       {member && cloudEnabled && <LinkedAccount staffId={member.id} />}
     </div>
     {confirm && <Confirm title={L('حذف من الفريق؟', 'Remove from team?')} text={L('الأفضل إيقافه (غير نشط) للحفاظ على التقارير.', 'Better to deactivate them to keep your reports intact.')} danger confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirm(false)} onConfirm={() => { remove('staff', member.id); toast(L('تم الحذف', 'Deleted')); onClose(); }} />}

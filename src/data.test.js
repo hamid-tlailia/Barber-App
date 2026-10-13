@@ -36,6 +36,37 @@ test('الأوقات المتاحة تحترم ساعات العمل وأيام 
   assert.deepEqual(closed, []);
 });
 
+test('مفتوح 24 ساعة يتجاهل أيام الإغلاق ويغطي اليوم كاملاً', () => {
+  const settings = { ...defaultSettings('men'), hours: { open: '09:00', close: '22:00', closedDays: [0], allDay: true }, slotStep: 60 };
+  const items = [{ serviceId: 's1', name: 'قص', price: 50, duration: 60, staffId: '' }];
+  const slots = availableSlots([], { date: '2030-01-06', items, settings, now: new Date('2030-01-01T08:00:00') });
+  assert.equal(slots.length, 24);
+  assert.equal(slots[0], '00:00');
+  assert.equal(slots.at(-1), '23:00');
+  // الإغلاق بعد منتصف الليل: 20:00–02:00
+  const night = availableSlots([], { date: '2030-01-07', items, settings: { ...settings, hours: { open: '20:00', close: '02:00', closedDays: [] } }, now: new Date('2030-01-01T08:00:00') });
+  assert.deepEqual(night, ['00:00', '01:00', '20:00', '21:00', '22:00', '23:00']);
+});
+
+test('يوم راحة الموظف وإجازته يستبعدانه من المواعيد والسعة', () => {
+  const settings = { ...defaultSettings('men'), hours: { open: '09:00', close: '11:00', closedDays: [] }, slotStep: 30 };
+  const items = [{ serviceId: 's1', name: 'قص', price: 50, duration: 30, staffId: '' }];
+  const now = new Date('2030-01-01T08:00:00');
+  // 2030-01-07 يوم اثنين (1)
+  const staff = [{ id: 't1', name: 'أ', daysOff: [1] }, { id: 't2', name: 'ب', leaves: ['2030-01-08'] }];
+  assert.deepEqual(availableSlots([], { date: '2030-01-07', items, staffId: 't1', settings, now, staff }), []);
+  assert.equal(availableSlots([], { date: '2030-01-07', items, staffId: 't2', settings, now, staff }).length, 4);
+  assert.deepEqual(availableSlots([], { date: '2030-01-08', items, staffId: 't2', settings, now, staff }), []);
+  // «أي موظف»: t2 مشغول 09:30 وt1 في راحة، فلا يُحسب t1 ضمن السعة.
+  const busy = [appt({ date: '2030-01-07', time: '09:30', staffId: 't2', items: [{ ...appt().items[0], staffId: 't2' }] })];
+  assert.deepEqual(availableSlots(busy, { date: '2030-01-07', items, settings, now, staff }), ['09:00', '10:00', '10:30']);
+  // في يوم يعمل فيه الاثنان، يبقى 09:30 متاحاً لـ t1.
+  const busyWed = [appt({ date: '2030-01-09', time: '09:30', staffId: 't2', items: [{ ...appt().items[0], staffId: 't2' }] })];
+  assert.deepEqual(availableSlots(busyWed, { date: '2030-01-09', items, settings, now, staff }), ['09:00', '09:30', '10:00', '10:30']);
+  // كل الفريق في إجازة: لا أوقات.
+  assert.deepEqual(availableSlots([], { date: '2030-01-07', items, settings, now, staff: [staff[0]] }), []);
+});
+
 test('الدفع الجزئي والعربون والإكرامية والخصم', () => {
   const a = appt({ discount: 10, payments: [{ amount: 20, kind: 'deposit' }, { amount: 5, kind: 'tip' }] });
   assert.equal(appointmentTotal(a), 40);
@@ -105,7 +136,7 @@ test('قيمة التطبيق (ROI) تحسب الحجوزات الأونلاين
 
 test('قائمة الانتظار تقترح المطابق لليوم', () => {
   const list = [{ id: 'w1', status: 'waiting', date: '2026-05-10', createdAt: '1' }, { id: 'w2', status: 'waiting', date: '2026-05-11', createdAt: '1' }, { id: 'w3', status: 'waiting', date: '', createdAt: '2' }];
-  assert.deepEqual(waitlistMatches(list, appt()).map(w => w.id), ['w1', 'w3']);
+  assert.deepEqual(waitlistMatches(list, appt(), new Date('2026-01-01T00:00:00')).map(w => w.id), ['w1', 'w3']);
 });
 
 test('المزامنة: اكتشاف التغييرات ودمج السحب مع حماية التعديلات المحلية', () => {

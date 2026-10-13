@@ -154,7 +154,8 @@ export function roi(data, since) {
 }
 
 // اقتراح من قائمة الانتظار عند إلغاء موعد.
-export const waitlistMatches = (waitlist, cancelled) => waitlist
+// لا نقترح موعداً ألغي وقد فات وقته (مثلاً إلغاء موعد الساعة 3 عصراً بعد انتهائه).
+export const waitlistMatches = (waitlist, cancelled, now = new Date()) => (new Date(`${cancelled.date}T${cancelled.time || '23:59'}:00`) <= now ? [] : waitlist)
   .filter(w => w.status === 'waiting' && (!w.date || w.date === cancelled.date) && (!w.staffId || !cancelled.staffId || w.staffId === cancelled.staffId))
   .sort((a, b) => (a.date ? 0 : 1) - (b.date ? 0 : 1) || a.createdAt.localeCompare(b.createdAt));
 

@@ -71,7 +71,7 @@ serviceTemplates.mixed = [...serviceTemplates.men.slice(0, 3), ...serviceTemplat
 
 export const defaultSettings = (kind = 'men') => ({
   kind,
-  hours: { open: '09:00', close: '22:00', closedDays: [] },
+  hours: { open: '09:00', close: '22:00', closedDays: [], allDay: false },
   slotStep: 15,
   reminderHours: 24,
   loyaltyPer: 10,
@@ -263,35 +263,103 @@ export const buildItems = (services, serviceIds, staffId = '') => serviceIds
   .map(id => services.find(service => service.id === id)).filter(Boolean)
   .map(service => ({ serviceId: service.id, name: service.name, price: Number(service.price || 0), duration: Number(service.duration || 30), processing: Number(service.processing || 0), staffId }));
 
-export const availableSlots = (appointments, { date, items, staffId = '', settings, now = new Date(), location = 'salon', travel = 30 }) => {
-  const hours = settings?.hours || { open: '09:00', close: '22:00', closedDays: [] };
+// فترات العمل لتاريخ معيّن بالدقائق [بداية، نهاية]. تدعم «مفتوح 24 ساعة» والإغلاق بعد منتصف الليل
+// (مثلاً 18:00–02:00: من 00:00 حتى 02:00 امتداداً لليلة السابقة، ومن 18:00 حتى 24:00).
+export const openWindows = (hours, date) => {
+  const h = hours || { open: '09:00', close: '22:00', closedDays: [] };
+  if (h.allDay) return [[0, 1440]];
   const weekday = new Date(`${date}T12:00:00`).getDay();
-  if ((hours.closedDays || []).includes(weekday)) return [];
+  const closed = (h.closedDays || []).map(Number);
+  const open = toMinutes(h.open || '09:00');
+  let close = toMinutes(h.close || '22:00');
+  if (close === 0 && open > 0) close = 1440; // «00:00» تعني منتصف الليل
+  if (close >= open) return closed.includes(weekday) ? [] : [[open, close]];
+  const windows = [];
+  if (!closed.includes((weekday + 6) % 7)) windows.push([0, close]);
+  if (!closed.includes(weekday)) windows.push([open, 1440]);
+  return windows;
+};
+
+// هل الموظف في إجازة (يوم راحة أسبوعي أو تاريخ إجازة محدد) في هذا التاريخ؟
+export const isStaffOff = (member, date) => {
+  if (!member || !date) return false;
+  const weekday = new Date(`${date}T12:00:00`).getDay();
+  return (member.daysOff || []).map(Number).includes(weekday) || (member.leaves || []).includes(date);
+};
+
+export const availableSlots = (appointments, { date, items, staffId = '', settings, now = new Date(), location = 'salon', travel = 30, staff }) => {
+  const windows = openWindows(settings?.hours, date);
+  if (!windows.length) return [];
+  // عند تمرير قائمة الفريق: الموظف المجاز لا يُحجز له، ولا يُحسب ضمن السعة عند «أي موظف».
+  const team = Array.isArray(staff) ? staff : null;
+  const offIds = new Set((team || []).filter(m => isStaffOff(m, date)).map(m => m.id));
+  if (offIds.has(staffId) || items.some(item => item.staffId && offIds.has(item.staffId))) return [];
+  const needsAnyone = !staffId && items.some(item => !item.staffId);
+  const working = team && needsAnyone ? team.filter(m => m.active !== false && !offIds.has(m.id)) : null;
+  if (working && !working.length && team.some(m => m.active !== false)) return [];
   const step = Number(settings?.slotStep || 15);
   const duration = items.reduce((sum, item) => sum + Number(item.duration || 0), 0) || 30;
   const slots = [];
   const isToday = date === localISO(now);
-  for (let minute = toMinutes(hours.open); minute + duration <= toMinutes(hours.close); minute += step) {
-    if (isToday && minute < now.getHours() * 60 + now.getMinutes() + 10) continue;
-    const time = fromMinutes(minute);
-    const candidate = { date, time, items: items.map(item => ({ ...item, staffId: item.staffId || staffId })), staffId, status: 'pending', location, travel, duration };
-    if (!hasAppointmentConflict(appointments, candidate)) slots.push(time);
+  const free = (time, who) => !hasAppointmentConflict(appointments, { date, time, items: items.map(item => ({ ...item, staffId: item.staffId || who })), staffId: who, status: 'pending', location, travel, duration });
+  for (const [start, end] of windows) {
+    for (let minute = start; minute + duration <= end; minute += step) {
+      if (isToday && minute < now.getHours() * 60 + now.getMinutes() + 10) continue;
+      const time = fromMinutes(minute);
+      if (working?.length ? working.some(m => free(time, m.id)) : free(time, staffId)) slots.push(time);
+    }
   }
   return slots;
 };
 
-export const nextOpenSlot = (appointments, items, settings, staffId = '', now = new Date()) => {
+export const nextOpenSlot = (appointments, items, settings, staffId = '', now = new Date(), staff) => {
   for (let day = 0; day < 21; day++) {
     const date = addDays(localISO(now), day);
-    const [time] = availableSlots(appointments, { date, items, staffId, settings, now });
+    const [time] = availableSlots(appointments, { date, items, staffId, settings, now, staff });
     if (time) return { date, time };
   }
-  return { date: addDays(localISO(now), 1), time: settings?.hours?.open || '09:00' };
+  return { date: addDays(localISO(now), 1), time: settings?.hours?.allDay ? '00:00' : settings?.hours?.open || '09:00' };
 };
 
 /* ───────────── الرسائل ───────────── */
 
 export const fillTemplate = (template, values) => String(template || '').replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
+
+// نصوص الرسائل حسب لغة العميل (عربي/إنجليزي)، مستقلة عن لغة واجهة التطبيق.
+export const DEFAULT_TEMPLATES = {
+  ar: {
+    reminder: 'مرحباً {name} 👋\nتذكير بموعدك في {shop} يوم {date} الساعة {time}.\nللتأكيد أرسل 1، وللإلغاء أرسل 2.',
+    recovery: 'اشتقنا لك يا {name} 🌟\nمرّ وقت على آخر زيارة لـ{shop}. احجز هذا الأسبوع واحصل على خصم 10٪.\n{link}',
+    thanks: 'شكراً لزيارتك {shop} يا {name} 🙏\nرأيك يهمنا: كيف كانت تجربتك اليوم؟',
+    waitlist: 'خبر سار يا {name}! توفر موعد في {shop} يوم {date} الساعة {time}. هل يناسبك؟ ردّ بنعم لنثبته لك.',
+    waitlistContact: 'مرحباً {name} 👋 معك {shop} بخصوص طلبك في قائمة الانتظار{date}. سنخبرك فور توفر موعد مناسب، أو أخبرنا بالوقت الذي يناسبك.',
+    birthday: 'كل عام وأنت بخير يا {name} 🎉 هديتك من {shop}: خصم 20٪ على زيارتك القادمة.',
+  },
+  en: {
+    reminder: 'Hi {name} 👋\nA reminder of your appointment at {shop} on {date} at {time}.\nReply 1 to confirm or 2 to cancel.',
+    recovery: 'We miss you, {name} 🌟\nIt has been a while since your last visit to {shop}. Book this week and get 10% off.\n{link}',
+    thanks: 'Thank you for visiting {shop}, {name} 🙏\nYour opinion matters: how was your experience today?',
+    waitlist: 'Good news, {name}! A slot opened up at {shop} on {date} at {time}. Does it suit you? Reply yes and we will book it for you.',
+    waitlistContact: 'Hi {name} 👋 This is {shop} about your waitlist request{date}. We will let you know as soon as a suitable slot opens, or tell us what time suits you.',
+    birthday: 'Happy birthday, {name} 🎉 A gift from {shop}: 20% off your next visit.',
+  },
+};
+export const clientLang = client => (client?.lang === 'en' || client?.lang === 'ar' ? client.lang : 'ar');
+export function messageFor(settings, key, client) {
+  const lang = clientLang(client);
+  // settings.templates مكتوبة بلغة واجهة الصالون؛ لا تُستخدم لعميل بلغة أخرى.
+  const custom = lang === 'en' ? (settings?.templatesEn || (isEn ? settings?.templates : null)) : (isEn ? settings?.templatesAr : settings?.templates);
+  return custom?.[key] || DEFAULT_TEMPLATES[lang][key] || DEFAULT_TEMPLATES.ar[key];
+}
+// التاريخ والوقت بلغة العميل داخل الرسالة.
+export const dateFor = (client, date, options = { weekday: 'long', day: 'numeric', month: 'long' }) =>
+  new Intl.DateTimeFormat(clientLang(client) === 'en' ? 'en-GB' : 'ar-QA-u-nu-latn', options).format(new Date(`${date}T12:00:00`));
+export const timeFor = (client, time) => {
+  if (!time) return '';
+  const [h, m] = time.split(':').map(Number);
+  const en = clientLang(client) === 'en';
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? (en ? 'AM' : 'ص') : (en ? 'PM' : 'م')}`;
+};
 
 export const whatsappNumber = (phone, countryCode = '974') => {
   const digits = phoneDigits(phone);

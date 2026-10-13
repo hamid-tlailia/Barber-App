@@ -332,7 +332,8 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .action-row .btn { flex: 1; min-width: 120px; }
 
 .toast { position: fixed; z-index: 60; inset-inline: 16px; bottom: calc(var(--tab-h) + var(--safe-b) + 14px); margin: 0 auto; max-width: 440px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 16px; background: var(--ink); color: var(--bg); font-weight: 600; box-shadow: var(--shadow-lg); animation: toast-in .42s var(--ease-spring); }
-:root[data-theme='dark'] .toast { background: var(--surface-3); color: var(--ink); border: 1px solid var(--line-strong); }
+.toast { background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); }
+:root[data-theme='dark'] .toast { background: var(--surface-3); }
 .toast-error { background: var(--red); color: #fff; }
 .toast button { color: var(--accent); font-weight: 800; }
 @media (min-width: 900px) { .toast { bottom: 24px; } }
@@ -601,3 +602,12 @@ input.toggle:checked:active::after { inset-inline-start: 17px; }
 html[dir='rtl'] input[dir='ltr'], html[dir='rtl'] textarea[dir='ltr'] { text-align: right; }
 .plan-current { border-color: var(--green); background: var(--green-soft); }
 .plan-current .plan-tag { background: var(--green); }
+
+/* ارتفاع موحّد لكل الحقول حتى لا يبدو حقل أعلى من الآخر. */
+input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file']), select { height: 50px; min-height: 50px; }
+.money-input input { font-size: 16px; }
+.money-input.small input { height: 40px; min-height: 40px; }
+.search input { height: 46px; min-height: 46px; }
+.stepper input { height: 56px; min-height: 56px; }
+.btn-busy { opacity: .8; cursor: progress; }
+.strip-month { color: var(--muted); font-weight: 600; margin-bottom: -6px; }

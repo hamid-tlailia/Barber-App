@@ -1,6 +1,6 @@
 // مكونات الواجهة المشتركة: بسيطة، كبيرة، وواضحة للمس.
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Search, TriangleAlert, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Loader2, Search, TriangleAlert, X } from 'lucide-react';
 import { statusText } from './data.js';
 import { L, isEn } from './i18n.js';
 
@@ -21,8 +21,21 @@ export function Badge({ status, children, tone }) {
   return <span className={`badge badge-${tone || status}`}>{children || statusText[status] || status}</span>;
 }
 
-export function Button({ icon: Icon, children, variant = 'primary', size, block, ...props }) {
-  return <button type="button" className={`btn btn-${variant} ${size ? `btn-${size}` : ''} ${block ? 'btn-block' : ''}`} {...props}>{Icon && <Icon size={size === 'lg' ? 20 : 18} />}{children && <span>{children}</span>}</button>;
+// إذا أعاد onClick وعداً (حفظ على الخادم مثلاً) يظهر مؤشر تحميل ويُقفل الزر حتى الانتهاء.
+export function Button({ icon: Icon, children, variant = 'primary', size, block, onClick, disabled, loading, ...props }) {
+  const [busy, setBusy] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
+  const working = busy || loading;
+  const click = event => {
+    const result = onClick?.(event);
+    if (result && typeof result.then === 'function') {
+      setBusy(true);
+      result.finally(() => { if (mounted.current) setBusy(false); });
+    }
+  };
+  const ShownIcon = working ? Loader2 : Icon;
+  return <button type="button" className={`btn btn-${variant} ${size ? `btn-${size}` : ''} ${block ? 'btn-block' : ''} ${working ? 'btn-busy' : ''}`} disabled={disabled || working} aria-busy={working || undefined} onClick={click} {...props}>{ShownIcon && <ShownIcon size={size === 'lg' ? 20 : 18} className={working ? 'spin' : undefined} />}{children && <span>{children}</span>}</button>;
 }
 
 export function IconButton({ icon: Icon, label, tone = '', ...props }) {

@@ -58,10 +58,10 @@ export const sendText = (config: WaConfig, to: string, text: string) =>
   waPost(config, { to: waNumber(to), type: 'text', text: { body: text.slice(0, 4000) } });
 
 // رسائل المبادرة (خارج نافذة ٢٤ ساعة) يجب أن تكون قوالب معتمدة من Meta. المعاملات بدون أسطر جديدة.
-export const sendTemplate = (config: WaConfig, to: string, name: string, params: string[]) =>
+export const sendTemplate = (config: WaConfig, to: string, name: string, params: string[], lang?: string) =>
   waPost(config, {
     to: waNumber(to), type: 'template',
-    template: { name, language: { code: Deno.env.get('WA_TEMPLATE_LANG') ?? 'ar' }, components: [{ type: 'body', parameters: params.map(text => ({ type: 'text', text: text.replace(/\s*\n\s*/g, ' | ').slice(0, 1000) })) }] },
+    template: { name, language: { code: lang ?? Deno.env.get('WA_TEMPLATE_LANG') ?? 'ar' }, components: [{ type: 'body', parameters: params.map(text => ({ type: 'text', text: text.replace(/\s*\n\s*/g, ' | ').slice(0, 1000) })) }] },
   });
 
 /* ───────── بيانات الصالون ───────── */
@@ -112,18 +112,51 @@ export function conflicts(appointments: Record<string, any>[], candidate: Record
     !(m.staffId && b.staffId && m.staffId !== b.staffId) && m.start < b.end && b.start < m.end)));
 }
 
-export function availableSlots(appointments: Record<string, any>[], date: string, items: Item[], staffId: string, settings: Record<string, any>) {
-  const hours = settings.hours ?? { open: '09:00', close: '22:00', closedDays: [] };
-  if ((hours.closedDays ?? []).includes(new Date(`${date}T12:00:00Z`).getUTCDay())) return [];
+// فترات العمل بالدقائق: تدعم «مفتوح 24 ساعة» والإغلاق بعد منتصف الليل (نفس openWindows في src/data.js).
+export function openWindows(hours: Record<string, any> | undefined, date: string): [number, number][] {
+  const h = hours ?? { open: '09:00', close: '22:00', closedDays: [] };
+  if (h.allDay) return [[0, 1440]];
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const closed = (h.closedDays ?? []).map(Number);
+  const open = toMin(h.open || '09:00');
+  let close = toMin(h.close || '22:00');
+  if (close === 0 && open > 0) close = 1440;
+  if (close >= open) return closed.includes(weekday) ? [] : [[open, close]];
+  const windows: [number, number][] = [];
+  if (!closed.includes((weekday + 6) % 7)) windows.push([0, close]);
+  if (!closed.includes(weekday)) windows.push([open, 1440]);
+  return windows;
+}
+
+// يوم راحة أسبوعي أو تاريخ إجازة للموظف.
+export function isStaffOff(member: Record<string, any> | undefined, date: string) {
+  if (!member) return false;
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  return (member.daysOff ?? []).map(Number).includes(weekday) || (member.leaves ?? []).includes(date);
+}
+
+// staff اختياري: صفوف {id, data} أو كائنات مسطحة. الموظف المجاز لا يُحجز له ولا يُحسب ضمن السعة عند «أي موظف».
+export function availableSlots(appointments: Record<string, any>[], date: string, items: Item[], staffId: string, settings: Record<string, any>, staff?: Record<string, any>[]) {
+  const windows = openWindows(settings.hours, date);
+  if (!windows.length) return [];
+  const team = staff ? staff.map(s => (s.data ? { id: s.id, ...s.data } : s)) : null;
+  const offIds = new Set((team ?? []).filter(m => isStaffOff(m, date)).map(m => m.id));
+  if (offIds.has(staffId) || items.some(i => i.staffId && offIds.has(i.staffId))) return [];
+  const needsAnyone = !staffId && items.some(i => !i.staffId);
+  const working = team && needsAnyone ? team.filter(m => m.active !== false && !offIds.has(m.id)) : null;
+  if (working && !working.length && team!.some(m => m.active !== false)) return [];
   const step = Number(settings.slotStep || 15);
   const duration = items.reduce((s, i) => s + i.duration, 0) || 30;
   const now = localNow();
   const today = isoDate(now);
   const slots: string[] = [];
-  for (let m = toMin(hours.open); m + duration <= toMin(hours.close); m += step) {
-    if (date === today && m < now.getUTCHours() * 60 + now.getUTCMinutes() + 30) continue;
-    const time = fromMin(m);
-    if (!conflicts(appointments, { date, time, staffId, items: items.map(i => ({ ...i, staffId: i.staffId || staffId })) })) slots.push(time);
+  const free = (time: string, who: string) => !conflicts(appointments, { date, time, staffId: who, items: items.map(i => ({ ...i, staffId: i.staffId || who })) });
+  for (const [start, end] of windows) {
+    for (let m = start; m + duration <= end; m += step) {
+      if (date === today && m < now.getUTCHours() * 60 + now.getUTCMinutes() + 30) continue;
+      const time = fromMin(m);
+      if (working?.length ? working.some(w => free(time, w.id)) : free(time, staffId)) slots.push(time);
+    }
   }
   return slots;
 }
@@ -201,8 +234,9 @@ async function handle(phoneNumberId: string, from: string, text: string, profile
 
   // ردود سريعة على التذكير.
   const normalized = text.replace(/[١٢]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
-  if (/^(1|تأكيد|اكيد|أكيد|نعم)$/.test(normalized) || /^(2|إلغاء|الغاء|لا)$/.test(normalized)) {
-    const confirm = /^(1|تأكيد|اكيد|أكيد|نعم)$/.test(normalized);
+  const yes = /^(1|تأكيد|اكيد|أكيد|نعم|yes|y|ok|okay|confirm)$/i; const no = /^(2|إلغاء|الغاء|لا|no|n|cancel)$/i;
+  if (yes.test(normalized) || no.test(normalized)) {
+    const confirm = yes.test(normalized);
     const handled = await replyToReminder(shop.shopId, config, from, confirm);
     if (handled) return;
   }
@@ -223,9 +257,11 @@ async function replyToReminder(shopId: string, config: WaConfig, from: string, c
     .sort((a, b) => `${a.data.date}${a.data.time}`.localeCompare(`${b.data.date}${b.data.time}`))[0];
   if (!next) return false;
   await saveRecord(shopId, 'appointments', next.id, { ...next.data, status: confirm ? 'confirmed' : 'cancelled', confirmedVia: 'whatsapp' });
+  const en = client.data.lang === 'en';
+  const dateEn = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${next.data.date}T12:00:00Z`));
   await sendText(config, from, confirm
-    ? `تم تأكيد موعدك ✅ ${dateAr(next.data.date)} الساعة ${timeAr(next.data.time)}. نراك قريباً!`
-    : 'تم إلغاء موعدك. نتمنى رؤيتك قريباً — أرسل لنا متى ما أردت حجز موعد جديد 🙏');
+    ? (en ? `Your appointment is confirmed ✅ ${dateEn} at ${next.data.time}. See you soon!` : `تم تأكيد موعدك ✅ ${dateAr(next.data.date)} الساعة ${timeAr(next.data.time)}. نراك قريباً!`)
+    : (en ? 'Your appointment has been cancelled. Message us anytime to book a new one 🙏' : 'تم إلغاء موعدك. نتمنى رؤيتك قريباً — أرسل لنا متى ما أردت حجز موعد جديد 🙏'));
   return true;
 }
 
@@ -269,7 +305,7 @@ async function runTool(shopId: string, from: string, name: string, input: Record
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || input.date < today || input.date > addDays(today, 60)) return 'تاريخ غير صالح — يجب أن يكون خلال الشهرين القادمين.';
     const chosen = items(input.service_ids, input.staff_id || '');
     if (!chosen.length) return 'لم يتم العثور على الخدمات. استخدم list_services للحصول على المعرّفات.';
-    const slots = availableSlots(appointments.map(a => ({ id: a.id, ...a.data })), input.date, chosen, input.staff_id || '', settings);
+    const slots = availableSlots(appointments.map(a => ({ id: a.id, ...a.data })), input.date, chosen, input.staff_id || '', settings, staff);
     return slots.length ? JSON.stringify({ date: input.date, times: slots.slice(0, 24) }) : 'لا توجد أوقات متاحة في هذا اليوم.';
   }
   if (name === 'book_appointment') {
@@ -311,10 +347,14 @@ async function assistant(brain: Brain, shopId: string, config: WaConfig, from: s
     settingsOf(shopId),
   ]);
   const now = localNow();
+  // لغة العميل المسجلة في ملفه (عربي/إنجليزي) — وإلا نتبع لغة رسالته.
+  const known = (await collection(shopId, 'clients')).find(c => samePhone(c.data.phone, from));
+  const prefersEn = known?.data?.lang === 'en';
   // نخزن النص فقط بين الرسائل؛ آخر ١٢ رسالة تكفي لسياق الحجز.
   const history: { role: 'user' | 'assistant'; content: string }[] = (convo?.messages ?? []).slice(-12);
   const system = `أنت موظف الاستقبال الرقمي لـ«${shop?.name}» (${shop?.kind === 'women' ? 'صالون نسائي' : shop?.kind === 'mixed' ? 'صالون للرجال والسيدات' : 'صالون حلاقة رجالي'}) في قطر.
 تتحدث بالعربية الخليجية المهذبة وباختصار مناسب لواتساب (٣ أسطر غالباً). العملة ريال قطري.
+اللغة: رد دائماً بنفس لغة رسالة العميل؛ إذا كتب بالإنجليزية فرد بإنجليزية مهذبة وبسيطة (العملة QAR).${prefersEn ? ' هذا العميل يفضّل الإنجليزية — ابدأ بالإنجليزية.' : ''}
 مهامك: الإجابة عن الخدمات والأسعار، اقتراح أوقات متاحة، الحجز، عرض أو إلغاء مواعيد العميل.
 قواعد: استخدم الأدوات دائماً للأسعار والأوقات ولا تخمّن. قبل book_appointment اعرض ملخص الحجز واطلب تأكيداً صريحاً. اقترح ٣ أوقات كحد أقصى.
 إذا طلب العميل شيئاً خارج الحجز أو اشتكى، اعتذر بلطف وأخبره أن فريق الصالون سيتواصل معه${shop?.phone ? ` أو يمكنه الاتصال على ${shop.phone}` : ''}.

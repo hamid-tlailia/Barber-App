@@ -35,7 +35,8 @@ export default function Inventory() {
     <div className="page-head">
       <Segmented size="sm" items={[{ id: 'all', label: L('الكل', 'All') }, { id: 'low', label: L('منخفض', 'Low') }]} value={filter} onChange={setFilter} />
       <div className="row-buttons">
-        {isManager && <Button variant="ghost" icon={Download} onClick={() => download(`inventory-${localISO()}.csv`, toCSV([[L('المنتج', 'Product'), L('الفئة', 'Category'), L('الكمية', 'Quantity'), L('الحد الأدنى', 'Min stock'), L('التكلفة', 'Cost'), L('سعر البيع', 'Sale price')], ...data.products.map(p => [p.name, p.category, p.quantity, p.minStock, p.cost, p.price])]))} />}
+        {isManager && <Button variant="ghost" icon={Download} onClick={() => download(`inventory-${localISO()}.csv`, toCSV([[L('المنتج', 'Product'), L('الفئة', 'Category'), L('الكمية', 'Quantity'), L('الحد الأدنى', 'Min stock'), L('التكلفة', 'Cost'), L('سعر البيع', 'Sale price')], ...data.products.map(p => [p.name, p.category, p.quantity, p.minStock, p.cost, p.price])]))} aria-label={L('تصدير CSV', 'Export CSV')} title={L('تصدير CSV', 'Export CSV')}>CSV</Button>}
+        {isManager && <Button variant="ghost" icon={Download} title={L('تصدير Excel', 'Export Excel')} onClick={() => import('../lib/exporters.js').then(x => x.exportXlsx(`inventory-${localISO()}.xlsx`, [{ name: L('المخزون', 'Inventory'), rows: [[L('المنتج', 'Product'), L('الفئة', 'Category'), L('الكمية', 'Quantity'), L('الحد الأدنى', 'Min stock'), L('التكلفة', 'Cost'), L('سعر البيع', 'Sale price')], ...data.products.map(p => [p.name, p.category || '', Number(p.quantity) || 0, Number(p.minStock) || 0, Number(p.cost) || 0, Number(p.price) || 0])] }]))}>Excel</Button>}
         {isManager && <Button icon={PackagePlus} onClick={() => setForm({})}>{L('منتج', 'Product')}</Button>}
       </div>
     </div>

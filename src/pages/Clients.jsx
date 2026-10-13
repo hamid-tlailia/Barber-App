@@ -80,6 +80,9 @@ export function ClientForm({ client, onClose, onSaved }) {
     <div className="stack">
       <Field label={L('الاسم', 'Name')} required><input autoFocus value={v.name} onChange={set('name')} /></Field>
       <Field label={L('رقم الهاتف', 'Phone number')} required><input type="tel" dir="ltr" value={v.phone} onChange={set('phone')} placeholder="5555 1234" /></Field>
+      <Field label={L('لغة رسائل واتساب', 'WhatsApp message language')} hint={L('التذكيرات والعروض والمساعد الذكي يكلّمونه بهذه اللغة', 'Reminders, offers and the AI assistant talk to this client in this language')}>
+        <Segmented items={[{ id: 'ar', label: 'العربية' }, { id: 'en', label: 'English' }]} value={v.lang === 'en' ? 'en' : 'ar'} onChange={lang => setV({ ...v, lang })} />
+      </Field>
       <Field label={L('تاريخ الميلاد', 'Birthday')} hint={L('لإرسال تهنئة وهدية تلقائياً', 'To send birthday wishes and a gift automatically')}><input type="date" value={v.birthday} onChange={set('birthday')} /></Field>
       <Toggle checked={(v.tags || []).includes('VIP')} onChange={on => setV({ ...v, tags: on ? [...(v.tags || []), 'VIP'] : (v.tags || []).filter(t => t !== 'VIP') })} label={L('عميل مميز VIP', 'VIP client')} />
       <Field label={L('الحساسية والتنبيهات', 'Allergies & alerts')}><input value={v.allergies} onChange={set('allergies')} placeholder={L('مثال: حساسية من الأمونيا', 'e.g. allergic to ammonia')} /></Field>

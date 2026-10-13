@@ -5,6 +5,8 @@ import {
 } from '../_shared/common.ts';
 
 const TEMPLATE = Deno.env.get('WA_TEMPLATE_REMINDER') ?? 'appointment_reminder';
+const dateEn = (d: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${d}T12:00:00Z`));
+const timeEn = (t: string) => { const h = Number(t.slice(0, 2)); return `${h % 12 || 12}:${t.slice(3, 5)} ${h < 12 ? 'AM' : 'PM'}`; };
 
 Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);
@@ -32,7 +34,10 @@ Deno.serve(async req => {
       const client = clients.find(c => c.id === a.clientId)?.data;
       if (!client?.phone) continue;
       try {
-        await sendTemplate(config, client.phone, TEMPLATE, [String(client.name || '').split(' ')[0], shopName, dateAr(a.date), timeAr(a.time)]);
+        // عميل لغته الإنجليزية: نجرب القالب الإنجليزي (en) ثم نرجع للعربي إن لم يكن معتمداً في Meta.
+        const first = String(client.name || '').split(' ')[0];
+        const sentEn = client.lang === 'en' && await sendTemplate(config, client.phone, TEMPLATE, [first, shopName, dateEn(a.date), timeEn(a.time)], 'en').then(() => true, () => false);
+        if (!sentEn) await sendTemplate(config, client.phone, TEMPLATE, [first, shopName, dateAr(a.date), timeAr(a.time)]);
         await saveRecord(shop.shop_id, 'appointments', id, { ...a, reminderSentAt: isoDate(now) });
         await db.from('wa_outbox').insert({ shop_id: shop.shop_id, phone: client.phone, appointment_id: id, kind: 'reminder' });
         await logMessage(shop.shop_id, 'reminder', a.clientId, id);

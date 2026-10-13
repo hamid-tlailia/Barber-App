@@ -33,7 +33,7 @@ export default function PublicBooking({ slug }) {
   const settings = shop ? { ...defaultSettings(shop.kind), ...(shop.settings?.settings || {}) } : null;
   const items = (shop?.services || []).filter(s => serviceIds.includes(s.id)).map(s => ({ serviceId: s.id, name: s.name, price: Number(s.price || 0), duration: Number(s.duration || 30), processing: Number(s.processing || 0), staffId }));
   const busySlots = useMemo(() => (shop?.busy || []).map((b, i) => ({ ...b, id: `b${i}`, status: 'confirmed', duration: Number(b.duration || 30), items: (b.items || []).map(item => ({ ...item, duration: Number(item.duration || 30) })) })), [shop]);
-  const slots = items.length && settings ? availableSlots(busySlots, { date, items, staffId, settings }) : [];
+  const slots = items.length && settings ? availableSlots(busySlots, { date, items, staffId, settings, staff: shop?.staff }) : [];
   const total = items.reduce((s, i) => s + i.price, 0);
   const deposit = (shop?.services || []).filter(s => serviceIds.includes(s.id)).reduce((s, x) => s + Number(x.deposit || 0), 0);
 

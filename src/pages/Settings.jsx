@@ -145,11 +145,15 @@ function HoursSettings({ onClose }) {
   const [step, setStep] = useState(data.settings.slotStep);
   return <Sheet title={L('ساعات العمل', 'Working hours')} onClose={onClose} footer={<Button block icon={Check} onClick={() => { setData(prev => ({ ...prev, settings: { ...prev.settings, hours, slotStep: Number(step) } })); toast(L('تم الحفظ', 'Saved')); onClose(); }}>{L('حفظ', 'Save')}</Button>}>
     <div className="stack">
-      <div className="grid-2">
-        <Field label={L('يفتح', 'Opens')}><input type="time" value={hours.open} onChange={e => setHours({ ...hours, open: e.target.value })} /></Field>
-        <Field label={L('يغلق', 'Closes')}><input type="time" value={hours.close} onChange={e => setHours({ ...hours, close: e.target.value })} /></Field>
-      </div>
-      <Field label={L('أيام الإغلاق', 'Closed days')}><Chips multiple items={weekdays.map((d, i) => ({ id: i, label: d }))} value={hours.closedDays || []} onChange={closedDays => setHours({ ...hours, closedDays })} /></Field>
+      <Toggle checked={!!hours.allDay} onChange={allDay => setHours({ ...hours, allDay })} label={L('مفتوح 24 ساعة', 'Open 24 hours')} hint={L('طوال اليوم وكل أيام الأسبوع', 'All day, every day of the week')} />
+      {!hours.allDay && <>
+        <div className="grid-2">
+          <Field label={L('يفتح', 'Opens')}><input type="time" value={hours.open} onChange={e => setHours({ ...hours, open: e.target.value })} /></Field>
+          <Field label={L('يغلق', 'Closes')}><input type="time" value={hours.close} onChange={e => setHours({ ...hours, close: e.target.value })} /></Field>
+        </div>
+        {hours.close && hours.open && hours.close < hours.open && <small className="muted">{L('يغلق بعد منتصف الليل', 'Closes after midnight')}</small>}
+        <Field label={L('أيام الإغلاق', 'Closed days')}><Chips multiple items={weekdays.map((d, i) => ({ id: i, label: d }))} value={hours.closedDays || []} onChange={closedDays => setHours({ ...hours, closedDays })} /></Field>
+      </>}
       <Field label={L('الفاصل بين المواعيد', 'Booking interval')}><Chips items={[10, 15, 30].map(n => ({ id: n, label: L(`${n} دقيقة`, `${n} min`) }))} value={Number(step)} onChange={setStep} /></Field>
     </div>
   </Sheet>;
@@ -240,7 +244,7 @@ function AddonOffer({ id, shopName }) {
   </div>;
 }
 
-function WhatsAppSettings({ onClose }) {
+export function WhatsAppSettings({ onClose }) {
   const { shop, data, toast } = useApp();
   const [v, setV] = useState(null);
   const [error, setError] = useState('');
@@ -352,7 +356,9 @@ function Backup({ onClose }) {
   return <Sheet title={L('النسخ الاحتياطي', 'Backup')} subtitle={cloudEnabled ? L('بياناتك محفوظة سحابياً تلقائياً — هذه نسخة إضافية', 'Your data is backed up to the cloud automatically — this is an extra copy') : L('بياناتك محفوظة على هذا الجهاز', 'Your data is stored on this device')} onClose={onClose}>
     <div className="stack">
       <Button block variant="secondary" icon={Download} onClick={() => download(`miqass-backup-${localISO()}.json`, JSON.stringify(data), 'application/json')}>{L('تنزيل نسخة كاملة', 'Download full backup')}</Button>
-      <Button block variant="secondary" icon={Download} onClick={() => exportAll(data)}>{L('تصدير Excel (CSV)', 'Export to Excel (CSV)')}</Button>
+      <Button block variant="secondary" icon={Download} onClick={() => import('../lib/exporters.js').then(x => x.exportXlsx(`miqass-${localISO()}.xlsx`, [{ name: L('العملاء', 'Clients'), rows: x.clientsTable(data) }, { name: L('المواعيد', 'Appointments'), rows: x.appointmentsTable(data) }])).catch(() => toast(L('تعذر التصدير', 'Export failed'), 'error'))}>{L('تصدير Excel', 'Export Excel')}</Button>
+      <Button block variant="secondary" icon={Download} onClick={() => import('../lib/exporters.js').then(x => x.exportDocx(`miqass-${localISO()}.docx`, `${data.shopName || ''} — ${L('العملاء والمواعيد', 'Clients & appointments')}`, [{ heading: L('العملاء', 'Clients'), rows: x.clientsTable(data) }, { heading: L('المواعيد', 'Appointments'), rows: x.appointmentsTable(data) }])).catch(() => toast(L('تعذر التصدير', 'Export failed'), 'error'))}>{L('تصدير Word', 'Export Word')}</Button>
+      <Button block variant="secondary" icon={Download} onClick={() => exportAll(data)}>{L('تصدير CSV', 'Export CSV')}</Button>
       {isManager && <label className="btn btn-ghost btn-block"><Upload size={18} /><span>{L('استعادة من نسخة', 'Restore from backup')}</span><input hidden type="file" accept="application/json,.json" onChange={async e => {
         const file = e.target.files?.[0]; e.target.value = '';
         if (!file) return;

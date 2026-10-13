@@ -37,12 +37,35 @@ const rowFor = (shopId, data, change) => {
   return item ? { shop_id: shopId, collection: change.collection, id: change.id, data: item, deleted: false } : null;
 };
 
+// الحذف يُرسل كتحديث (وليس upsert): سياسة الإضافة ترفض أي صف محذوف حتى لو كان موجوداً،
+// فكان الحذف يعلّق طابور المزامنة كله.
+// صف ترفضه الصلاحيات نهائياً (42501) يُستبعد ويُبلَّغ عنه بدل أن يوقف بقية التغييرات.
 export async function pushChanges(shopId, data, pending) {
-  const rows = pending.map(change => rowFor(shopId, data, change)).filter(Boolean);
-  for (let i = 0; i < rows.length; i += 200) {
-    const { error } = await supabase.from('records').upsert(rows.slice(i, i + 200), { onConflict: 'shop_id,collection,id' });
-    if (error) throw error;
+  const rejected = [];
+  const live = []; const deleted = {};
+  for (const change of pending) {
+    if (change.deleted && change.collection !== META) (deleted[change.collection] ||= []).push(change);
+    else { const row = rowFor(shopId, data, change); if (row) live.push({ row, change }); }
   }
+  const denied = error => error?.code === '42501' || /row-level security|permission denied/i.test(error?.message || '');
+  for (let i = 0; i < live.length; i += 200) {
+    const batch = live.slice(i, i + 200);
+    const { error } = await supabase.from('records').upsert(batch.map(b => b.row), { onConflict: 'shop_id,collection,id' });
+    if (!error) continue;
+    if (!denied(error)) throw error;
+    for (const { row, change } of batch) {
+      const { error: one } = await supabase.from('records').upsert(row, { onConflict: 'shop_id,collection,id' });
+      if (one) { if (denied(one)) rejected.push(change); else throw one; }
+    }
+  }
+  for (const [collection, changes] of Object.entries(deleted)) {
+    for (let i = 0; i < changes.length; i += 200) {
+      const batch = changes.slice(i, i + 200);
+      const { error } = await supabase.from('records').update({ deleted: true }).eq('shop_id', shopId).eq('collection', collection).in('id', batch.map(c => c.id));
+      if (error) { if (denied(error)) rejected.push(...batch); else throw error; }
+    }
+  }
+  return { rejected };
 }
 
 export async function pullChanges(shopId, since) {

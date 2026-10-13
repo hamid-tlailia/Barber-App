@@ -57,10 +57,10 @@ export const sendText = (config: WaConfig, to: string, text: string) =>
   waPost(config, { to: waNumber(to), type: 'text', text: { body: text.slice(0, 4000) } });
 
 // رسائل المبادرة (خارج نافذة ٢٤ ساعة) يجب أن تكون قوالب معتمدة من Meta. المعاملات بدون أسطر جديدة.
-export const sendTemplate = (config: WaConfig, to: string, name: string, params: string[]) =>
+export const sendTemplate = (config: WaConfig, to: string, name: string, params: string[], lang?: string) =>
   waPost(config, {
     to: waNumber(to), type: 'template',
-    template: { name, language: { code: Deno.env.get('WA_TEMPLATE_LANG') ?? 'ar' }, components: [{ type: 'body', parameters: params.map(text => ({ type: 'text', text: text.replace(/\s*\n\s*/g, ' | ').slice(0, 1000) })) }] },
+    template: { name, language: { code: lang ?? Deno.env.get('WA_TEMPLATE_LANG') ?? 'ar' }, components: [{ type: 'body', parameters: params.map(text => ({ type: 'text', text: text.replace(/\s*\n\s*/g, ' | ').slice(0, 1000) })) }] },
   });
 
 /* ───────── بيانات الصالون ───────── */
@@ -111,18 +111,51 @@ export function conflicts(appointments: Record<string, any>[], candidate: Record
     !(m.staffId && b.staffId && m.staffId !== b.staffId) && m.start < b.end && b.start < m.end)));
 }
 
-export function availableSlots(appointments: Record<string, any>[], date: string, items: Item[], staffId: string, settings: Record<string, any>) {
-  const hours = settings.hours ?? { open: '09:00', close: '22:00', closedDays: [] };
-  if ((hours.closedDays ?? []).includes(new Date(`${date}T12:00:00Z`).getUTCDay())) return [];
+// فترات العمل بالدقائق: تدعم «مفتوح 24 ساعة» والإغلاق بعد منتصف الليل (نفس openWindows في src/data.js).
+export function openWindows(hours: Record<string, any> | undefined, date: string): [number, number][] {
+  const h = hours ?? { open: '09:00', close: '22:00', closedDays: [] };
+  if (h.allDay) return [[0, 1440]];
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const closed = (h.closedDays ?? []).map(Number);
+  const open = toMin(h.open || '09:00');
+  let close = toMin(h.close || '22:00');
+  if (close === 0 && open > 0) close = 1440;
+  if (close >= open) return closed.includes(weekday) ? [] : [[open, close]];
+  const windows: [number, number][] = [];
+  if (!closed.includes((weekday + 6) % 7)) windows.push([0, close]);
+  if (!closed.includes(weekday)) windows.push([open, 1440]);
+  return windows;
+}
+
+// يوم راحة أسبوعي أو تاريخ إجازة للموظف.
+export function isStaffOff(member: Record<string, any> | undefined, date: string) {
+  if (!member) return false;
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  return (member.daysOff ?? []).map(Number).includes(weekday) || (member.leaves ?? []).includes(date);
+}
+
+// staff اختياري: صفوف {id, data} أو كائنات مسطحة. الموظف المجاز لا يُحجز له ولا يُحسب ضمن السعة عند «أي موظف».
+export function availableSlots(appointments: Record<string, any>[], date: string, items: Item[], staffId: string, settings: Record<string, any>, staff?: Record<string, any>[]) {
+  const windows = openWindows(settings.hours, date);
+  if (!windows.length) return [];
+  const team = staff ? staff.map(s => (s.data ? { id: s.id, ...s.data } : s)) : null;
+  const offIds = new Set((team ?? []).filter(m => isStaffOff(m, date)).map(m => m.id));
+  if (offIds.has(staffId) || items.some(i => i.staffId && offIds.has(i.staffId))) return [];
+  const needsAnyone = !staffId && items.some(i => !i.staffId);
+  const working = team && needsAnyone ? team.filter(m => m.active !== false && !offIds.has(m.id)) : null;
+  if (working && !working.length && team!.some(m => m.active !== false)) return [];
   const step = Number(settings.slotStep || 15);
   const duration = items.reduce((s, i) => s + i.duration, 0) || 30;
   const now = localNow();
   const today = isoDate(now);
   const slots: string[] = [];
-  for (let m = toMin(hours.open); m + duration <= toMin(hours.close); m += step) {
-    if (date === today && m < now.getUTCHours() * 60 + now.getUTCMinutes() + 30) continue;
-    const time = fromMin(m);
-    if (!conflicts(appointments, { date, time, staffId, items: items.map(i => ({ ...i, staffId: i.staffId || staffId })) })) slots.push(time);
+  const free = (time: string, who: string) => !conflicts(appointments, { date, time, staffId: who, items: items.map(i => ({ ...i, staffId: i.staffId || who })) });
+  for (const [start, end] of windows) {
+    for (let m = start; m + duration <= end; m += step) {
+      if (date === today && m < now.getUTCHours() * 60 + now.getUTCMinutes() + 30) continue;
+      const time = fromMin(m);
+      if (working?.length ? working.some(w => free(time, w.id)) : free(time, staffId)) slots.push(time);
+    }
   }
   return slots;
 }
@@ -133,6 +166,8 @@ export const fill = (template: string, values: Record<string, string>) => String
 // العميل يرد 1 للتأكيد أو 2 للإلغاء — تعالجها دالة whatsapp-webhook.
 
 const TEMPLATE = Deno.env.get('WA_TEMPLATE_REMINDER') ?? 'appointment_reminder';
+const dateEn = (d: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${d}T12:00:00Z`));
+const timeEn = (t: string) => { const h = Number(t.slice(0, 2)); return `${h % 12 || 12}:${t.slice(3, 5)} ${h < 12 ? 'AM' : 'PM'}`; };
 
 Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);
@@ -160,7 +195,10 @@ Deno.serve(async req => {
       const client = clients.find(c => c.id === a.clientId)?.data;
       if (!client?.phone) continue;
       try {
-        await sendTemplate(config, client.phone, TEMPLATE, [String(client.name || '').split(' ')[0], shopName, dateAr(a.date), timeAr(a.time)]);
+        // عميل لغته الإنجليزية: نجرب القالب الإنجليزي (en) ثم نرجع للعربي إن لم يكن معتمداً في Meta.
+        const first = String(client.name || '').split(' ')[0];
+        const sentEn = client.lang === 'en' && await sendTemplate(config, client.phone, TEMPLATE, [first, shopName, dateEn(a.date), timeEn(a.time)], 'en').then(() => true, () => false);
+        if (!sentEn) await sendTemplate(config, client.phone, TEMPLATE, [first, shopName, dateAr(a.date), timeAr(a.time)]);
         await saveRecord(shop.shop_id, 'appointments', id, { ...a, reminderSentAt: isoDate(now) });
         await db.from('wa_outbox').insert({ shop_id: shop.shop_id, phone: client.phone, appointment_id: id, kind: 'reminder' });
         await logMessage(shop.shop_id, 'reminder', a.clientId, id);
