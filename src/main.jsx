@@ -1,3 +1,4 @@
+import './i18n.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {

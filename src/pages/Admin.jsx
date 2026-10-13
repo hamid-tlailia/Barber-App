@@ -208,13 +208,13 @@ function Addons({ shopId, onSaved }) {
     setV(null);
     api.admin.integration(shopId).then(row => setV({
       waAddon: row.wa_addon, aiAddon: row.ai_addon, aiProvider: row.ai_provider || 'anthropic', phoneNumberId: row.wa_phone_number_id,
-      token: row.wa_token || '', aiKey: row.ai_key || '', savedAiKey: Boolean(row.ai_key),
+      token: row.wa_token || '', aiKey: row.ai_key || '', savedAiKey: Boolean(row.has_ai_key), tokenHidden: row.has_token && !row.wa_token, keyHidden: row.has_ai_key && !row.ai_key,
     })).catch(e => setError(errorText(e)));
   }, [shopId]);
   const save = async () => {
     setError('');
     // الحقل الفارغ يعني حذف المفتاح المحفوظ.
-    try { await api.admin.setIntegration(shopId, { ...v, clearToken: !v.token, clearAiKey: !v.aiKey }); onSaved(); } catch (e) { setError(errorText(e)); }
+    try { await api.admin.setIntegration(shopId, { ...v, clearToken: !v.token && !v.tokenHidden, clearAiKey: !v.aiKey && !v.keyHidden }); onSaved(); } catch (e) { setError(errorText(e)); }
   };
   if (!v) return error ? <Alert>{error}</Alert> : <div className="loader" />;
   return <Section title="الإضافات المدفوعة">
@@ -233,7 +233,7 @@ function Addons({ shopId, onSaved }) {
           <Field label={v.aiProvider === 'openai' ? 'مفتاح OpenAI الخاص بالصالون' : 'مفتاح Anthropic الخاص بالصالون'} hint={v.aiKey ? 'لحذف المفتاح امسح الحقل ثم احفظ' : 'فارغ = يُستخدم مفتاح المنصة إن وُجد'}>
             <SecretInput value={v.aiKey} onChange={aiKey => setV({ ...v, aiKey })} placeholder={v.aiProvider === 'openai' ? 'sk-proj-...' : 'sk-ant-...'} />
           </Field>
-          {v.savedAiKey && v.aiKey && <Alert tone="green" icon={Check}>المساعد مفعّل — المفتاح مسجّل ✓</Alert>}
+          {v.savedAiKey ? <Alert tone="green" icon={Check}>المساعد مفعّل — المفتاح مسجّل ✓{v.keyHidden ? ' (شغّل ملف 0006 لعرضه هنا)' : ''}</Alert> : <Alert tone="orange">لا يوجد مفتاح محفوظ بعد</Alert>}
         </>}
       </>}
       <Alert>{error}</Alert>

@@ -1,5 +1,6 @@
 // نموذج بيانات الصالون: دوال نقية بدون واجهة، قابلة للاختبار ومشتركة بين التطبيق والمزامنة.
 
+import { L, isEn } from './i18n.js';
 export const STORAGE_KEY = 'miqass-barber-data-v1';
 export const DATA_VERSION = 2;
 
@@ -185,22 +186,23 @@ export const loadLegacyData = () => {
 
 // شكل الأرقام: 123 (افتراضي) أو ١٢٣ — يُختار من الإعدادات ويُحفظ على الجهاز.
 export let digitStyle = (() => { try { return JSON.parse(localStorage.getItem('miqass-digits')) || 'latn'; } catch { return 'latn'; } })();
-export let LOCALE = digitStyle === 'arab' ? 'ar-QA' : 'ar-QA-u-nu-latn';
+const localeFor = style => (isEn ? 'en-GB' : style === 'arab' ? 'ar-QA' : 'ar-QA-u-nu-latn');
+export let LOCALE = localeFor(digitStyle);
 // يغيّر شكل الأرقام فوراً بدون إعادة تحميل (التصديرات حيّة في وحدات ES).
 export function setDigitStyle(style) {
   digitStyle = style === 'arab' ? 'arab' : 'latn';
-  LOCALE = digitStyle === 'arab' ? 'ar-QA' : 'ar-QA-u-nu-latn';
+  LOCALE = localeFor(digitStyle);
   try { localStorage.setItem('miqass-digits', JSON.stringify(digitStyle)); } catch { /* ignore */ }
 }
 
 export const dateLabel = (date, options = { weekday: 'long', day: 'numeric', month: 'long' }) =>
   new Intl.DateTimeFormat(LOCALE, options).format(new Date(`${date}T12:00:00`));
 export const num = value => new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(value || 0);
-export const money = value => `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 2 }).format(value || 0)} ر.ق`;
+export const money = value => `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 2 }).format(value || 0)} ${L('ر.ق', 'QAR')}`;
 export const timeLabel = time => {
   if (!time) return '';
   const [hours, minutes] = time.split(':').map(Number);
-  return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours < 12 ? 'ص' : 'م'}`;
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours < 12 ? L('ص', 'AM') : L('م', 'PM')}`;
 };
 export const sortAppointments = (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
 
