@@ -1,6 +1,7 @@
 // تكامل تطبيق أندرويد الأصلي (Capacitor): شريط الحالة، زر الرجوع، وتنبيهات المواعيد على الجهاز.
 import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { localISO, num, serviceNames, timeLabel } from '../data.js';
+import { L } from '../i18n.js';
 
 export const isNative = Capacitor.isNativePlatform();
 
@@ -63,8 +64,8 @@ export async function scheduleAppointmentAlerts(data, staffId) {
     await LocalNotifications.schedule({
       notifications: upcoming.map(({ a, at }, index) => ({
         id: index + 1,
-        title: `موعد بعد ${num(15)} دقيقة — ${timeLabel(a.time)}`,
-        body: `${clients[a.clientId]?.name || 'عميل'} · ${serviceNames(a)}`,
+        title: L(`موعد بعد ${num(15)} دقيقة — ${timeLabel(a.time)}`, `Appointment in ${num(15)} minutes — ${timeLabel(a.time)}`),
+        body: `${clients[a.clientId]?.name || L('عميل', 'Client')} · ${serviceNames(a)}`,
         schedule: { at: new Date(at), allowWhileIdle: true },
       })),
     });
@@ -86,7 +87,7 @@ export async function registerPush(saveToken, onOpen, { ask = true } = {}) {
     if (permission.receive !== 'granted') { pushState = { status: permission.receive === 'denied' ? 'denied' : 'not-granted', error: '' }; return pushState; }
     if (!pushListeners) {
       pushListeners = true;
-      await PushNotifications.createChannel({ id: 'bookings', name: 'الحجوزات الجديدة', importance: 5, sound: 'default', vibration: true }).catch(() => {});
+      await PushNotifications.createChannel({ id: 'bookings', name: L('الحجوزات الجديدة', 'New bookings'), importance: 5, sound: 'default', vibration: true }).catch(() => {});
       await PushNotifications.addListener('registration', ({ value }) => { pushState = { status: 'registered', error: '' }; saveToken(value); });
       await PushNotifications.addListener('registrationError', ({ error }) => { pushState = { status: 'error', error: String(error) }; });
       await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => onOpen?.(notification.data || {}));

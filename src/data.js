@@ -35,30 +35,36 @@ export const samePhone = (a, b) => {
 
 /* ───────────── مصطلحات حسب نوع الصالون ───────────── */
 
-export const vocabulary = kind => kind === 'women'
-  ? { client: 'عميلة', clients: 'العميلات', newClient: 'عميلة جديدة', pro: 'خبيرة', team: 'فريق العمل', shop: 'صالون التجميل' }
-  : kind === 'mixed'
-    ? { client: 'عميل', clients: 'العملاء', newClient: 'عميل جديد', pro: 'مختص', team: 'فريق العمل', shop: 'الصالون' }
-    : { client: 'زبون', clients: 'الزبائن', newClient: 'زبون جديد', pro: 'حلاق', team: 'فريق العمل', shop: 'صالون الحلاقة' };
+export const vocabulary = kind => (isEn
+  ? kind === 'women'
+    ? { client: 'Client', clients: 'Clients', newClient: 'New client', pro: 'Stylist', team: 'Team', shop: 'Beauty salon' }
+    : kind === 'mixed'
+      ? { client: 'Client', clients: 'Clients', newClient: 'New client', pro: 'Specialist', team: 'Team', shop: 'Salon' }
+      : { client: 'Client', clients: 'Clients', newClient: 'New client', pro: 'Barber', team: 'Team', shop: 'Barbershop' }
+  : kind === 'women'
+    ? { client: 'عميلة', clients: 'العميلات', newClient: 'عميلة جديدة', pro: 'خبيرة', team: 'فريق العمل', shop: 'صالون التجميل' }
+    : kind === 'mixed'
+      ? { client: 'عميل', clients: 'العملاء', newClient: 'عميل جديد', pro: 'مختص', team: 'فريق العمل', shop: 'الصالون' }
+      : { client: 'زبون', clients: 'الزبائن', newClient: 'زبون جديد', pro: 'حلاق', team: 'فريق العمل', shop: 'صالون الحلاقة' });
 
 export const serviceTemplates = {
   men: [
-    { name: 'قص الشعر', category: 'الشعر', price: 50, duration: 30 },
-    { name: 'تحديد اللحية', category: 'اللحية', price: 30, duration: 20 },
-    { name: 'شعر ولحية', category: 'الشعر', price: 75, duration: 50 },
-    { name: 'قص أطفال', category: 'الشعر', price: 35, duration: 25 },
-    { name: 'تنظيف بشرة', category: 'العناية', price: 90, duration: 45 },
-    { name: 'صبغة لحية', category: 'اللحية', price: 40, duration: 30, processing: 10 },
+    { name: L('قص الشعر', 'Haircut'), category: L('الشعر', 'Hair'), price: 50, duration: 30 },
+    { name: L('تحديد اللحية', 'Beard trim'), category: L('اللحية', 'Beard'), price: 30, duration: 20 },
+    { name: L('شعر ولحية', 'Hair & beard'), category: L('الشعر', 'Hair'), price: 75, duration: 50 },
+    { name: L('قص أطفال', 'Kids haircut'), category: L('الشعر', 'Hair'), price: 35, duration: 25 },
+    { name: L('تنظيف بشرة', 'Facial'), category: L('العناية', 'Grooming'), price: 90, duration: 45 },
+    { name: L('صبغة لحية', 'Beard color'), category: L('اللحية', 'Beard'), price: 40, duration: 30, processing: 10 },
   ],
   women: [
-    { name: 'قص وتسريح', category: 'الشعر', price: 120, duration: 60 },
-    { name: 'سشوار', category: 'الشعر', price: 80, duration: 45 },
-    { name: 'صبغة كاملة', category: 'الصبغة', price: 350, duration: 120, processing: 40, deposit: 100 },
-    { name: 'بروتين / كيراتين', category: 'العلاجات', price: 700, duration: 180, processing: 30, deposit: 200 },
-    { name: 'مانيكير وباديكير', category: 'الأظافر', price: 150, duration: 75 },
-    { name: 'مكياج سهرة', category: 'المكياج', price: 400, duration: 60, deposit: 100 },
-    { name: 'مكياج عروس', category: 'العرائس', price: 2500, duration: 180, deposit: 1000 },
-    { name: 'تنظيف بشرة', category: 'البشرة', price: 250, duration: 60 },
+    { name: L('قص وتسريح', 'Cut & style'), category: L('الشعر', 'Hair'), price: 120, duration: 60 },
+    { name: L('سشوار', 'Blow-dry'), category: L('الشعر', 'Hair'), price: 80, duration: 45 },
+    { name: L('صبغة كاملة', 'Full color'), category: L('الصبغة', 'Color'), price: 350, duration: 120, processing: 40, deposit: 100 },
+    { name: L('بروتين / كيراتين', 'Protein / keratin'), category: L('العلاجات', 'Treatments'), price: 700, duration: 180, processing: 30, deposit: 200 },
+    { name: L('مانيكير وباديكير', 'Manicure & pedicure'), category: L('الأظافر', 'Nails'), price: 150, duration: 75 },
+    { name: L('مكياج سهرة', 'Evening makeup'), category: L('المكياج', 'Makeup'), price: 400, duration: 60, deposit: 100 },
+    { name: L('مكياج عروس', 'Bridal makeup'), category: L('العرائس', 'Bridal'), price: 2500, duration: 180, deposit: 1000 },
+    { name: L('تنظيف بشرة', 'Facial'), category: L('البشرة', 'Skin'), price: 250, duration: 60 },
   ],
 };
 serviceTemplates.mixed = [...serviceTemplates.men.slice(0, 3), ...serviceTemplates.women.slice(0, 5)];
@@ -74,11 +80,11 @@ export const defaultSettings = (kind = 'men') => ({
   hideClientPhotosFromStaff: kind !== 'men',
   recoveryDays: kind === 'women' ? 45 : 30,
   templates: {
-    reminder: 'مرحباً {name} 👋\nتذكير بموعدك في {shop} يوم {date} الساعة {time}.\nللتأكيد أرسل 1، وللإلغاء أرسل 2.',
-    recovery: 'اشتقنا لك يا {name} 🌟\nمرّ وقت على آخر زيارة لـ{shop}. احجز هذا الأسبوع واحصل على خصم 10٪.\n{link}',
-    thanks: 'شكراً لزيارتك {shop} يا {name} 🙏\nرأيك يهمنا: كيف كانت تجربتك اليوم؟',
-    waitlist: 'خبر سار يا {name}! توفر موعد في {shop} يوم {date} الساعة {time}. هل يناسبك؟ ردّ بنعم لنثبته لك.',
-    birthday: 'كل عام وأنت بخير يا {name} 🎉 هديتك من {shop}: خصم 20٪ على زيارتك القادمة.',
+    reminder: L('مرحباً {name} 👋\nتذكير بموعدك في {shop} يوم {date} الساعة {time}.\nللتأكيد أرسل 1، وللإلغاء أرسل 2.', 'Hi {name} 👋\nA reminder of your appointment at {shop} on {date} at {time}.\nReply 1 to confirm or 2 to cancel.'),
+    recovery: L('اشتقنا لك يا {name} 🌟\nمرّ وقت على آخر زيارة لـ{shop}. احجز هذا الأسبوع واحصل على خصم 10٪.\n{link}', 'We miss you, {name} 🌟\nIt has been a while since your last visit to {shop}. Book this week and get 10% off.\n{link}'),
+    thanks: L('شكراً لزيارتك {shop} يا {name} 🙏\nرأيك يهمنا: كيف كانت تجربتك اليوم؟', 'Thank you for visiting {shop}, {name} 🙏\nYour opinion matters: how was your experience today?'),
+    waitlist: L('خبر سار يا {name}! توفر موعد في {shop} يوم {date} الساعة {time}. هل يناسبك؟ ردّ بنعم لنثبته لك.', 'Good news, {name}! A slot opened up at {shop} on {date} at {time}. Does it suit you? Reply yes and we will book it for you.'),
+    birthday: L('كل عام وأنت بخير يا {name} 🎉 هديتك من {shop}: خصم 20٪ على زيارتك القادمة.', 'Happy birthday, {name} 🎉 A gift from {shop}: 20% off your next visit.'),
   },
 });
 
@@ -88,24 +94,26 @@ export const defaultData = (kind = 'men', shopName) => {
   const today = localISO();
   const women = kind === 'women';
   const names = women
-    ? ['نورة الكواري', 'مريم السادة', 'فاطمة المهندي', 'هند العلي', 'سارة النعيمي', 'لولوة المري']
-    : ['أحمد خالد', 'محمد عبدالله', 'علي حسين', 'سامي ناصر', 'يوسف إبراهيم', 'خالد منصور'];
+    ? L(['نورة الكواري', 'مريم السادة', 'فاطمة المهندي', 'هند العلي', 'سارة النعيمي', 'لولوة المري'], ['Noora Al-Kuwari', 'Maryam Al-Sada', 'Fatima Al-Mohannadi', 'Hind Al-Ali', 'Sara Al-Nuaimi', 'Lulwa Al-Marri'])
+    : L(['أحمد خالد', 'محمد عبدالله', 'علي حسين', 'سامي ناصر', 'يوسف إبراهيم', 'خالد منصور'], ['Ahmed Khalid', 'Mohammed Abdullah', 'Ali Hussein', 'Sami Nasser', 'Yousef Ibrahim', 'Khalid Mansour']);
   const clients = names.map((name, index) => ({
-    id: `c${index + 1}`, name, phone: `555${index + 1} ${2345 + index * 1111}`.slice(0, 9), notes: index === 0 ? 'تفضل المواعيد الصباحية' : '',
-    allergies: women && index === 1 ? 'حساسية من الأمونيا' : '', formula: women && index === 0 ? 'Wella 6/0 + 7/1 — أوكسجين 6٪ — 35 دقيقة' : '',
+    id: `c${index + 1}`, name, phone: `555${index + 1} ${2345 + index * 1111}`.slice(0, 9), notes: index === 0 ? L('تفضل المواعيد الصباحية', 'Prefers morning appointments') : '',
+    allergies: women && index === 1 ? L('حساسية من الأمونيا', 'Allergic to ammonia') : '', formula: women && index === 0 ? L('Wella 6/0 + 7/1 — أوكسجين 6٪ — 35 دقيقة', 'Wella 6/0 + 7/1 — 6% developer — 35 min') : '',
     birthday: index === 2 ? `1990-${today.slice(5)}` : '', tags: index === 0 ? ['VIP'] : [], createdAt: addDays(today, -60 + index * 7),
   }));
   const services = serviceTemplates[kind].map((service, index) => ({ id: `s${index + 1}`, processing: 0, deposit: 0, online: true, ...service }));
   const staffNames = women
-    ? [['ريم', 'خبيرة شعر وصبغات'], ['دانة', 'مكياج وعرائس'], ['جود', 'أظافر وبشرة']]
-    : [['سامر العتيبي', 'قصات عصرية وتدرّج'], ['عمر الكواري', 'اللحية والعناية'], ['راشد المري', 'الأطفال والقصات الكلاسيكية']];
+    ? L([['ريم', 'خبيرة شعر وصبغات'], ['دانة', 'مكياج وعرائس'], ['جود', 'أظافر وبشرة']], [['Reem', 'Hair & color specialist'], ['Dana', 'Makeup & bridal'], ['Joud', 'Nails & skin']])
+    : L([['سامر العتيبي', 'قصات عصرية وتدرّج'], ['عمر الكواري', 'اللحية والعناية'], ['راشد المري', 'الأطفال والقصات الكلاسيكية']], [['Samer Al-Otaibi', 'Modern cuts & fades'], ['Omar Al-Kuwari', 'Beard & grooming'], ['Rashid Al-Marri', 'Kids & classic cuts']]);
   const staff = staffNames.map(([name, specialty], index) => ({
-    id: `t${index + 1}`, name, phone: `5550 ${1000 + index * 1234}`, role: index === 0 ? (women ? 'كبيرة الخبيرات' : 'كبير الحلاقين') : (women ? 'خبيرة' : 'حلاق'),
+    id: `t${index + 1}`, name, phone: `5550 ${1000 + index * 1234}`, role: index === 0 ? (women ? L('كبيرة الخبيرات', 'Senior stylist') : L('كبير الحلاقين', 'Head barber')) : (women ? L('خبيرة', 'Stylist') : L('حلاق', 'Barber')),
     specialty, commission: index === 0 ? 35 : 30, color: ['#b97932', '#557fa0', '#8870aa'][index], active: true, createdAt: addDays(today, -120),
   }));
   const products = (women
-    ? [['صبغة احترافية 60مل', 'الصبغات', 24, 8, 22, 0, 'أنبوب'], ['أوكسجين 6٪', 'الصبغات', 4, 3, 30, 0, 'لتر'], ['ماسك كيراتين', 'العلاجات', 6, 2, 90, 180, 'علبة'], ['طلاء أظافر', 'الأظافر', 30, 10, 12, 35, 'قطعة'], ['زيت أرغان', 'العناية', 2, 4, 45, 95, 'زجاجة']]
-    : [['شمع تصفيف مطفي', 'تصفيف الشعر', 14, 5, 18, 35, 'علبة'], ['زيت اللحية الفاخر', 'العناية باللحية', 8, 4, 24, 45, 'زجاجة'], ['شامبو منعش', 'العناية بالشعر', 3, 5, 20, 39, 'زجاجة'], ['شفرة حلاقة احترافية', 'أدوات الحلاقة', 24, 10, 2, 6, 'قطعة'], ['بودرة تكثيف الشعر', 'تصفيف الشعر', 6, 3, 30, 55, 'علبة']]
+    ? L([['صبغة احترافية 60مل', 'الصبغات', 24, 8, 22, 0, 'أنبوب'], ['أوكسجين 6٪', 'الصبغات', 4, 3, 30, 0, 'لتر'], ['ماسك كيراتين', 'العلاجات', 6, 2, 90, 180, 'علبة'], ['طلاء أظافر', 'الأظافر', 30, 10, 12, 35, 'قطعة'], ['زيت أرغان', 'العناية', 2, 4, 45, 95, 'زجاجة']],
+      [['Professional hair color 60ml', 'Color', 24, 8, 22, 0, 'tube'], ['6% developer', 'Color', 4, 3, 30, 0, 'liter'], ['Keratin mask', 'Treatments', 6, 2, 90, 180, 'jar'], ['Nail polish', 'Nails', 30, 10, 12, 35, 'piece'], ['Argan oil', 'Care', 2, 4, 45, 95, 'bottle']])
+    : L([['شمع تصفيف مطفي', 'تصفيف الشعر', 14, 5, 18, 35, 'علبة'], ['زيت اللحية الفاخر', 'العناية باللحية', 8, 4, 24, 45, 'زجاجة'], ['شامبو منعش', 'العناية بالشعر', 3, 5, 20, 39, 'زجاجة'], ['شفرة حلاقة احترافية', 'أدوات الحلاقة', 24, 10, 2, 6, 'قطعة'], ['بودرة تكثيف الشعر', 'تصفيف الشعر', 6, 3, 30, 55, 'علبة']],
+      [['Matte styling wax', 'Hair styling', 14, 5, 18, 35, 'jar'], ['Premium beard oil', 'Beard care', 8, 4, 24, 45, 'bottle'], ['Refreshing shampoo', 'Hair care', 3, 5, 20, 39, 'bottle'], ['Professional razor blade', 'Barber tools', 24, 10, 2, 6, 'piece'], ['Hair thickening powder', 'Hair styling', 6, 3, 30, 55, 'jar']])
   ).map(([name, category, quantity, minStock, cost, price, unit], index) => ({ id: `p${index + 1}`, name, category, quantity, minStock, cost, price, unit, updatedAt: today }));
 
   const make = (n, clientIndex, serviceIndexes, day, time, status, paid = false) => {
@@ -128,10 +136,10 @@ export const defaultData = (kind = 'men', shopName) => {
     make(10, 3, [3], -3, '14:00', 'completed', true), make(11, 4, [0], -5, '09:00', 'completed', true), make(12, 5, [1], -6, '15:00', 'no_show'),
     make(13, 5, [0], -40, '15:00', 'completed', true), make(14, 5, [0], -70, '15:00', 'completed', true), make(15, 3, [1], -50, '11:00', 'no_show'),
   ];
-  const packages = [{ id: 'k1', name: women ? 'باقة سشوار ×5' : 'باقة قص ×5', serviceId: women ? 's2' : 's1', sessions: 5, price: women ? 340 : 210, validityDays: 90 }];
+  const packages = [{ id: 'k1', name: women ? L('باقة سشوار ×5', 'Blow-dry bundle ×5') : L('باقة قص ×5', 'Haircut bundle ×5'), serviceId: women ? 's2' : 's1', sessions: 5, price: women ? 340 : 210, validityDays: 90 }];
   return {
     version: DATA_VERSION,
-    shopName: shopName || (women ? 'صالون لمسة' : 'صالون مِقص'),
+    shopName: shopName || (women ? L('صالون لمسة', 'Lamsa Salon') : L('صالون مِقص', 'Miqass Barbershop')),
     settings: defaultSettings(kind),
     clients, services, staff, products, appointments, packages,
     stockMovements: [], clientPackages: [], giftCards: [], waitlist: [], drawers: [], messages: [], photos: [], expenses: [], sales: [],
@@ -154,7 +162,7 @@ export const migrateAppointment = item => {
   const price = Number(item.price || 0);
   return {
     ...rest,
-    items: [{ serviceId: serviceId || '', name: serviceName || 'خدمة', price, duration: Number(item.duration || 30), processing: 0, staffId: item.staffId || '' }],
+    items: [{ serviceId: serviceId || '', name: serviceName || L('خدمة', 'Service'), price, duration: Number(item.duration || 30), processing: 0, staffId: item.staffId || '' }],
     price, duration: Number(item.duration || 30), discount: 0, deposit: 0, location: 'salon',
     payments: paymentStatus === 'paid' ? [{ id: uid(), amount: price, method: paymentMethod || 'cash', at: paidAt || item.date, kind: 'payment' }] : [],
   };
@@ -167,12 +175,12 @@ export const normalizeData = saved => {
   const data = {
     ...saved,
     version: DATA_VERSION,
-    shopName: typeof saved.shopName === 'string' ? saved.shopName : 'صالون مِقص',
+    shopName: typeof saved.shopName === 'string' ? saved.shopName : L('صالون مِقص', 'Miqass Barbershop'),
     settings: { ...base, ...saved.settings, hours: { ...base.hours, ...saved.settings?.hours }, templates: { ...base.templates, ...saved.settings?.templates } },
   };
   for (const name of COLLECTIONS) data[name] = Array.isArray(saved[name]) ? saved[name] : [];
   data.appointments = data.appointments.map(migrateAppointment);
-  data.services = data.services.map(service => ({ processing: 0, deposit: 0, online: true, category: 'عام', ...service }));
+  data.services = data.services.map(service => ({ processing: 0, deposit: 0, online: true, category: L('عام', 'General'), ...service }));
   data.staff = data.staff.map(member => ({ active: true, ...member }));
   delete data.ownerName;
   return data;
@@ -206,9 +214,9 @@ export const timeLabel = time => {
 };
 export const sortAppointments = (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
 
-export const statusText = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد', arrived: 'وصل', completed: 'مكتمل', cancelled: 'ملغي', no_show: 'لم يحضر' };
-export const paymentText = { cash: 'نقداً', card: 'بطاقة', transfer: 'تحويل', gift: 'بطاقة هدية', package: 'من الباقة' };
-export const roleText = { owner: 'المالك', manager: 'مدير', reception: 'استقبال', staff: 'موظف خدمة' };
+export const statusText = { pending: L('بانتظار التأكيد', 'Awaiting confirmation'), confirmed: L('مؤكد', 'Confirmed'), arrived: L('وصل', 'Arrived'), completed: L('مكتمل', 'Completed'), cancelled: L('ملغي', 'Cancelled'), no_show: L('لم يحضر', 'No-show') };
+export const paymentText = { cash: L('نقداً', 'Cash'), card: L('بطاقة', 'Card'), transfer: L('تحويل', 'Transfer'), gift: L('بطاقة هدية', 'Gift card'), package: L('من الباقة', 'From package') };
+export const roleText = { owner: L('المالك', 'Owner'), manager: L('مدير', 'Manager'), reception: L('استقبال', 'Reception'), staff: L('موظف خدمة', 'Service staff') };
 export const isDateString = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 /* ───────────── المواعيد والدفعات ───────────── */
@@ -334,7 +342,7 @@ export const importClients = (text, existing) => {
   const header = rows[0].map(cell => cell.toLowerCase());
   const hasHeader = header.some(cell => /name|اسم|phone|هاتف|جوال|mobile/.test(cell));
   const nameIndex = hasHeader ? Math.max(0, header.findIndex(cell => /name|اسم/.test(cell))) : 0;
-  const phoneIndexFound = hasHeader ? header.findIndex(cell => /phone|هاتف|جوال|mobile|رقم/.test(cell)) : -1;
+  const phoneIndexFound = hasHeader ? header.findIndex(cell => /phone|هاتف|جوال|mobile|tel|number|رقم/.test(cell)) : -1;
   const notesIndex = hasHeader ? header.findIndex(cell => /note|ملاحظ/.test(cell)) : -1;
   const added = []; let skipped = 0;
   for (const row of rows.slice(hasHeader ? 1 : 0)) {

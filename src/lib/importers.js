@@ -2,6 +2,7 @@
 // كل قارئ يعيد نصاً بصيغة «الاسم، الرقم» في كل سطر ليمر على نفس منطق الاستيراد.
 import { unzipSync, strFromU8 } from 'fflate';
 import { isNative } from './native.js';
+import { L } from '../i18n.js';
 
 const xml = text => new DOMParser().parseFromString(text, 'application/xml');
 const cell = value => (/[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value);
@@ -12,7 +13,7 @@ function readXlsx(bytes) {
   const files = unzipSync(bytes, { filter: f => /^xl\/(sharedStrings\.xml|workbook\.xml|worksheets\/sheet\d+\.xml|_rels\/workbook\.xml\.rels)$/.test(f.name) });
   const shared = files['xl/sharedStrings.xml'] ? [...xml(strFromU8(files['xl/sharedStrings.xml'])).getElementsByTagName('si')].map(si => [...si.getElementsByTagName('t')].map(t => t.textContent).join('')) : [];
   const sheetName = Object.keys(files).filter(name => /worksheets\/sheet\d+\.xml$/.test(name)).sort((a, b) => Number(a.match(/(\d+)\.xml/)[1]) - Number(b.match(/(\d+)\.xml/)[1]))[0];
-  if (!sheetName) throw new Error('لم نجد ورقة بيانات في الملف');
+  if (!sheetName) throw new Error(L('لم نجد ورقة بيانات في الملف', 'No data sheet was found in the file'));
   const column = ref => [...ref.replace(/\d+/g, '')].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0) - 1;
   const rows = [...xml(strFromU8(files[sheetName])).getElementsByTagName('row')].map(row => {
     const out = [];
@@ -54,7 +55,7 @@ export async function readClientsFile(file) {
   if (ext === 'xlsx') return readXlsx(new Uint8Array(await file.arrayBuffer()));
   if (ext === 'docx') return readDocx(new Uint8Array(await file.arrayBuffer()));
   if (ext === 'vcf') return readVcf(await file.text());
-  if (ext === 'xls' || ext === 'doc') throw new Error('هذه صيغة قديمة — احفظ الملف بصيغة xlsx أو docx ثم أعد المحاولة');
+  if (ext === 'xls' || ext === 'doc') throw new Error(L('هذه صيغة قديمة — احفظ الملف بصيغة xlsx أو docx ثم أعد المحاولة', 'This is an old format — save the file as xlsx or docx and try again'));
   return file.text();
 }
 
@@ -65,7 +66,7 @@ export async function pickContacts() {
   if (isNative) {
     const { Contacts } = await import('@capacitor-community/contacts');
     const permission = await Contacts.requestPermissions();
-    if (permission.contacts !== 'granted') throw new Error('اسمح للتطبيق بالوصول لجهات الاتصال من إعدادات الهاتف');
+    if (permission.contacts !== 'granted') throw new Error(L('اسمح للتطبيق بالوصول لجهات الاتصال من إعدادات الهاتف', 'Allow the app to access your contacts in the phone settings'));
     const { contacts } = await Contacts.getContacts({ projection: { name: true, phones: true } });
     return contacts.map(c => ({ name: c.name?.display || [c.name?.given, c.name?.family].filter(Boolean).join(' '), phone: c.phones?.[0]?.number || '' }))
       .filter(c => c.name && c.phone);

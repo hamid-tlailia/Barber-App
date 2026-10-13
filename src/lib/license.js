@@ -1,5 +1,6 @@
 // الترخيص والتجربة المجانية (٧ أيام). في الوضع السحابي القرار للخادم؛ هنا نحسب الحالة للعرض وللعمل دون اتصال.
 import { prefs } from './store.js';
+import { L } from '../i18n.js';
 
 export const TRIAL_DAYS = 7;
 export const SALES_WHATSAPP = import.meta.env?.VITE_SALES_WHATSAPP || '97471009494';
@@ -40,17 +41,17 @@ export function localShop() {
 }
 
 export const plans = [
-  { id: 'monthly', name: 'شهري', price: 149, note: 'يشمل السحابة وتحديثات مستمرة', period: '/ شهر' },
-  { id: 'yearly', name: 'سنوي', price: 1499, note: 'شهران مجاناً + إعداد ونقل بياناتك', period: '/ سنة', best: true },
-  { id: 'lifetime', name: 'مدى الحياة', price: 2999, note: 'دفعة واحدة + 499 ر.ق سنوياً للسحابة والدعم', period: 'مرة واحدة' },
+  { id: 'monthly', name: L('شهري', 'Monthly'), price: 149, note: L('يشمل السحابة وتحديثات مستمرة', 'Includes cloud sync and ongoing updates'), period: L('/ شهر', '/ month') },
+  { id: 'yearly', name: L('سنوي', 'Yearly'), price: 1499, note: L('شهران مجاناً + إعداد ونقل بياناتك', 'Two months free + setup and data migration'), period: L('/ سنة', '/ year'), best: true },
+  { id: 'lifetime', name: L('مدى الحياة', 'Lifetime'), price: 2999, note: L('دفعة واحدة + 499 ر.ق سنوياً للسحابة والدعم', 'One-time payment + QAR 499/year for cloud and support'), period: L('مرة واحدة', 'one-time') },
 ];
 
 // إضافات اختيارية فوق الباقة الأساسية — اشتراك منفصل بسعر واضح للعميل.
 export const addons = [
-  { id: 'wa', name: 'واتساب الذكي', monthly: 49, yearly: 490, points: ['تذكير تلقائي لكل عميل قبل موعده', 'العميل يرد 1 للتأكيد أو 2 للإلغاء ويتحدث الجدول وحده', 'تقرير يومي لك كل ليلة: الدخل والمواعيد والغياب'] },
-  { id: 'ai', name: 'المساعد الذكي (AI)', monthly: 99, yearly: 990, requires: 'wa', points: ['يرد على عملائك في واتساب 24/7 بالعربي', 'يجيب عن الأسعار ويقترح الأوقات ويحجز مباشرة', 'لا تفوتك حجوزات الليل وأوقات الانشغال'] },
+  { id: 'wa', name: L('واتساب الذكي', 'Smart WhatsApp'), monthly: 49, yearly: 490, points: L(['تذكير تلقائي لكل عميل قبل موعده', 'العميل يرد 1 للتأكيد أو 2 للإلغاء ويتحدث الجدول وحده', 'تقرير يومي لك كل ليلة: الدخل والمواعيد والغياب'], ['Automatic reminder to every client before their appointment', 'Clients reply 1 to confirm or 2 to cancel, and the schedule updates itself', 'A nightly report for you: revenue, appointments and no-shows']) },
+  { id: 'ai', name: L('المساعد الذكي (AI)', 'AI Assistant'), monthly: 99, yearly: 990, requires: 'wa', points: L(['يرد على عملائك في واتساب 24/7 بالعربي', 'يجيب عن الأسعار ويقترح الأوقات ويحجز مباشرة', 'لا تفوتك حجوزات الليل وأوقات الانشغال'], ['Replies to your clients on WhatsApp 24/7', 'Answers price questions, suggests times and books directly', 'Never miss late-night or busy-hour bookings']) },
 ];
 
-export const addonLink = (shopName, addon) => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(`مرحباً، أرغب في إضافة «${addon.name}» (${addon.monthly} ر.ق شهرياً أو ${addon.yearly} ر.ق سنوياً) لصالون «${shopName || ''}» في تطبيق مِقص.`)}`;
+export const addonLink = (shopName, addon) => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(L(`مرحباً، أرغب في إضافة «${addon.name}» (${addon.monthly} ر.ق شهرياً أو ${addon.yearly} ر.ق سنوياً) لصالون «${shopName || ''}» في تطبيق مِقص.`, `Hello, I would like to add "${addon.name}" (QAR ${addon.monthly}/month or QAR ${addon.yearly}/year) for "${shopName || ''}" in the Miqass app.`))}`;
 
-export const buyLink = (shopName, plan) => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(`مرحباً، أرغب في تفعيل اشتراك ${plan?.name || ''} لصالون «${shopName || ''}» في تطبيق مِقص.`)}`;
+export const buyLink = (shopName, plan) => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(L(`مرحباً، أرغب في تفعيل اشتراك ${plan?.name || ''} لصالون «${shopName || ''}» في تطبيق مِقص.`, `Hello, I would like to activate the ${plan?.name || ''} plan for "${shopName || ''}" in the Miqass app.`))}`;

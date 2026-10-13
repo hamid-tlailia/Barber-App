@@ -2,6 +2,7 @@
 import {
   addDays, amountPaid, appointmentTotal, daysBetween, isActiveStatus, isPaid, localISO, money, samePhone, timeLabel, dateLabel,
 } from './data.js';
+import { L } from './i18n.js';
 
 const completed = appointments => appointments.filter(a => a.status === 'completed');
 
@@ -31,8 +32,8 @@ export const loyaltyPoints = (clientId, appointments, per = 10) => Math.floor(
 // خطر عدم الحضور: يُقترح عربون تلقائياً لأصحاب السجل المتكرر.
 export function noShowRisk(clientId, appointments) {
   const stats = clientStats(clientId, appointments);
-  if (stats.noShows >= 2 || (stats.noShows >= 1 && stats.noShowRate >= 0.25)) return { level: 'high', label: 'خطر غياب مرتفع', stats };
-  if (stats.noShows === 1 || stats.cancellations >= 3) return { level: 'medium', label: 'غاب أو ألغى سابقاً', stats };
+  if (stats.noShows >= 2 || (stats.noShows >= 1 && stats.noShowRate >= 0.25)) return { level: 'high', label: L('خطر غياب مرتفع', 'High no-show risk'), stats };
+  if (stats.noShows === 1 || stats.cancellations >= 3) return { level: 'medium', label: L('غاب أو ألغى سابقاً', 'Previously missed or cancelled'), stats };
   return { level: 'low', label: '', stats };
 }
 
@@ -139,9 +140,9 @@ export function roi(data, since) {
   const remindedShowed = data.appointments.filter(a => reminders.some(m => m.appointmentId === a.id) && a.status === 'completed');
   const value = list => list.reduce((s, a) => s + appointmentTotal(a), 0);
   const lines = [
-    { key: 'online', label: 'حجوزات أونلاين وواتساب', count: online.length, value: value(online) },
-    { key: 'recovered', label: 'عملاء عادوا بعد رسالة', count: recovered.length, value: value(recovered) },
-    { key: 'waitlist', label: 'مواعيد ملأتها قائمة الانتظار', count: waitlist.length, value: value(waitlist) },
+    { key: 'online', label: L('حجوزات أونلاين وواتساب', 'Online & WhatsApp bookings'), count: online.length, value: value(online) },
+    { key: 'recovered', label: L('عملاء عادوا بعد رسالة', 'Clients who returned after a message'), count: recovered.length, value: value(recovered) },
+    { key: 'waitlist', label: L('مواعيد ملأتها قائمة الانتظار', 'Slots filled from the waitlist'), count: waitlist.length, value: value(waitlist) },
   ];
   return {
     lines,
@@ -167,14 +168,15 @@ export function dailyReport(data, date = localISO()) {
   const top = commissions(data.staff, data.appointments.filter(a => a.date === date), 'all')[0];
   const tomorrow = data.appointments.filter(a => a.date === addDays(date, 1) && isActiveStatus(a.status));
   const lines = [
-    `📊 تقرير ${data.shopName} — ${dateLabel(date)}`,
-    `💰 الدخل المحصّل: ${money(revenue)}`,
-    `✅ مواعيد مكتملة: ${done.length} من ${day.filter(a => a.status !== 'cancelled').length}`,
+    L(`📊 تقرير ${data.shopName} — ${dateLabel(date)}`, `📊 ${data.shopName} report — ${dateLabel(date)}`),
+    L(`💰 الدخل المحصّل: ${money(revenue)}`, `💰 Revenue collected: ${money(revenue)}`),
+    L(`✅ مواعيد مكتملة: ${done.length} من ${day.filter(a => a.status !== 'cancelled').length}`, `✅ Completed appointments: ${done.length} of ${day.filter(a => a.status !== 'cancelled').length}`),
   ];
-  if (noShow.length) lines.push(`⚠️ لم يحضر: ${noShow.length}`);
-  if (unpaid.length) lines.push(`🧾 غير مدفوعة: ${unpaid.length} (${money(unpaid.reduce((s, a) => s + appointmentTotal(a) - amountPaid(a), 0))})`);
-  if (top?.services) lines.push(`🏆 الأفضل اليوم: ${top.member.name} (${money(top.revenue)})`);
-  lines.push(`📅 مواعيد الغد: ${tomorrow.length}${tomorrow[0] ? ` — أولها ${timeLabel(tomorrow.sort((a, b) => a.time.localeCompare(b.time))[0].time)}` : ''}`);
+  if (noShow.length) lines.push(L(`⚠️ لم يحضر: ${noShow.length}`, `⚠️ No-shows: ${noShow.length}`));
+  if (unpaid.length) lines.push(L(`🧾 غير مدفوعة: ${unpaid.length} (${money(unpaid.reduce((s, a) => s + appointmentTotal(a) - amountPaid(a), 0))})`, `🧾 Unpaid: ${unpaid.length} (${money(unpaid.reduce((s, a) => s + appointmentTotal(a) - amountPaid(a), 0))})`));
+  if (top?.services) lines.push(L(`🏆 الأفضل اليوم: ${top.member.name} (${money(top.revenue)})`, `🏆 Top today: ${top.member.name} (${money(top.revenue)})`));
+  const first = tomorrow[0] ? timeLabel(tomorrow.sort((a, b) => a.time.localeCompare(b.time))[0].time) : '';
+  lines.push(L(`📅 مواعيد الغد: ${tomorrow.length}${first ? ` — أولها ${first}` : ''}`, `📅 Tomorrow's appointments: ${tomorrow.length}${first ? ` — first at ${first}` : ''}`));
   return lines.join('\n');
 }
 
@@ -182,19 +184,19 @@ export function dailyReport(data, date = localISO()) {
 export function todayInsights(data, today = localISO()) {
   const insights = [];
   const online = data.appointments.filter(a => a.status === 'pending' && ['online', 'whatsapp'].includes(a.source) && a.date >= today);
-  if (online.length) insights.push({ id: 'online', tone: 'green', title: `${online.length} حجوزات أونلاين بانتظار تأكيدك`, action: 'appointments' });
+  if (online.length) insights.push({ id: 'online', tone: 'green', title: L(`${online.length} حجوزات أونلاين بانتظار تأكيدك`, `${online.length} online ${online.length === 1 ? 'booking' : 'bookings'} awaiting your confirmation`), action: 'appointments' });
   const reminders = data.appointments.filter(a => a.date === addDays(today, 1) && a.status === 'pending' && !data.messages.some(m => m.kind === 'reminder' && m.appointmentId === a.id));
-  if (reminders.length) insights.push({ id: 'reminders', tone: 'blue', title: `${reminders.length} تذكير لمواعيد الغد`, action: 'messages' });
+  if (reminders.length) insights.push({ id: 'reminders', tone: 'blue', title: L(`${reminders.length} تذكير لمواعيد الغد`, `${reminders.length} ${reminders.length === 1 ? 'reminder' : 'reminders'} for tomorrow's appointments`), action: 'messages' });
   const lapsed = lapsedClients(data.clients, data.appointments, data.settings, today).filter(e => !data.messages.some(m => m.kind === 'recovery' && m.clientId === e.client.id && daysBetween(m.at, today) < 21));
-  if (lapsed.length) insights.push({ id: 'lapsed', tone: 'orange', title: `${lapsed.length} عملاء منقطعون يمكن استرجاعهم`, action: 'messages' });
+  if (lapsed.length) insights.push({ id: 'lapsed', tone: 'orange', title: L(`${lapsed.length} عملاء منقطعون يمكن استرجاعهم`, `${lapsed.length} lapsed ${lapsed.length === 1 ? 'client' : 'clients'} to win back`), action: 'messages' });
   const low = stockForecast(data.products, data.stockMovements, today).filter(f => f.low);
-  if (low.length) insights.push({ id: 'stock', tone: 'red', title: `${low.length} منتجات تحتاج طلباً`, action: 'inventory' });
+  if (low.length) insights.push({ id: 'stock', tone: 'red', title: L(`${low.length} منتجات تحتاج طلباً`, `${low.length} ${low.length === 1 ? 'product needs' : 'products need'} reordering`), action: 'inventory' });
   const birthdays = birthdaysToday(data.clients, today);
-  if (birthdays.length) insights.push({ id: 'birthday', tone: 'purple', title: `عيد ميلاد ${birthdays[0].name}${birthdays.length > 1 ? ` و${birthdays.length - 1} آخرين` : ''}`, action: 'messages' });
+  if (birthdays.length) insights.push({ id: 'birthday', tone: 'purple', title: L(`عيد ميلاد ${birthdays[0].name}${birthdays.length > 1 ? ` و${birthdays.length - 1} آخرين` : ''}`, `${birthdays[0].name}'s birthday${birthdays.length > 1 ? ` and ${birthdays.length - 1} ${birthdays.length === 2 ? 'other' : 'others'}` : ''}`), action: 'messages' });
   const unpaid = data.appointments.filter(a => a.status === 'completed' && !isPaid(a));
-  if (unpaid.length) insights.push({ id: 'unpaid', tone: 'red', title: `${unpaid.length} مواعيد مكتملة غير مدفوعة`, action: 'checkout' });
+  if (unpaid.length) insights.push({ id: 'unpaid', tone: 'red', title: L(`${unpaid.length} مواعيد مكتملة غير مدفوعة`, `${unpaid.length} completed ${unpaid.length === 1 ? 'appointment' : 'appointments'} unpaid`), action: 'checkout' });
   const waiting = data.waitlist.filter(w => w.status === 'waiting');
-  if (waiting.length) insights.push({ id: 'waitlist', tone: 'green', title: `${waiting.length} في قائمة الانتظار`, action: 'messages' });
+  if (waiting.length) insights.push({ id: 'waitlist', tone: 'green', title: L(`${waiting.length} في قائمة الانتظار`, `${waiting.length} on the waitlist`), action: 'messages' });
   return insights;
 }
 

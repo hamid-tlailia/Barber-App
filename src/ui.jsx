@@ -1,12 +1,16 @@
 // مكونات الواجهة المشتركة: بسيطة، كبيرة، وواضحة للمس.
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, Search, TriangleAlert, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Search, TriangleAlert, X } from 'lucide-react';
 import { statusText } from './data.js';
+import { L, isEn } from './i18n.js';
+
+// السهم يشير لاتجاه التقدّم: يسار في العربية ويمين في الإنجليزية.
+const Chevron = isEn ? ChevronRight : ChevronLeft;
 
 export const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
-const initials = name => (name || '؟').trim().split(/\s+/).slice(0, 2).map(word => word[0]).join('');
+const initials = name => (name || L('؟', '?')).trim().split(/\s+/).slice(0, 2).map(word => word[0]).join('');
 const hue = text => [...String(text || '')].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 6;
 
 export function Avatar({ name, size = 'md', color }) {
@@ -49,7 +53,7 @@ export function Row({ leading, title, subtitle, trailing, onClick, tone }) {
   return <Tag type={onClick ? 'button' : undefined} className={`row ${tone ? `row-${tone}` : ''}`} onClick={onClick}>
     {leading && <span className="row-leading">{leading}</span>}
     <span className="row-body"><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</span>
-    {trailing !== undefined ? <span className="row-trailing">{trailing}</span> : onClick ? <ChevronLeft className="row-chevron" size={18} /> : null}
+    {trailing !== undefined ? <span className="row-trailing">{trailing}</span> : onClick ? <Chevron className="row-chevron" size={18} /> : null}
   </Tag>;
 }
 
@@ -162,7 +166,7 @@ export function Sheet({ title, subtitle, onClose, children, footer, size = 'md' 
       <div className="sheet-grip" aria-hidden="true"><span /></div>
       <header className="sheet-head">
         <div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>
-        <IconButton icon={X} label="إغلاق" onClick={() => requestClose()} />
+        <IconButton icon={X} label={L('إغلاق', 'Close')} onClick={() => requestClose()} />
       </header>
       <div className="sheet-body">{children}</div>
       {footer && <footer className="sheet-foot">{footer}</footer>}
@@ -207,8 +211,8 @@ export function NumInput({ value, onChange, ...props }) {
     }} />;
 }
 
-export function SearchBox({ value, onChange, placeholder = 'بحث...' }) {
-  return <label className="search"><Search size={18} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} aria-label={placeholder} />{value && <button type="button" onClick={() => onChange('')} aria-label="مسح"><X size={16} /></button>}</label>;
+export function SearchBox({ value, onChange, placeholder = L('بحث...', 'Search...') }) {
+  return <label className="search"><Search size={18} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} aria-label={placeholder} />{value && <button type="button" onClick={() => onChange('')} aria-label={L('مسح', 'Clear')}><X size={16} /></button>}</label>;
 }
 
 export function Alert({ children, tone = 'red', icon: Icon = TriangleAlert }) {
@@ -219,8 +223,8 @@ export function Toggle({ checked, onChange, label, hint }) {
   return <label className="toggle-row"><span><strong>{label}</strong>{hint && <small>{hint}</small>}</span><input type="checkbox" className="toggle" checked={Boolean(checked)} onChange={event => onChange(event.target.checked)} /></label>;
 }
 
-export function Confirm({ title, text, confirmLabel = 'تأكيد', danger, onConfirm, onClose }) {
-  return <Sheet title={title} onClose={onClose} size="sm" footer={<><Button variant="ghost" onClick={onClose}>تراجع</Button><Button variant={danger ? 'danger' : 'primary'} onClick={() => { onConfirm(); onClose(); }}>{confirmLabel}</Button></>}>
+export function Confirm({ title, text, confirmLabel = L('تأكيد', 'Confirm'), danger, onConfirm, onClose }) {
+  return <Sheet title={title} onClose={onClose} size="sm" footer={<><Button variant="ghost" onClick={onClose}>{L('تراجع', 'Cancel')}</Button><Button variant={danger ? 'danger' : 'primary'} onClick={() => { onConfirm(); onClose(); }}>{confirmLabel}</Button></>}>
     <p className="muted">{text}</p>
   </Sheet>;
 }

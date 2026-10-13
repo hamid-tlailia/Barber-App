@@ -4,6 +4,7 @@ import { addDays, dateLabel, daysBetween, fillTemplate, localISO, num, serviceNa
 import { birthdaysToday, dueSoon, lapsedClients } from '../smart.js';
 import { bookingUrl, cloudEnabled } from '../lib/sync.js';
 import { Alert, Avatar, Badge, Button, Empty, Row, Segmented, openExternal, useApp } from '../ui.jsx';
+import { L } from '../i18n.js';
 
 export default function Messages() {
   const { data, intent, setIntent, logMessage, patch, remove, toast, shop, go, isManager } = useApp();
@@ -34,47 +35,47 @@ export default function Messages() {
   };
 
   const tabs = [
-    { id: 'reminders', label: `تذكير ${reminders.filter(a => !sent('reminder', a.clientId, a.id)).length || ''}` },
-    { id: 'recovery', label: `استرجاع ${lapsed.length + due.length || ''}` },
-    { id: 'birthday', label: `ميلاد ${birthdays.length || ''}` },
-    { id: 'waitlist', label: `انتظار ${waiting.length || ''}` },
+    { id: 'reminders', label: `${L('تذكير', 'Reminders')} ${reminders.filter(a => !sent('reminder', a.clientId, a.id)).length || ''}` },
+    { id: 'recovery', label: `${L('استرجاع', 'Win-back')} ${lapsed.length + due.length || ''}` },
+    { id: 'birthday', label: `${L('ميلاد', 'Birthdays')} ${birthdays.length || ''}` },
+    { id: 'waitlist', label: `${L('انتظار', 'Waitlist')} ${waiting.length || ''}` },
   ];
 
   return <div className="stack">
     <div className={`auto-card ${cloudEnabled ? '' : 'muted-card'}`}>
       <span className="tile-icon tone-purple"><Bot size={24} /></span>
-      <div><strong>الأتمتة عبر واتساب</strong><small>{cloudEnabled ? 'عند ربط رقم واتساب للأعمال تُرسل التذكيرات وتقرير اليوم تلقائياً، ويرد المساعد الذكي على الحجوزات.' : 'اضغط زر واتساب بجانب كل عميل — الرسالة جاهزة.'}</small></div>
-      {cloudEnabled && isManager && <Button size="sm" variant="secondary" onClick={() => go('settings', { open: 'whatsapp' })}>إعداد</Button>}
+      <div><strong>{L('الأتمتة عبر واتساب', 'WhatsApp automation')}</strong><small>{cloudEnabled ? L('عند ربط رقم واتساب للأعمال تُرسل التذكيرات وتقرير اليوم تلقائياً، ويرد المساعد الذكي على الحجوزات.', 'Once a WhatsApp Business number is connected, reminders and the daily report are sent automatically, and the smart assistant replies to booking requests.') : L('اضغط زر واتساب بجانب كل عميل — الرسالة جاهزة.', 'Tap the WhatsApp button next to any client — the message is ready.')}</small></div>
+      {cloudEnabled && isManager && <Button size="sm" variant="secondary" onClick={() => go('settings', { open: 'whatsapp' })}>{L('إعداد', 'Set up')}</Button>}
     </div>
     <Segmented size="sm" items={tabs} value={tab} onChange={setTab} />
 
     {tab === 'reminders' && (reminders.length ? <div className="list">{reminders.map(a => {
       const c = clients[a.clientId]; if (!c) return null;
       const done = sent('reminder', c.id, a.id);
-      return <Row key={a.id} leading={<Avatar name={c.name} />} title={c.name} subtitle={`${a.date === today ? 'اليوم' : 'غداً'} ${timeLabel(a.time)} · ${serviceNames(a)}`}
-        trailing={done ? <Badge tone="green"><Check size={12} /> أُرسل</Badge> : <Button size="sm" icon={BellRing} onClick={() => send(c, t.reminder, { date: dateLabel(a.date), time: timeLabel(a.time) }, 'reminder', a.id)}>ذكّر</Button>} />;
-    })}</div> : <Empty icon={BellRing} title="لا تذكيرات مطلوبة" text="مواعيد اليوم والغد كلها مُذكّرة" />)}
+      return <Row key={a.id} leading={<Avatar name={c.name} />} title={c.name} subtitle={`${a.date === today ? L('اليوم', 'Today') : L('غداً', 'Tomorrow')} ${timeLabel(a.time)} · ${serviceNames(a)}`}
+        trailing={done ? <Badge tone="green"><Check size={12} /> {L('أُرسل', 'Sent')}</Badge> : <Button size="sm" icon={BellRing} onClick={() => send(c, t.reminder, { date: dateLabel(a.date), time: timeLabel(a.time) }, 'reminder', a.id)}>{L('ذكّر', 'Remind')}</Button>} />;
+    })}</div> : <Empty icon={BellRing} title={L('لا تذكيرات مطلوبة', 'No reminders needed')} text={L('مواعيد اليوم والغد كلها مُذكّرة', "All of today's and tomorrow's appointments have been reminded")} />)}
 
     {tab === 'recovery' && <>
-      {!link && <Alert tone="orange" icon={Sparkles}>فعّل رابط الحجز من الإعدادات ليُضاف للرسالة تلقائياً</Alert>}
-      {due.length > 0 && <><small className="muted">حان موعدهم المعتاد</small><div className="list">{due.map(({ client: c, stats }) => <Row key={c.id} leading={<Avatar name={c.name} />} title={c.name} subtitle={`عادةً كل ${num(stats.avgInterval)} يوم · آخر زيارة ${dateLabel(stats.lastVisit, { day: 'numeric', month: 'short' })}`}
-        trailing={sent('recovery', c.id, '', 14) ? <Badge tone="green">أُرسل</Badge> : <Button size="sm" variant="secondary" icon={Send} onClick={() => send(c, t.recovery, {}, 'recovery')}>أرسل</Button>} />)}</div></>}
-      {lapsed.length > 0 ? <><small className="muted">منقطعون — الأعلى إنفاقاً أولاً</small><div className="list">{lapsed.map(({ client: c, stats, overdue }) => <Row key={c.id} leading={<Avatar name={c.name} />} title={c.name} subtitle={`غائب منذ ${num(stats.daysSince)} يوم (متأخر ${num(overdue)})`}
-        trailing={sent('recovery', c.id, '', 21) ? <Badge tone="green">أُرسل</Badge> : <Button size="sm" icon={UserRoundCheck} onClick={() => send(c, t.recovery, {}, 'recovery')}>استرجع</Button>} />)}</div></>
-        : !due.length && <Empty icon={UserRoundCheck} title="لا عملاء منقطعون" text="عملاؤك يعودون بانتظام 👏" />}
+      {!link && <Alert tone="orange" icon={Sparkles}>{L('فعّل رابط الحجز من الإعدادات ليُضاف للرسالة تلقائياً', 'Enable the booking link in Settings to add it to messages automatically')}</Alert>}
+      {due.length > 0 && <><small className="muted">{L('حان موعدهم المعتاد', 'Due for their usual visit')}</small><div className="list">{due.map(({ client: c, stats }) => <Row key={c.id} leading={<Avatar name={c.name} />} title={c.name} subtitle={L(`عادةً كل ${num(stats.avgInterval)} يوم · آخر زيارة ${dateLabel(stats.lastVisit, { day: 'numeric', month: 'short' })}`, `Usually every ${num(stats.avgInterval)} day${stats.avgInterval === 1 ? '' : 's'} · last visit ${dateLabel(stats.lastVisit, { day: 'numeric', month: 'short' })}`)}
+        trailing={sent('recovery', c.id, '', 14) ? <Badge tone="green">{L('أُرسل', 'Sent')}</Badge> : <Button size="sm" variant="secondary" icon={Send} onClick={() => send(c, t.recovery, {}, 'recovery')}>{L('أرسل', 'Send')}</Button>} />)}</div></>}
+      {lapsed.length > 0 ? <><small className="muted">{L('منقطعون — الأعلى إنفاقاً أولاً', 'Lapsed — highest spenders first')}</small><div className="list">{lapsed.map(({ client: c, stats, overdue }) => <Row key={c.id} leading={<Avatar name={c.name} />} title={c.name} subtitle={L(`غائب منذ ${num(stats.daysSince)} يوم (متأخر ${num(overdue)})`, `Away for ${num(stats.daysSince)} day${stats.daysSince === 1 ? '' : 's'} (${num(overdue)} overdue)`)}
+        trailing={sent('recovery', c.id, '', 21) ? <Badge tone="green">{L('أُرسل', 'Sent')}</Badge> : <Button size="sm" icon={UserRoundCheck} onClick={() => send(c, t.recovery, {}, 'recovery')}>{L('استرجع', 'Win back')}</Button>} />)}</div></>
+        : !due.length && <Empty icon={UserRoundCheck} title={L('لا عملاء منقطعون', 'No lapsed clients')} text={L('عملاؤك يعودون بانتظام 👏', 'Your clients come back regularly 👏')} />}
     </>}
 
-    {tab === 'birthday' && (birthdays.length ? <div className="list">{birthdays.map(c => <Row key={c.id} leading={<Avatar name={c.name} />} title={c.name} subtitle="عيد ميلاده اليوم 🎂"
-      trailing={sent('birthday', c.id, '', 300) ? <Badge tone="green">أُرسل</Badge> : <Button size="sm" icon={Cake} onClick={() => send(c, t.birthday, {}, 'birthday')}>هنّئ</Button>} />)}</div>
-      : <Empty icon={Cake} title="لا أعياد ميلاد اليوم" text="أضف تاريخ الميلاد في ملف العميل" />)}
+    {tab === 'birthday' && (birthdays.length ? <div className="list">{birthdays.map(c => <Row key={c.id} leading={<Avatar name={c.name} />} title={c.name} subtitle={L('عيد ميلاده اليوم 🎂', 'Birthday today 🎂')}
+      trailing={sent('birthday', c.id, '', 300) ? <Badge tone="green">{L('أُرسل', 'Sent')}</Badge> : <Button size="sm" icon={Cake} onClick={() => send(c, t.birthday, {}, 'birthday')}>{L('هنّئ', 'Congratulate')}</Button>} />)}</div>
+      : <Empty icon={Cake} title={L('لا أعياد ميلاد اليوم', 'No birthdays today')} text={L('أضف تاريخ الميلاد في ملف العميل', "Add birth dates in the client's profile")} />)}
 
     {tab === 'waitlist' && (waiting.length ? <div className="list">{waiting.map(w => {
       const c = clients[w.clientId];
-      return <Row key={w.id} leading={<Avatar name={c?.name} />} title={c?.name || 'عميل'} subtitle={`${w.date ? dateLabel(w.date) : 'أي يوم'}${w.serviceId ? ` · ${data.services.find(s => s.id === w.serviceId)?.name || ''}` : ''}`}
+      return <Row key={w.id} leading={<Avatar name={c?.name} />} title={c?.name || L('عميل', 'Client')} subtitle={`${w.date ? dateLabel(w.date) : L('أي يوم', 'Any day')}${w.serviceId ? ` · ${data.services.find(s => s.id === w.serviceId)?.name || ''}` : ''}`}
         trailing={<span className="row-end">
-          {c && <Button size="sm" variant="secondary" icon={MessageCircle} onClick={() => openExternal(whatsappLink(c.phone))}>تواصل</Button>}
-          <button type="button" className="icon-btn" aria-label="حذف" onClick={() => { remove('waitlist', w.id); toast('أُزيل من القائمة'); }}><Trash2 size={16} /></button>
+          {c && <Button size="sm" variant="secondary" icon={MessageCircle} onClick={() => openExternal(whatsappLink(c.phone))}>{L('تواصل', 'Contact')}</Button>}
+          <button type="button" className="icon-btn" aria-label={L('حذف', 'Delete')} onClick={() => { remove('waitlist', w.id); toast(L('أُزيل من القائمة', 'Removed from list')); }}><Trash2 size={16} /></button>
         </span>} />;
-    })}</div> : <Empty icon={ListChecks} title="قائمة الانتظار فارغة" text="عند امتلاء يوم، أضف العميل للانتظار من شاشة الحجز — وعند أي إلغاء نقترحه عليك" />)}
+    })}</div> : <Empty icon={ListChecks} title={L('قائمة الانتظار فارغة', 'Waitlist is empty')} text={L('عند امتلاء يوم، أضف العميل للانتظار من شاشة الحجز — وعند أي إلغاء نقترحه عليك', "When a day is full, add the client to the waitlist from the booking screen — we'll suggest them whenever there's a cancellation")} />)}
   </div>;
 }

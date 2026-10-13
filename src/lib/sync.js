@@ -1,6 +1,7 @@
 // المزامنة السحابية (Supabase): المحلي أولاً، ثم رفع التغييرات وسحب الجديد حسب وقت الخادم.
 import { createClient } from '@supabase/supabase-js';
 import { COLLECTIONS } from '../data.js';
+import { L } from '../i18n.js';
 
 const url = import.meta.env?.VITE_SUPABASE_URL;
 const key = import.meta.env?.VITE_SUPABASE_ANON_KEY;
@@ -100,7 +101,7 @@ export const auth = {
 };
 
 const rpc = async (name, args) => {
-  if (!supabase) throw new Error('هذه الميزة تحتاج الحساب السحابي');
+  if (!supabase) throw new Error(L('هذه الميزة تحتاج الحساب السحابي', 'This feature requires a cloud account'));
   const { data, error } = await supabase.rpc(name, args);
   if (error) throw error;
   return data;
@@ -163,20 +164,20 @@ export const api = {
 
 export const errorText = error => {
   const message = String(error?.message || error || '');
-  if (/Invalid login credentials/i.test(message)) return 'البريد أو كلمة المرور غير صحيحة';
-  if (/already registered|already been registered/i.test(message)) return 'هذا البريد مسجل مسبقاً، سجّل الدخول';
-  if (/Email not confirmed/i.test(message)) return 'أكّد بريدك من الرسالة التي وصلتك ثم سجّل الدخول';
-  if (/Password should be/i.test(message)) return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
-  if (/row-level security|violates/i.test(message)) return 'لا تملك صلاحية هذا الإجراء أو انتهت فترة التجربة';
-  if (/invalid_invite/.test(message)) return 'رمز الدعوة غير صحيح أو منتهي';
-  if (/slot_taken/.test(message)) return 'هذا الوقت حُجز للتو، اختر وقتاً آخر';
-  if (/too_many/.test(message)) return 'وصلت للحد الأقصى من الحجوزات اليوم، تواصل مع الصالون';
-  if (/shop_unavailable/.test(message)) return 'الحجز الأونلاين غير متاح حالياً لهذا الصالون';
-  if (/grace_already_given/.test(message)) return 'سبق منح مهلة لهذه الفترة — جدّد الاشتراك أو أوقف الصالون';
-  if (/not_subscribed/.test(message)) return 'المهلة للمشتركين فقط — للتجربة استخدم تمديد التجربة';
-  if (/duplicate key.*slug/i.test(message)) return 'رابط الحجز مستخدم، اختر اسماً آخر';
-  if (/Failed to fetch|NetworkError|network/i.test(message)) return 'لا يوجد اتصال بالإنترنت';
-  return message || 'حدث خطأ غير متوقع';
+  if (/Invalid login credentials/i.test(message)) return L('البريد أو كلمة المرور غير صحيحة', 'Incorrect email or password');
+  if (/already registered|already been registered/i.test(message)) return L('هذا البريد مسجل مسبقاً، سجّل الدخول', 'This email is already registered — please sign in');
+  if (/Email not confirmed/i.test(message)) return L('أكّد بريدك من الرسالة التي وصلتك ثم سجّل الدخول', 'Confirm your email using the message we sent you, then sign in');
+  if (/Password should be/i.test(message)) return L('كلمة المرور يجب أن تكون 6 أحرف على الأقل', 'Password must be at least 6 characters');
+  if (/row-level security|violates/i.test(message)) return L('لا تملك صلاحية هذا الإجراء أو انتهت فترة التجربة', 'You don\'t have permission for this action, or your trial has ended');
+  if (/invalid_invite/.test(message)) return L('رمز الدعوة غير صحيح أو منتهي', 'The invite code is invalid or has expired');
+  if (/slot_taken/.test(message)) return L('هذا الوقت حُجز للتو، اختر وقتاً آخر', 'This time was just booked — please choose another');
+  if (/too_many/.test(message)) return L('وصلت للحد الأقصى من الحجوزات اليوم، تواصل مع الصالون', 'You\'ve reached today\'s booking limit — please contact the salon');
+  if (/shop_unavailable/.test(message)) return L('الحجز الأونلاين غير متاح حالياً لهذا الصالون', 'Online booking is currently unavailable for this salon');
+  if (/grace_already_given/.test(message)) return L('سبق منح مهلة لهذه الفترة — جدّد الاشتراك أو أوقف الصالون', 'A grace period was already granted for this term — renew the subscription or suspend the salon');
+  if (/not_subscribed/.test(message)) return L('المهلة للمشتركين فقط — للتجربة استخدم تمديد التجربة', 'Grace periods are for subscribers only — for trials, use trial extension');
+  if (/duplicate key.*slug/i.test(message)) return L('رابط الحجز مستخدم، اختر اسماً آخر', 'This booking link is taken — choose another name');
+  if (/Failed to fetch|NetworkError|network/i.test(message)) return L('لا يوجد اتصال بالإنترنت', 'No internet connection');
+  return message || L('حدث خطأ غير متوقع', 'An unexpected error occurred');
 };
 
 // رابط الحجز العام يجب أن يشير لنسخة الويب المنشورة (وليس لعنوان تطبيق أندرويد الداخلي).

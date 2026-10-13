@@ -1,4 +1,4 @@
-import './i18n.js';
+import { L } from './i18n.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
@@ -45,17 +45,17 @@ const ACCESS = {
 };
 
 export const PAGES = {
-  home: { label: 'الرئيسية', icon: House, component: Home },
-  appointments: { label: 'المواعيد', icon: CalendarDays, component: Appointments },
-  clients: { label: 'العملاء', icon: UsersRound, component: Clients },
-  checkout: { label: 'الدفع', icon: WalletCards, component: Checkout },
-  messages: { label: 'الرسائل الذكية', icon: MessageCircle, component: Messages },
-  inventory: { label: 'المخزون', icon: Boxes, component: Inventory },
-  team: { label: 'الفريق', icon: Scissors, component: Team },
-  reports: { label: 'التقارير', icon: BarChart3, component: Reports },
-  settings: { label: 'الإعدادات', icon: Settings2, component: Settings },
-  more: { label: 'المزيد', icon: LayoutGrid, component: More },
-  admin: { label: 'لوحة المطوّر', icon: Crown, component: Admin },
+  home: { label: L('الرئيسية', 'Home'), icon: House, component: Home },
+  appointments: { label: L('المواعيد', 'Appointments'), icon: CalendarDays, component: Appointments },
+  clients: { label: L('العملاء', 'Clients'), icon: UsersRound, component: Clients },
+  checkout: { label: L('الدفع', 'Checkout'), icon: WalletCards, component: Checkout },
+  messages: { label: L('الرسائل الذكية', 'Smart messages'), icon: MessageCircle, component: Messages },
+  inventory: { label: L('المخزون', 'Inventory'), icon: Boxes, component: Inventory },
+  team: { label: L('الفريق', 'Team'), icon: Scissors, component: Team },
+  reports: { label: L('التقارير', 'Reports'), icon: BarChart3, component: Reports },
+  settings: { label: L('الإعدادات', 'Settings'), icon: Settings2, component: Settings },
+  more: { label: L('المزيد', 'More'), icon: LayoutGrid, component: More },
+  admin: { label: L('لوحة المطوّر', 'Developer panel'), icon: Crown, component: Admin },
 };
 const TABS = ['home', 'appointments', 'clients', 'checkout', 'more'];
 
@@ -121,7 +121,7 @@ function Gate() {
     } catch {
       // بدون إنترنت: نعمل بآخر نسخة معروفة من بيانات الصالونات والترخيص.
       setShops(prefs.get('shops-cache', []));
-      setError('تعمل الآن بدون اتصال — ستتم المزامنة تلقائياً');
+      setError(L('تعمل الآن بدون اتصال — ستتم المزامنة تلقائياً', "You're offline — changes will sync automatically"));
     }
   }, [session]);
 
@@ -146,10 +146,10 @@ function Gate() {
 function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switchShop, addBranch }) {
   const onRemoteBookings = useCallback(list => {
     const a = list[0];
-    const name = a.clientName || 'عميل جديد';
-    const text = list.length > 1 ? `${list.length} حجوزات جديدة أونلاين` : `حجز جديد: ${name} — ${dateLabel(a.date, { weekday: 'long' })} ${timeLabel(a.time)}`;
-    if (!(import.meta.env.VITE_PUSH === '1' && document.hidden)) notifyNow('📅 حجز جديد', text); // في الخلفية يصل إشعار Firebase بدلاً منه
-    toastRef.current?.(text, 'success', { label: 'فتح', run: () => goRef.current?.('appointments', { open: a.id }) });
+    const name = a.clientName || L('عميل جديد', 'New client');
+    const text = list.length > 1 ? L(`${list.length} حجوزات جديدة أونلاين`, `${list.length} new online bookings`) : L(`حجز جديد: ${name} — ${dateLabel(a.date, { weekday: 'long' })} ${timeLabel(a.time)}`, `New booking: ${name} — ${dateLabel(a.date, { weekday: 'long' })} ${timeLabel(a.time)}`);
+    if (!(import.meta.env.VITE_PUSH === '1' && document.hidden)) notifyNow(L('📅 حجز جديد', '📅 New booking'), text); // في الخلفية يصل إشعار Firebase بدلاً منه
+    toastRef.current?.(text, 'success', { label: L('فتح', 'Open'), run: () => goRef.current?.('appointments', { open: a.id }) });
   }, []);
   const toastRef = useRef(null);
   const goRef = useRef(null);
@@ -235,24 +235,24 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
   return <AppContext.Provider value={context}>
     <div className="app">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark"><Scissors size={20} /></span><span><strong>{data.shopName || 'مِقص'}</strong><small>{shops.length > 1 ? 'تبديل الفرع من الإعدادات' : vocab.shop}</small></span></div>
+        <div className="brand"><span className="brand-mark"><Scissors size={20} /></span><span><strong>{data.shopName || 'مِقص'}</strong><small>{shops.length > 1 ? L('تبديل الفرع من الإعدادات', 'Switch branch in Settings') : vocab.shop}</small></span></div>
         <nav>{allowed.filter(id => !['more', 'settings', 'admin'].includes(id)).map(id => {
           const Icon = PAGES[id].icon;
           return <button type="button" key={id} className={page === id ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{id === 'clients' ? vocab.clients : PAGES[id].label}</span></button>;
         })}</nav>
         <div className="sidebar-foot">
-          <button type="button" onClick={() => theme.setMode(theme.theme === 'dark' ? 'light' : 'dark')}>{theme.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}<span>{theme.theme === 'dark' ? 'الوضع النهاري' : 'الوضع الليلي'}</span></button>
-          {cloudEnabled && <button type="button" onClick={() => auth.signOut()}><LogOut size={18} /><span>تسجيل الخروج</span></button>}
+          <button type="button" onClick={() => theme.setMode(theme.theme === 'dark' ? 'light' : 'dark')}>{theme.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}<span>{theme.theme === 'dark' ? L('الوضع النهاري', 'Light mode') : L('الوضع الليلي', 'Dark mode')}</span></button>
+          {cloudEnabled && <button type="button" onClick={() => auth.signOut()}><LogOut size={18} /><span>{L('تسجيل الخروج', 'Sign out')}</span></button>}
         </div>
       </aside>
 
       <main className="main">
         <header className="topbar">
-          <div className="topbar-title"><h1>{page === 'home' ? (data.shopName || 'مِقص') : page === 'clients' ? vocab.clients : page === 'team' ? vocab.team : PAGES[page].label}</h1></div>
+          <div className="topbar-title"><h1>{page === 'home' ? (data.shopName || L('مِقص', 'Miqass')) : page === 'clients' ? vocab.clients : page === 'team' ? vocab.team : PAGES[page].label}</h1></div>
           <div className="topbar-actions">
-            {SyncIcon && <button type="button" className={`sync-pill sync-${sync.state}`} onClick={syncNow} title={sync.error || 'مزامنة'}><SyncIcon size={16} className={sync.state === 'syncing' ? 'spin' : ''} />{sync.pending ? <span>{sync.pending}</span> : null}</button>}
-            {admin && <button type="button" className={`icon-btn ${page === 'admin' ? 'active' : ''}`} onClick={() => go('admin')} aria-label="لوحة المطوّر"><ShieldCheck size={19} /></button>}
-            {allowed.includes('settings') && !tabs.includes('settings') && <button type="button" className={`icon-btn ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')} aria-label="الإعدادات"><Settings2 size={19} /></button>}
+            {SyncIcon && <button type="button" className={`sync-pill sync-${sync.state}`} onClick={syncNow} title={sync.error || L('مزامنة', 'Sync')}><SyncIcon size={16} className={sync.state === 'syncing' ? 'spin' : ''} />{sync.pending ? <span>{sync.pending}</span> : null}</button>}
+            {admin && <button type="button" className={`icon-btn ${page === 'admin' ? 'active' : ''}`} onClick={() => go('admin')} aria-label={L('لوحة المطوّر', 'Developer panel')}><ShieldCheck size={19} /></button>}
+            {allowed.includes('settings') && !tabs.includes('settings') && <button type="button" className={`icon-btn ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')} aria-label={L('الإعدادات', 'Settings')}><Settings2 size={19} /></button>}
           </div>
         </header>
         {license.status === 'trial' && <TrialBanner license={license} shop={shop} />}

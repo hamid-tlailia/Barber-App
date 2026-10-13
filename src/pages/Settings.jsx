@@ -9,8 +9,12 @@ import { addonLink, addons, buyLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { notifyNow, pushState, pushSupported } from '../lib/native.js';
+import { L, LANG, isEn, setLang } from '../i18n.js';
 
-const weekdays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const weekdays = isEn
+  ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  : ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
 
 export default function Settings() {
   const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh, enablePush, toast, isManager } = useApp();
@@ -20,53 +24,55 @@ export default function Settings() {
   const owner = role === 'owner';
   // الموظف والاستقبال يرون إعداداتهم الشخصية فقط (الإشعارات، المظهر، الحساب).
   const groups = !isManager ? [] : [
-    { title: 'الصالون', items: [
-      { id: 'shop', icon: Store, label: 'بيانات الصالون' },
-      { id: 'services', icon: Scissors, label: 'الخدمات والأسعار' },
-      { id: 'hours', icon: Clock3, label: 'ساعات العمل' },
-      { id: 'packages', icon: Package, label: 'الباقات' },
-      { id: 'gifts', icon: Gift, label: 'بطاقات الهدايا' },
+    { title: L('الصالون', 'Salon'), items: [
+      { id: 'shop', icon: Store, label: L('بيانات الصالون', 'Salon details') },
+      { id: 'services', icon: Scissors, label: L('الخدمات والأسعار', 'Services & prices') },
+      { id: 'hours', icon: Clock3, label: L('ساعات العمل', 'Working hours') },
+      { id: 'packages', icon: Package, label: L('الباقات', 'Packages') },
+      { id: 'gifts', icon: Gift, label: L('بطاقات الهدايا', 'Gift cards') },
     ] },
-    { title: 'العملاء والرسائل', items: [
-      cloudEnabled && { id: 'booking', icon: Link2, label: 'رابط الحجز الأونلاين' },
-      cloudEnabled && owner && { id: 'whatsapp', icon: Bot, label: 'واتساب الذكي' },
-      { id: 'smart', icon: SlidersHorizontal, label: 'القواعد الذكية' },
+    { title: L('العملاء والرسائل', 'Clients & messages'), items: [
+      cloudEnabled && { id: 'booking', icon: Link2, label: L('رابط الحجز الأونلاين', 'Online booking link') },
+      cloudEnabled && owner && { id: 'whatsapp', icon: Bot, label: L('واتساب الذكي', 'Smart WhatsApp') },
+      { id: 'smart', icon: SlidersHorizontal, label: L('القواعد الذكية', 'Smart rules') },
     ] },
-    { title: 'الحساب', items: [
-      owner && { id: 'plan', icon: CreditCard, label: 'الاشتراك' },
-      cloudEnabled && { id: 'audit', icon: History, label: 'سجل التعديلات', subtitle: 'كل عمليات الموظفين بالتفصيل' },
-      { id: 'backup', icon: DatabaseBackup, label: 'النسخ الاحتياطي' },
+    { title: L('الحساب', 'Account'), items: [
+      owner && { id: 'plan', icon: CreditCard, label: L('الاشتراك', 'Subscription') },
+      cloudEnabled && { id: 'audit', icon: History, label: L('سجل التعديلات', 'Activity log'), subtitle: L('كل عمليات الموظفين بالتفصيل', 'Every staff action in detail') },
+      { id: 'backup', icon: DatabaseBackup, label: L('النسخ الاحتياطي', 'Backup') },
     ] },
   ];
   const Sheets = { shop: ShopSettings, services: ServicesSettings, hours: HoursSettings, packages: PackagesSettings, gifts: GiftCards, booking: BookingSettings, smart: SmartSettings, whatsapp: WhatsAppSettings, audit: AuditLog, backup: Backup, plan: Plan };
   const Current = open && Sheets[open];
   const setDigits = value => { if (value === digitStyle) return; setDigitStyle(value); refresh(); };
+  const changeLang = value => { if (value !== LANG) setLang(value); };
   return <div className="stack-lg">
     {groups.map(group => <Section key={group.title} title={group.title}>
       <div className="list">{group.items.filter(Boolean).map(item => <Row key={item.id} leading={<span className="dot-icon tone-accent"><item.icon size={18} /></span>} title={item.label} subtitle={item.subtitle} onClick={() => setOpen(item.id)} />)}</div>
     </Section>)}
-    {pushSupported && <Section title="الإشعارات">
+    {pushSupported && <Section title={L('الإشعارات', 'Notifications')}>
       <div className="list">
         <Row leading={<span className={`dot-icon tone-${push.status === 'registered' ? 'green' : 'orange'}`}><Bell size={18} /></span>}
-          title="إشعار الحجوزات الجديدة"
-          subtitle={{ registered: 'مفعّلة على هذا الهاتف ✓', registering: 'جارٍ التسجيل...', denied: 'مرفوضة — فعّلها من إعدادات الهاتف ← التطبيقات ← مِقص ← الإشعارات', 'not-granted': 'لم يُمنح الإذن بعد', error: `خطأ: ${push.error}`, unknown: 'غير مفعّلة' }[push.status] || push.status}
-          trailing={<Button size="sm" variant={push.status === 'registered' ? 'ghost' : 'primary'} onClick={async () => { setPush({ status: 'registering' }); const r = await enablePush(); setTimeout(() => setPush({ ...pushState }), 1500); setPush({ ...r }); }}>{push.status === 'registered' ? 'إعادة' : 'تفعيل'}</Button>} />
-        <Row title="إرسال إشعار تجريبي" subtitle="للتأكد أن الهاتف يعرض الإشعارات" onClick={() => { notifyNow('📅 إشعار تجريبي', 'هكذا سيظهر الحجز الجديد'); toast('أُرسل — انظر شريط الإشعارات'); }} />
+          title={L('إشعار الحجوزات الجديدة', 'New booking alerts')}
+          subtitle={{ registered: L('مفعّلة على هذا الهاتف ✓', 'Enabled on this phone ✓'), registering: L('جارٍ التسجيل...', 'Registering...'), denied: L('مرفوضة — فعّلها من إعدادات الهاتف ← التطبيقات ← مِقص ← الإشعارات', 'Blocked — enable it in phone Settings → Apps → Miqass → Notifications'), 'not-granted': L('لم يُمنح الإذن بعد', 'Permission not granted yet'), error: L(`خطأ: ${push.error}`, `Error: ${push.error}`), unknown: L('غير مفعّلة', 'Not enabled') }[push.status] || push.status}
+          trailing={<Button size="sm" variant={push.status === 'registered' ? 'ghost' : 'primary'} onClick={async () => { setPush({ status: 'registering' }); const r = await enablePush(); setTimeout(() => setPush({ ...pushState }), 1500); setPush({ ...r }); }}>{push.status === 'registered' ? L('إعادة', 'Retry') : L('تفعيل', 'Enable')}</Button>} />
+        <Row title={L('إرسال إشعار تجريبي', 'Send a test notification')} subtitle={L('للتأكد أن الهاتف يعرض الإشعارات', 'Check that this phone shows notifications')} onClick={() => { notifyNow(L('📅 إشعار تجريبي', '📅 Test notification'), L('هكذا سيظهر الحجز الجديد', 'This is how a new booking will appear')); toast(L('أُرسل — انظر شريط الإشعارات', 'Sent — check your notification bar')); }} />
       </div>
     </Section>}
-    <Section title="المظهر">
+    <Section title={L('المظهر', 'Appearance')}>
       <div className="list">
-        <Row title="الألوان" trailing={<Segmented size="sm" items={[{ id: 'light', label: 'فاتح' }, { id: 'dark', label: 'داكن' }, { id: 'system', label: 'تلقائي' }]} value={theme.mode} onChange={theme.setMode} />} />
-        <Row title="شكل الأرقام" trailing={<Segmented size="sm" items={[{ id: 'latn', label: '123' }, { id: 'arab', label: '١٢٣' }]} value={digitStyle} onChange={setDigits} />} />
+        <Row title={L('الألوان', 'Theme')} trailing={<Segmented size="sm" items={[{ id: 'light', label: L('فاتح', 'Light') }, { id: 'dark', label: L('داكن', 'Dark') }, { id: 'system', label: L('تلقائي', 'Auto') }]} value={theme.mode} onChange={theme.setMode} />} />
+        <Row title={L('اللغة', 'Language')} trailing={<Segmented size="sm" items={[{ id: 'ar', label: 'العربية' }, { id: 'en', label: 'English' }]} value={LANG} onChange={changeLang} />} />
+        {!isEn && <Row title="شكل الأرقام" trailing={<Segmented size="sm" items={[{ id: 'latn', label: '123' }, { id: 'arab', label: '١٢٣' }]} value={digitStyle} onChange={setDigits} />} />}
       </div>
     </Section>
-    {cloudEnabled && <Section title="الفروع">
+    {cloudEnabled && <Section title={L('الفروع', 'Branches')}>
       <div className="list">
-        {shops.map(s => <Row key={s.id} leading={<span className="dot-icon tone-blue"><Store size={18} /></span>} title={s.name} subtitle={`${roleText[s.role]}${s.active ? '' : ' · يحتاج تفعيل'}`} trailing={s.id === shop.id ? <Badge tone="green">الحالي</Badge> : <Button size="sm" variant="secondary" onClick={() => switchShop(s.id)}>فتح</Button>} />)}
-        {owner && <Row leading={<span className="dot-icon tone-green"><Plus size={18} /></span>} title="إضافة فرع جديد" subtitle="كل فرع بمواعيده وفريقه واشتراكه" onClick={addBranch} />}
+        {shops.map(s => <Row key={s.id} leading={<span className="dot-icon tone-blue"><Store size={18} /></span>} title={s.name} subtitle={`${roleText[s.role]}${s.active ? '' : L(' · يحتاج تفعيل', ' · Needs activation')}`} trailing={s.id === shop.id ? <Badge tone="green">{L('الحالي', 'Current')}</Badge> : <Button size="sm" variant="secondary" onClick={() => switchShop(s.id)}>{L('فتح', 'Open')}</Button>} />)}
+        {owner && <Row leading={<span className="dot-icon tone-green"><Plus size={18} /></span>} title={L('إضافة فرع جديد', 'Add a new branch')} subtitle={L('كل فرع بمواعيده وفريقه واشتراكه', 'Each branch has its own bookings, team and subscription')} onClick={addBranch} />}
       </div>
     </Section>}
-    {cloudEnabled && <Button variant="danger-ghost" icon={LogOut} block onClick={() => auth.signOut()}>تسجيل الخروج</Button>}
+    {cloudEnabled && <Button variant="danger-ghost" icon={LogOut} block onClick={() => auth.signOut()}>{L('تسجيل الخروج', 'Sign out')}</Button>}
     {Current && <Current onClose={() => setOpen(null)} />}
   </div>;
 }
@@ -82,13 +88,13 @@ function ShopSettings({ onClose }) {
     if (cloudEnabled) {
       try { await api.updateShop(shop.id, { name: name.trim(), kind, phone, slug: shop.slug }); await reloadShops(); } catch (e) { setError(errorText(e)); return; }
     }
-    toast('تم الحفظ'); onClose();
+    toast(L('تم الحفظ', 'Saved')); onClose();
   };
-  return <Sheet title="بيانات الصالون" onClose={onClose} footer={<Button block icon={Check} onClick={save}>حفظ</Button>}>
+  return <Sheet title={L('بيانات الصالون', 'Salon details')} onClose={onClose} footer={<Button block icon={Check} onClick={save}>{L('حفظ', 'Save')}</Button>}>
     <div className="stack">
-      <Field label="اسم الصالون"><input value={name} onChange={e => setName(e.target.value)} /></Field>
-      <Field label="نوع الصالون" hint="يغيّر المصطلحات (زبون/عميلة) والميزات المعروضة"><Chips items={[{ id: 'men', label: 'رجالي' }, { id: 'women', label: 'نسائي' }, { id: 'mixed', label: 'مختلط' }]} value={kind} onChange={setKind} /></Field>
-      <Field label="رقم واتساب الصالون"><input type="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} /></Field>
+      <Field label={L('اسم الصالون', 'Salon name')}><input value={name} onChange={e => setName(e.target.value)} /></Field>
+      <Field label={L('نوع الصالون', 'Salon type')} hint={L('يغيّر المصطلحات (زبون/عميلة) والميزات المعروضة', 'Adjusts wording and which features are shown')}><Chips items={[{ id: 'men', label: L('رجالي', "Men's") }, { id: 'women', label: L('نسائي', "Women's") }, { id: 'mixed', label: L('مختلط', 'Unisex') }]} value={kind} onChange={setKind} /></Field>
+      <Field label={L('رقم واتساب الصالون', 'Salon WhatsApp number')}><input type="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} /></Field>
       <Alert>{error}</Alert>
     </div>
   </Sheet>;
@@ -98,9 +104,12 @@ function ServicesSettings({ onClose }) {
   const { data } = useApp();
   const [edit, setEdit] = useState(null);
   const categories = [...new Set(data.services.map(s => s.category || 'عام'))];
-  return <Sheet title="الخدمات والأسعار" onClose={onClose} size="lg" footer={<Button block icon={Plus} onClick={() => setEdit({})}>خدمة جديدة</Button>}>
-    {categories.map(cat => <Section key={cat} title={cat}><div className="list">{data.services.filter(s => (s.category || 'عام') === cat).map(s => <Row key={s.id} title={s.name}
-      subtitle={`${num(s.duration)} دقيقة${s.processing ? ` · ${num(s.processing)} انتظار` : ''}${s.deposit ? ` · عربون ${money(s.deposit)}` : ''}${s.online === false ? ' · غير متاحة أونلاين' : ''}`}
+  return <Sheet title={L('الخدمات والأسعار', 'Services & prices')} onClose={onClose} size="lg" footer={<Button block icon={Plus} onClick={() => setEdit({})}>{L('خدمة جديدة', 'New service')}</Button>}>
+    {categories.map(cat => <Section key={cat} title={cat === 'عام' ? L('عام', 'General') : cat}><div className="list">{data.services.filter(s => (s.category || 'عام') === cat).map(s => <Row key={s.id} title={s.name}
+      subtitle={L(
+        `${num(s.duration)} دقيقة${s.processing ? ` · ${num(s.processing)} انتظار` : ''}${s.deposit ? ` · عربون ${money(s.deposit)}` : ''}${s.online === false ? ' · غير متاحة أونلاين' : ''}`,
+        `${num(s.duration)} min${s.processing ? ` · ${num(s.processing)} processing` : ''}${s.deposit ? ` · ${money(s.deposit)} deposit` : ''}${s.online === false ? ' · Not bookable online' : ''}`,
+      )}
       trailing={<strong>{money(s.price)}</strong>} onClick={() => setEdit(s)} />)}</div></Section>)}
     {edit && <ServiceForm service={edit.id ? edit : null} onClose={() => setEdit(null)} />}
   </Sheet>;
@@ -111,22 +120,22 @@ function ServiceForm({ service, onClose }) {
   const [v, setV] = useState({ name: '', category: 'عام', price: 0, duration: 30, processing: 0, deposit: 0, online: true, ...service });
   const [confirm, setConfirm] = useState(false);
   const set = (key, numeric) => e => setV({ ...v, [key]: numeric ? Number(e.target.value) : e.target.value });
-  return <Sheet title={service ? 'تعديل الخدمة' : 'خدمة جديدة'} onClose={onClose} footer={<>
-    {service && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>حذف</Button>}<div className="spacer" />
-    <Button icon={Check} disabled={!v.name.trim() || v.duration < 5} onClick={() => { upsert('services', { ...v, id: service?.id || uid(), name: v.name.trim() }); toast('تم الحفظ'); onClose(); }}>حفظ</Button>
+  return <Sheet title={service ? L('تعديل الخدمة', 'Edit service') : L('خدمة جديدة', 'New service')} onClose={onClose} footer={<>
+    {service && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>{L('حذف', 'Delete')}</Button>}<div className="spacer" />
+    <Button icon={Check} disabled={!v.name.trim() || v.duration < 5} onClick={() => { upsert('services', { ...v, id: service?.id || uid(), name: v.name.trim() }); toast(L('تم الحفظ', 'Saved')); onClose(); }}>{L('حفظ', 'Save')}</Button>
   </>}>
     <div className="stack">
-      <Field label="اسم الخدمة" required><input autoFocus value={v.name} onChange={set('name')} /></Field>
+      <Field label={L('اسم الخدمة', 'Service name')} required><input autoFocus value={v.name} onChange={set('name')} /></Field>
       <div className="grid-2">
-        <Field label="الفئة"><input value={v.category} onChange={set('category')} /></Field>
-        <Field label="السعر (ر.ق)"><NumInput min="0" value={v.price} onChange={set('price', true)} /></Field>
-        <Field label="المدة (دقيقة)"><NumInput min="5" step="5" value={v.duration} onChange={set('duration', true)} /></Field>
-        <Field label="وقت انتظار" hint="مثل تثبيت الصبغة — الموظف متاح لغيره"><NumInput min="0" step="5" value={v.processing} onChange={set('processing', true)} /></Field>
+        <Field label={L('الفئة', 'Category')}><input value={v.category} onChange={set('category')} /></Field>
+        <Field label={L('السعر (ر.ق)', 'Price (QAR)')}><NumInput min="0" value={v.price} onChange={set('price', true)} /></Field>
+        <Field label={L('المدة (دقيقة)', 'Duration (min)')}><NumInput min="5" step="5" value={v.duration} onChange={set('duration', true)} /></Field>
+        <Field label={L('وقت انتظار', 'Processing time')} hint={L('مثل تثبيت الصبغة — الموظف متاح لغيره', 'E.g. while color sets — the stylist is free for others')}><NumInput min="0" step="5" value={v.processing} onChange={set('processing', true)} /></Field>
       </div>
-      <Field label="عربون مطلوب (ر.ق)" hint="للخدمات الطويلة والعرائس — 0 بدون عربون"><NumInput min="0" value={v.deposit} onChange={set('deposit', true)} /></Field>
-      <Toggle checked={v.online !== false} onChange={on => setV({ ...v, online: on })} label="متاحة في الحجز الأونلاين" />
+      <Field label={L('عربون مطلوب (ر.ق)', 'Required deposit (QAR)')} hint={L('للخدمات الطويلة والعرائس — 0 بدون عربون', 'For long and bridal services — 0 for no deposit')}><NumInput min="0" value={v.deposit} onChange={set('deposit', true)} /></Field>
+      <Toggle checked={v.online !== false} onChange={on => setV({ ...v, online: on })} label={L('متاحة في الحجز الأونلاين', 'Available for online booking')} />
     </div>
-    {confirm && <Confirm title="حذف الخدمة؟" text="المواعيد السابقة لن تتأثر." danger confirmLabel="حذف" onClose={() => setConfirm(false)} onConfirm={() => { remove('services', service.id); toast('تم الحذف'); onClose(); }} />}
+    {confirm && <Confirm title={L('حذف الخدمة؟', 'Delete service?')} text={L('المواعيد السابقة لن تتأثر.', 'Past appointments will not be affected.')} danger confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirm(false)} onConfirm={() => { remove('services', service.id); toast(L('تم الحذف', 'Deleted')); onClose(); }} />}
   </Sheet>;
 }
 
@@ -134,14 +143,14 @@ function HoursSettings({ onClose }) {
   const { data, setData, toast } = useApp();
   const [hours, setHours] = useState(data.settings.hours);
   const [step, setStep] = useState(data.settings.slotStep);
-  return <Sheet title="ساعات العمل" onClose={onClose} footer={<Button block icon={Check} onClick={() => { setData(prev => ({ ...prev, settings: { ...prev.settings, hours, slotStep: Number(step) } })); toast('تم الحفظ'); onClose(); }}>حفظ</Button>}>
+  return <Sheet title={L('ساعات العمل', 'Working hours')} onClose={onClose} footer={<Button block icon={Check} onClick={() => { setData(prev => ({ ...prev, settings: { ...prev.settings, hours, slotStep: Number(step) } })); toast(L('تم الحفظ', 'Saved')); onClose(); }}>{L('حفظ', 'Save')}</Button>}>
     <div className="stack">
       <div className="grid-2">
-        <Field label="يفتح"><input type="time" value={hours.open} onChange={e => setHours({ ...hours, open: e.target.value })} /></Field>
-        <Field label="يغلق"><input type="time" value={hours.close} onChange={e => setHours({ ...hours, close: e.target.value })} /></Field>
+        <Field label={L('يفتح', 'Opens')}><input type="time" value={hours.open} onChange={e => setHours({ ...hours, open: e.target.value })} /></Field>
+        <Field label={L('يغلق', 'Closes')}><input type="time" value={hours.close} onChange={e => setHours({ ...hours, close: e.target.value })} /></Field>
       </div>
-      <Field label="أيام الإغلاق"><Chips multiple items={weekdays.map((d, i) => ({ id: i, label: d }))} value={hours.closedDays || []} onChange={closedDays => setHours({ ...hours, closedDays })} /></Field>
-      <Field label="الفاصل بين المواعيد"><Chips items={[10, 15, 30].map(n => ({ id: n, label: `${n} دقيقة` }))} value={Number(step)} onChange={setStep} /></Field>
+      <Field label={L('أيام الإغلاق', 'Closed days')}><Chips multiple items={weekdays.map((d, i) => ({ id: i, label: d }))} value={hours.closedDays || []} onChange={closedDays => setHours({ ...hours, closedDays })} /></Field>
+      <Field label={L('الفاصل بين المواعيد', 'Booking interval')}><Chips items={[10, 15, 30].map(n => ({ id: n, label: L(`${n} دقيقة`, `${n} min`) }))} value={Number(step)} onChange={setStep} /></Field>
     </div>
   </Sheet>;
 }
@@ -150,31 +159,31 @@ function PackagesSettings({ onClose }) {
   const { data, upsert, remove, toast } = useApp();
   const [edit, setEdit] = useState(null);
   const v = edit || {};
-  return <Sheet title="الباقات" subtitle="جلسات مدفوعة مسبقاً — تزيد ولاء العملاء والسيولة" onClose={onClose} footer={!edit && <Button block icon={Plus} onClick={() => setEdit({ name: '', serviceId: data.services[0]?.id, sessions: 5, price: 0, validityDays: 90 })}>باقة جديدة</Button>}>
+  return <Sheet title={L('الباقات', 'Packages')} subtitle={L('جلسات مدفوعة مسبقاً — تزيد ولاء العملاء والسيولة', 'Prepaid sessions — boost client loyalty and cash flow')} onClose={onClose} footer={!edit && <Button block icon={Plus} onClick={() => setEdit({ name: '', serviceId: data.services[0]?.id, sessions: 5, price: 0, validityDays: 90 })}>{L('باقة جديدة', 'New package')}</Button>}>
     {edit ? <div className="stack">
-      <Field label="اسم الباقة"><input autoFocus value={v.name} onChange={e => setEdit({ ...v, name: e.target.value })} placeholder={`مثال: ليزر ${num(6)} جلسات`} /></Field>
-      <Field label="الخدمة"><select value={v.serviceId} onChange={e => setEdit({ ...v, serviceId: e.target.value })}>{data.services.map(s => <option key={s.id} value={s.id}>{s.name} — {money(s.price)}</option>)}</select></Field>
+      <Field label={L('اسم الباقة', 'Package name')}><input autoFocus value={v.name} onChange={e => setEdit({ ...v, name: e.target.value })} placeholder={L(`مثال: ليزر ${num(6)} جلسات`, `E.g. Laser, ${num(6)} sessions`)} /></Field>
+      <Field label={L('الخدمة', 'Service')}><select value={v.serviceId} onChange={e => setEdit({ ...v, serviceId: e.target.value })}>{data.services.map(s => <option key={s.id} value={s.id}>{s.name} — {money(s.price)}</option>)}</select></Field>
       <div className="grid-2">
-        <Field label="عدد الجلسات"><NumInput min="1" value={v.sessions} onChange={e => setEdit({ ...v, sessions: Number(e.target.value) })} /></Field>
-        <Field label="سعر الباقة"><NumInput min="0" value={v.price} onChange={e => setEdit({ ...v, price: Number(e.target.value) })} /></Field>
+        <Field label={L('عدد الجلسات', 'Number of sessions')}><NumInput min="1" value={v.sessions} onChange={e => setEdit({ ...v, sessions: Number(e.target.value) })} /></Field>
+        <Field label={L('سعر الباقة', 'Package price')}><NumInput min="0" value={v.price} onChange={e => setEdit({ ...v, price: Number(e.target.value) })} /></Field>
       </div>
-      <Field label="صالحة لمدة (يوم)"><NumInput min="0" value={v.validityDays} onChange={e => setEdit({ ...v, validityDays: Number(e.target.value) })} /></Field>
-      {v.serviceId && <small className="muted">السعر المعتاد {money((data.services.find(s => s.id === v.serviceId)?.price || 0) * v.sessions)} — توفير للعميل {money(Math.max(0, (data.services.find(s => s.id === v.serviceId)?.price || 0) * v.sessions - v.price))}</small>}
+      <Field label={L('صالحة لمدة (يوم)', 'Valid for (days)')}><NumInput min="0" value={v.validityDays} onChange={e => setEdit({ ...v, validityDays: Number(e.target.value) })} /></Field>
+      {v.serviceId && <small className="muted">{L('السعر المعتاد', 'Regular price')} {money((data.services.find(s => s.id === v.serviceId)?.price || 0) * v.sessions)} — {L('توفير للعميل', 'client saves')} {money(Math.max(0, (data.services.find(s => s.id === v.serviceId)?.price || 0) * v.sessions - v.price))}</small>}
       <div className="row-buttons">
-        {v.id && <Button variant="danger-ghost" icon={Trash2} onClick={() => { remove('packages', v.id); setEdit(null); }}>حذف</Button>}
-        <div className="spacer" /><Button variant="ghost" onClick={() => setEdit(null)}>رجوع</Button>
-        <Button icon={Check} disabled={!v.name?.trim()} onClick={() => { upsert('packages', { ...v, id: v.id || uid() }); toast('تم الحفظ'); setEdit(null); }}>حفظ</Button>
+        {v.id && <Button variant="danger-ghost" icon={Trash2} onClick={() => { remove('packages', v.id); setEdit(null); }}>{L('حذف', 'Delete')}</Button>}
+        <div className="spacer" /><Button variant="ghost" onClick={() => setEdit(null)}>{L('رجوع', 'Back')}</Button>
+        <Button icon={Check} disabled={!v.name?.trim()} onClick={() => { upsert('packages', { ...v, id: v.id || uid() }); toast(L('تم الحفظ', 'Saved')); setEdit(null); }}>{L('حفظ', 'Save')}</Button>
       </div>
-    </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`} trailing={<strong>{money(p.price)}</strong>} onClick={() => setEdit(p)} />)}</div>
-      : <Empty icon={Package} title="لا باقات بعد" text={`مثال: ${num(5)} قصات بسعر ${num(4)} — يدفع العميل مقدماً ويعود باستمرار`} />}
+    </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={L(`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`, `${plural(num(p.sessions), 'session', 'sessions')} · ${plural(num(p.validityDays), 'day', 'days')}`)} trailing={<strong>{money(p.price)}</strong>} onClick={() => setEdit(p)} />)}</div>
+      : <Empty icon={Package} title={L('لا باقات بعد', 'No packages yet')} text={L(`مثال: ${num(5)} قصات بسعر ${num(4)} — يدفع العميل مقدماً ويعود باستمرار`, `E.g. ${num(5)} haircuts for the price of ${num(4)} — the client pays upfront and keeps coming back`)} />}
   </Sheet>;
 }
 
 function GiftCards({ onClose }) {
   const { data } = useApp();
-  return <Sheet title="بطاقات الهدايا" subtitle="تُصدر من شاشة الدفع ← بطاقة هدية" onClose={onClose}>
-    {data.giftCards.length ? <div className="list">{data.giftCards.slice().reverse().map(g => <Row key={g.id} leading={<Gift size={18} />} title={<span dir="ltr">{g.code}</span>} subtitle={`${g.recipientName || g.buyerName || ''} · ${dateLabel(g.createdAt, { day: 'numeric', month: 'short' })}`} trailing={<span className="row-end"><strong>{money(g.balance)}</strong><small>من {money(g.amount)}</small></span>} />)}</div>
-      : <Empty icon={Gift} title="لم تُصدر بطاقات بعد" text="بطاقات الهدايا تجلب عملاء جدداً ودخلاً مقدماً" />}
+  return <Sheet title={L('بطاقات الهدايا', 'Gift cards')} subtitle={L('تُصدر من شاشة الدفع ← بطاقة هدية', 'Issued from the checkout screen → Gift card')} onClose={onClose}>
+    {data.giftCards.length ? <div className="list">{data.giftCards.slice().reverse().map(g => <Row key={g.id} leading={<Gift size={18} />} title={<span dir="ltr">{g.code}</span>} subtitle={`${g.recipientName || g.buyerName || ''} · ${dateLabel(g.createdAt, { day: 'numeric', month: 'short' })}`} trailing={<span className="row-end"><strong>{money(g.balance)}</strong><small>{L('من', 'of')} {money(g.amount)}</small></span>} />)}</div>
+      : <Empty icon={Gift} title={L('لم تُصدر بطاقات بعد', 'No gift cards issued yet')} text={L('بطاقات الهدايا تجلب عملاء جدداً ودخلاً مقدماً', 'Gift cards bring in new clients and upfront revenue')} />}
   </Sheet>;
 }
 
@@ -184,21 +193,21 @@ function BookingSettings({ onClose }) {
   const [slug, setSlug] = useState(shop.slug || suggested);
   const [error, setError] = useState('');
   const link = bookingUrl(shop.slug);
-  if (!cloudEnabled) return <Sheet title="رابط الحجز" onClose={onClose}><Empty icon={Link2} title="يحتاج الحساب السحابي" text="الحجز الأونلاين يعمل بعد ربط التطبيق بقاعدة البيانات" /></Sheet>;
+  if (!cloudEnabled) return <Sheet title={L('رابط الحجز', 'Booking link')} onClose={onClose}><Empty icon={Link2} title={L('يحتاج الحساب السحابي', 'Requires a cloud account')} text={L('الحجز الأونلاين يعمل بعد ربط التطبيق بقاعدة البيانات', 'Online booking works once the app is connected to the cloud database')} /></Sheet>;
   const save = async () => {
-    if (!/^[a-z0-9-]{3,40}$/.test(slug)) { setError('حروف إنجليزية صغيرة وأرقام وشرطة فقط (3 أحرف على الأقل)'); return; }
-    try { await api.updateShop(shop.id, { name: data.shopName, kind: data.settings.kind, phone: shop.phone, slug }); await reloadShops(); setData(prev => ({ ...prev, settings: { ...prev.settings, bookingEnabled: true } })); toast('تم تفعيل رابط الحجز'); setError(''); }
+    if (!/^[a-z0-9-]{3,40}$/.test(slug)) { setError(L('حروف إنجليزية صغيرة وأرقام وشرطة فقط (3 أحرف على الأقل)', 'Lowercase English letters, numbers and hyphens only (at least 3 characters)')); return; }
+    try { await api.updateShop(shop.id, { name: data.shopName, kind: data.settings.kind, phone: shop.phone, slug }); await reloadShops(); setData(prev => ({ ...prev, settings: { ...prev.settings, bookingEnabled: true } })); toast(L('تم تفعيل رابط الحجز', 'Booking link activated')); setError(''); }
     catch (e) { setError(errorText(e)); }
   };
-  return <Sheet title="رابط الحجز الأونلاين" subtitle="ضعه في انستغرام وخرائط جوجل وواتساب" onClose={onClose}>
+  return <Sheet title={L('رابط الحجز الأونلاين', 'Online booking link')} subtitle={L('ضعه في انستغرام وخرائط جوجل وواتساب', 'Add it to Instagram, Google Maps and WhatsApp')} onClose={onClose}>
     <div className="stack">
       {link && <div className="invite-code"><QrCode size={22} /><strong dir="ltr" className="small">{link}</strong>
-        <div className="row-buttons"><Button variant="secondary" icon={Copy} onClick={() => { navigator.clipboard?.writeText(link); toast('تم النسخ'); }}>نسخ</Button><Button icon={Link2} onClick={() => openExternal(link)}>معاينة</Button></div>
+        <div className="row-buttons"><Button variant="secondary" icon={Copy} onClick={() => { navigator.clipboard?.writeText(link); toast(L('تم النسخ', 'Copied')); }}>{L('نسخ', 'Copy')}</Button><Button icon={Link2} onClick={() => openExternal(link)}>{L('معاينة', 'Preview')}</Button></div>
       </div>}
-      <Field label="اسم الرابط" hint="بالإنجليزية — مثال: miqass-doha"><input dir="ltr" value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} /></Field>
+      <Field label={L('اسم الرابط', 'Link name')} hint={L('بالإنجليزية — مثال: miqass-doha', 'In English — e.g. miqass-doha')}><input dir="ltr" value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} /></Field>
       <Alert>{error}</Alert>
-      <Button block icon={Check} onClick={save}>{shop.slug ? 'تحديث الرابط' : 'تفعيل الحجز الأونلاين'}</Button>
-      <small className="muted">الحجوزات الأونلاين تصل «بانتظار التأكيد» وتظهر فوراً على كل الأجهزة. حماية تلقائية: {num(3)} حجوزات كحد أقصى للرقم يومياً.</small>
+      <Button block icon={Check} onClick={save}>{shop.slug ? L('تحديث الرابط', 'Update link') : L('تفعيل الحجز الأونلاين', 'Enable online booking')}</Button>
+      <small className="muted">{L(`الحجوزات الأونلاين تصل «بانتظار التأكيد» وتظهر فوراً على كل الأجهزة. حماية تلقائية: ${num(3)} حجوزات كحد أقصى للرقم يومياً.`, `Online bookings arrive as "Pending confirmation" and appear instantly on all devices. Built-in protection: max ${num(3)} bookings per phone number per day.`)}</small>
     </div>
   </Sheet>;
 }
@@ -206,13 +215,13 @@ function BookingSettings({ onClose }) {
 function SmartSettings({ onClose }) {
   const { data, setData, toast } = useApp();
   const [s, setS] = useState(data.settings);
-  return <Sheet title="القواعد الذكية" onClose={onClose} footer={<Button block icon={Check} onClick={() => { setData(prev => ({ ...prev, settings: s })); toast('تم الحفظ'); onClose(); }}>حفظ</Button>}>
+  return <Sheet title={L('القواعد الذكية', 'Smart rules')} onClose={onClose} footer={<Button block icon={Check} onClick={() => { setData(prev => ({ ...prev, settings: s })); toast(L('تم الحفظ', 'Saved')); onClose(); }}>{L('حفظ', 'Save')}</Button>}>
     <div className="stack">
-      <Field label="عربون العملاء كثيري الغياب (٪ من الفاتورة)" hint="يُقترح تلقائياً عند الحجز لمن تغيّب مرتين أو أكثر"><NumInput min="0" max="100" value={s.noShowDepositPercent} onChange={e => setS({ ...s, noShowDepositPercent: Number(e.target.value) })} /></Field>
-      <Field label="اعتبر العميل منقطعاً بعد (يوم)" hint="يُستخدم عندما لا يكون له نمط زيارات واضح"><NumInput min="7" value={s.recoveryDays} onChange={e => setS({ ...s, recoveryDays: Number(e.target.value) })} /></Field>
-      <Field label="نقطة ولاء لكل (ر.ق)"><NumInput min="1" value={s.loyaltyPer} onChange={e => setS({ ...s, loyaltyPer: Number(e.target.value) })} /></Field>
-      <Field label="إرسال التذكير قبل الموعد بـ (ساعة)" hint="للإرسال التلقائي عبر واتساب للأعمال"><Chips items={[2, 12, 24].map(h => ({ id: h, label: `${h} ساعة` }))} value={Number(s.reminderHours)} onChange={h => setS({ ...s, reminderHours: h })} /></Field>
-      <Toggle checked={s.hideClientPhotosFromStaff} onChange={on => setS({ ...s, hideClientPhotosFromStaff: on })} label="إخفاء صور العملاء عن الموظفين" hint="خصوصية مهمة للصالونات النسائية" />
+      <Field label={L('عربون العملاء كثيري الغياب (٪ من الفاتورة)', 'Deposit for frequent no-shows (% of bill)')} hint={L('يُقترح تلقائياً عند الحجز لمن تغيّب مرتين أو أكثر', 'Suggested automatically when booking clients with 2+ no-shows')}><NumInput min="0" max="100" value={s.noShowDepositPercent} onChange={e => setS({ ...s, noShowDepositPercent: Number(e.target.value) })} /></Field>
+      <Field label={L('اعتبر العميل منقطعاً بعد (يوم)', 'Mark client as lapsed after (days)')} hint={L('يُستخدم عندما لا يكون له نمط زيارات واضح', 'Used when the client has no clear visit pattern')}><NumInput min="7" value={s.recoveryDays} onChange={e => setS({ ...s, recoveryDays: Number(e.target.value) })} /></Field>
+      <Field label={L('نقطة ولاء لكل (ر.ق)', 'One loyalty point per (QAR)')}><NumInput min="1" value={s.loyaltyPer} onChange={e => setS({ ...s, loyaltyPer: Number(e.target.value) })} /></Field>
+      <Field label={L('إرسال التذكير قبل الموعد بـ (ساعة)', 'Send reminder before appointment (hours)')} hint={L('للإرسال التلقائي عبر واتساب للأعمال', 'For automatic sending via WhatsApp Business')}><Chips items={[2, 12, 24].map(h => ({ id: h, label: L(`${h} ساعة`, `${h} hours`) }))} value={Number(s.reminderHours)} onChange={h => setS({ ...s, reminderHours: h })} /></Field>
+      <Toggle checked={s.hideClientPhotosFromStaff} onChange={on => setS({ ...s, hideClientPhotosFromStaff: on })} label={L('إخفاء صور العملاء عن الموظفين', 'Hide client photos from staff')} hint={L('خصوصية مهمة للصالونات النسائية', "Important privacy for women's salons")} />
     </div>
   </Sheet>;
 }
@@ -223,11 +232,11 @@ function AddonOffer({ id, shopName }) {
   const addon = addons.find(a => a.id === id);
   const required = addon.requires && addons.find(a => a.id === addon.requires);
   return <div className="addon-offer">
-    <div className="addon-head"><strong>{addon.name}</strong><Badge tone="blue">اشتراك إضافي</Badge></div>
-    <div className="addon-price">+{addon.monthly.toLocaleString(LOCALE)} <small>ر.ق / شهر</small> <span className="muted small">أو {addon.yearly.toLocaleString(LOCALE)} ر.ق / سنة</span></div>
+    <div className="addon-head"><strong>{addon.name}</strong><Badge tone="blue">{L('اشتراك إضافي', 'Add-on subscription')}</Badge></div>
+    <div className="addon-price">+{addon.monthly.toLocaleString(LOCALE)} <small>{L('ر.ق / شهر', 'QAR / month')}</small> <span className="muted small">{L('أو', 'or')} {addon.yearly.toLocaleString(LOCALE)} {L('ر.ق / سنة', 'QAR / year')}</span></div>
     <ul>{addon.points.map(p => <li key={p}><Check size={14} /> {p}</li>)}</ul>
-    <small className="muted">يُضاف إلى اشتراكك في التطبيق ولا يشمله{required ? ` · يتطلب «${required.name}»` : ''}.</small>
-    <Button variant="secondary" icon={MessageSquareText} block onClick={() => openExternal(addonLink(shopName, addon))}>اطلب التفعيل</Button>
+    <small className="muted">{L(`يُضاف إلى اشتراكك في التطبيق ولا يشمله${required ? ` · يتطلب «${required.name}»` : ''}.`, `Billed on top of your app subscription, not included in it${required ? ` · Requires "${required.name}"` : ''}.`)}</small>
+    <Button variant="secondary" icon={MessageSquareText} block onClick={() => openExternal(addonLink(shopName, addon))}>{L('اطلب التفعيل', 'Request activation')}</Button>
   </div>;
 }
 
@@ -242,32 +251,37 @@ function WhatsAppSettings({ onClose }) {
     })).catch(e => setError(errorText(e)));
   }, [shop.id, shop.phone]);
   const save = async () => {
-    try { await api.saveIntegration(shop.id, v); toast('تم الحفظ'); onClose(); } catch (e) { setError(errorText(e)); }
+    try { await api.saveIntegration(shop.id, v); toast(L('تم الحفظ', 'Saved')); onClose(); } catch (e) { setError(errorText(e)); }
   };
   const shopName = data.shopName || shop.name;
-  return <Sheet title="واتساب الذكي" subtitle="أتمتة كاملة عبر WhatsApp Business" onClose={onClose} footer={v?.waAddon && <Button block icon={Check} onClick={save}>حفظ</Button>}>
+  return <Sheet title={L('واتساب الذكي', 'Smart WhatsApp')} subtitle={L('أتمتة كاملة عبر WhatsApp Business', 'Full automation via WhatsApp Business')} onClose={onClose} footer={v?.waAddon && <Button block icon={Check} onClick={save}>{L('حفظ', 'Save')}</Button>}>
     <Alert>{error}</Alert>
     {!v ? !error && <div className="loader" /> : !v.waAddon ? <div className="stack">
-      <p className="muted small">إضافات اختيارية باشتراك منفصل عن باقة التطبيق — نفعّلها لك خلال دقائق بعد الدفع.</p>
+      <p className="muted small">{L('إضافات اختيارية باشتراك منفصل عن باقة التطبيق — نفعّلها لك خلال دقائق بعد الدفع.', 'Optional add-ons with a subscription separate from your app plan — we activate them within minutes of payment.')}</p>
       <AddonOffer id="wa" shopName={shopName} />
       <AddonOffer id="ai" shopName={shopName} />
     </div> : <div className="stack">
-      <Alert tone="green" icon={Check}>اشتراك إضافي مفعّل لصالونك ✓ — يمكنك تشغيل أو إيقاف كل ميزة حسب حاجتك.</Alert>
-      <Toggle checked={v.reminders} onChange={on => setV({ ...v, reminders: on })} label="تذكير تلقائي قبل كل موعد" hint="العميل يرد 1 للتأكيد أو 2 للإلغاء — ويتحدث الجدول تلقائياً" />
-      <Toggle checked={v.daily} onChange={on => setV({ ...v, daily: on })} label="تقرير يومي لصاحب المحل" hint="الدخل، المواعيد، الغياب، الأفضل أداءً — كل ليلة" />
-      {v.daily && <Field label="رقم واتساب لاستلام التقرير"><input type="tel" dir="ltr" value={v.ownerWhatsapp} onChange={e => setV({ ...v, ownerWhatsapp: e.target.value })} placeholder="974XXXXXXXX" /></Field>}
+      <Alert tone="green" icon={Check}>{L('اشتراك إضافي مفعّل لصالونك ✓ — يمكنك تشغيل أو إيقاف كل ميزة حسب حاجتك.', 'Add-on active for your salon ✓ — turn each feature on or off as you need.')}</Alert>
+      <Toggle checked={v.reminders} onChange={on => setV({ ...v, reminders: on })} label={L('تذكير تلقائي قبل كل موعد', 'Automatic reminder before every appointment')} hint={L('العميل يرد 1 للتأكيد أو 2 للإلغاء — ويتحدث الجدول تلقائياً', 'Client replies 1 to confirm or 2 to cancel — the schedule updates automatically')} />
+      <Toggle checked={v.daily} onChange={on => setV({ ...v, daily: on })} label={L('تقرير يومي لصاحب المحل', 'Daily report for the salon owner')} hint={L('الدخل، المواعيد، الغياب، الأفضل أداءً — كل ليلة', 'Revenue, appointments, no-shows, top performers — every night')} />
+      {v.daily && <Field label={L('رقم واتساب لاستلام التقرير', 'WhatsApp number to receive the report')}><input type="tel" dir="ltr" value={v.ownerWhatsapp} onChange={e => setV({ ...v, ownerWhatsapp: e.target.value })} placeholder="974XXXXXXXX" /></Field>}
       {v.aiAddon
-        ? <Toggle checked={v.assistant} onChange={on => setV({ ...v, assistant: on })} label="المساعد الذكي (AI)" hint="يرد على العملاء ويحجز ويجيب عن الأسعار بالعربي 24/7" />
+        ? <Toggle checked={v.assistant} onChange={on => setV({ ...v, assistant: on })} label={L('المساعد الذكي (AI)', 'AI assistant')} hint={L('يرد على العملاء ويحجز ويجيب عن الأسعار بالعربي 24/7', 'Replies to clients, books appointments and answers price questions in Arabic 24/7')} />
         : <AddonOffer id="ai" shopName={shopName} />}
     </div>}
   </Sheet>;
 }
 
 // سجل مفصّل: من قام بالعملية، وما الذي تغيّر بالضبط (القيمة القديمة ← الجديدة).
-const AUDIT_NAMES = { appointments: 'موعد', clients: 'عميل', services: 'خدمة', products: 'منتج', staff: 'موظف', drawers: 'إغلاق صندوق', expenses: 'مصروف', sales: 'بيع', giftCards: 'بطاقة هدية', clientPackages: 'باقة عميل', packages: 'باقة', waitlist: 'قائمة انتظار', notes: 'ملاحظة', meta: 'إعدادات الصالون' };
-const AUDIT_ACTIONS = { create: 'إضافة', update: 'تعديل', delete: 'حذف' };
-const FIELD_LABELS = { name: 'الاسم', phone: 'الهاتف', price: 'السعر', duration: 'المدة', amount: 'المبلغ', quantity: 'الكمية', cost: 'التكلفة', commission: 'العمولة', category: 'الفئة', notes: 'ملاحظات', deposit: 'العربون', discount: 'الخصم', balance: 'الرصيد', minStock: 'حد التنبيه', label: 'البيان', counted: 'المعدود', difference: 'الفرق', keep: 'المتبقي للغد' };
+const AUDIT_NAMES = isEn
+  ? { appointments: 'Appointment', clients: 'Client', services: 'Service', products: 'Product', staff: 'Staff member', drawers: 'Drawer close', expenses: 'Expense', sales: 'Sale', giftCards: 'Gift card', clientPackages: 'Client package', packages: 'Package', waitlist: 'Waitlist', notes: 'Note', meta: 'Salon settings' }
+  : { appointments: 'موعد', clients: 'عميل', services: 'خدمة', products: 'منتج', staff: 'موظف', drawers: 'إغلاق صندوق', expenses: 'مصروف', sales: 'بيع', giftCards: 'بطاقة هدية', clientPackages: 'باقة عميل', packages: 'باقة', waitlist: 'قائمة انتظار', notes: 'ملاحظة', meta: 'إعدادات الصالون' };
+const AUDIT_ACTIONS = isEn ? { create: 'Added', update: 'Edited', delete: 'Deleted' } : { create: 'إضافة', update: 'تعديل', delete: 'حذف' };
+const FIELD_LABELS = isEn
+  ? { name: 'Name', phone: 'Phone', price: 'Price', duration: 'Duration', amount: 'Amount', quantity: 'Quantity', cost: 'Cost', commission: 'Commission', category: 'Category', notes: 'Notes', deposit: 'Deposit', discount: 'Discount', balance: 'Balance', minStock: 'Low-stock alert', label: 'Description', counted: 'Counted', difference: 'Difference', keep: 'Kept for tomorrow' }
+  : { name: 'الاسم', phone: 'الهاتف', price: 'السعر', duration: 'المدة', amount: 'المبلغ', quantity: 'الكمية', cost: 'التكلفة', commission: 'العمولة', category: 'الفئة', notes: 'ملاحظات', deposit: 'العربون', discount: 'الخصم', balance: 'الرصيد', minStock: 'حد التنبيه', label: 'البيان', counted: 'المعدود', difference: 'الفرق', keep: 'المتبقي للغد' };
 const MONEY_FIELDS = new Set(['price', 'amount', 'cost', 'deposit', 'discount', 'balance', 'counted', 'difference', 'keep']);
+const ARROW = L('←', '→');
 const paid = a => (a?.payments || []).filter(p => p.kind !== 'tip').reduce((sum, p) => sum + Number(p.amount || 0), 0);
 const show = (key, value) => (value === undefined || value === null || value === '' ? '—' : MONEY_FIELDS.has(key) ? money(value) : typeof value === 'number' ? num(value) : String(value));
 
@@ -275,27 +289,27 @@ function auditDetails(row, data) {
   const before = row.before || {}; const after = row.after || {};
   const item = row.action === 'delete' ? before : after;
   const lines = [];
-  const staffName = id => data.staff.find(m => m.id === id)?.name || 'أي موظف';
+  const staffName = id => data.staff.find(m => m.id === id)?.name || L('أي موظف', 'Any staff');
   if (row.collection === 'appointments') {
-    const client = data.clients.find(c => c.id === item.clientId)?.name || 'عميل';
+    const client = data.clients.find(c => c.id === item.clientId)?.name || L('عميل', 'Client');
     const title = `${client} — ${item.date ? dateLabel(item.date) : ''} ${item.time ? timeLabel(item.time) : ''}`.trim();
     if (row.action === 'update') {
-      if (before.status !== after.status) lines.push(`الحالة: ${statusText[before.status] || before.status || '—'} ← ${statusText[after.status] || after.status}`);
-      if (before.date !== after.date || before.time !== after.time) lines.push(`الموعد: ${dateLabel(before.date)} ${timeLabel(before.time)} ← ${dateLabel(after.date)} ${timeLabel(after.time)}`);
-      if (paid(before) !== paid(after)) lines.push(paid(after) > paid(before) ? `استلام دفعة ${money(paid(after) - paid(before))}` : `⚠️ إلغاء دفعة ${money(paid(before) - paid(after))}`);
-      if (Number(before.price || 0) !== Number(after.price || 0)) lines.push(`المبلغ: ${money(before.price)} ← ${money(after.price)}`);
-      if (Number(before.discount || 0) !== Number(after.discount || 0)) lines.push(`الخصم: ${money(before.discount)} ← ${money(after.discount)}`);
-      if (before.staffId !== after.staffId) lines.push(`الموظف: ${staffName(before.staffId)} ← ${staffName(after.staffId)}`);
+      if (before.status !== after.status) lines.push(`${L('الحالة', 'Status')}: ${statusText[before.status] || before.status || '—'} ${ARROW} ${statusText[after.status] || after.status}`);
+      if (before.date !== after.date || before.time !== after.time) lines.push(`${L('الموعد', 'Time')}: ${dateLabel(before.date)} ${timeLabel(before.time)} ${ARROW} ${dateLabel(after.date)} ${timeLabel(after.time)}`);
+      if (paid(before) !== paid(after)) lines.push(paid(after) > paid(before) ? L(`استلام دفعة ${money(paid(after) - paid(before))}`, `Payment received ${money(paid(after) - paid(before))}`) : L(`⚠️ إلغاء دفعة ${money(paid(before) - paid(after))}`, `⚠️ Payment removed ${money(paid(before) - paid(after))}`));
+      if (Number(before.price || 0) !== Number(after.price || 0)) lines.push(`${L('المبلغ', 'Amount')}: ${money(before.price)} ${ARROW} ${money(after.price)}`);
+      if (Number(before.discount || 0) !== Number(after.discount || 0)) lines.push(`${L('الخصم', 'Discount')}: ${money(before.discount)} ${ARROW} ${money(after.discount)}`);
+      if (before.staffId !== after.staffId) lines.push(`${L('الموظف', 'Staff')}: ${staffName(before.staffId)} ${ARROW} ${staffName(after.staffId)}`);
       const names = a => (a.items || []).map(i => i.name).join(' + ');
-      if (names(before) !== names(after)) lines.push(`الخدمات: ${names(before) || '—'} ← ${names(after) || '—'}`);
+      if (names(before) !== names(after)) lines.push(`${L('الخدمات', 'Services')}: ${names(before) || '—'} ${ARROW} ${names(after) || '—'}`);
     } else lines.push(`${(item.items || []).map(i => i.name).join(' + ')}${item.price ? ` · ${money(item.price)}` : ''}`);
     return { title, lines };
   }
-  if (row.collection === 'meta') return { title: 'إعدادات الصالون', lines: [] };
+  if (row.collection === 'meta') return { title: L('إعدادات الصالون', 'Salon settings'), lines: [] };
   const title = item.name || item.label || (item.clientId && data.clients.find(c => c.id === item.clientId)?.name) || (item.date ? dateLabel(item.date) : '');
   if (row.action === 'update') {
     for (const key of Object.keys(FIELD_LABELS)) {
-      if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) lines.push(`${FIELD_LABELS[key]}: ${show(key, before[key])} ← ${show(key, after[key])}`);
+      if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) lines.push(`${FIELD_LABELS[key]}: ${show(key, before[key])} ${ARROW} ${show(key, after[key])}`);
     }
   } else if (item.amount !== undefined) lines.push(money(item.amount));
   else if (item.price !== undefined) lines.push(money(item.price));
@@ -312,10 +326,10 @@ function AuditLog({ onClose }) {
     api.audit(shop.id, 300).then(setRows).catch(e => setError(errorText(e)));
     api.people(shop.id).then(list => setPeople(Object.fromEntries(list.map(p => [p.user_id, p])))).catch(() => {});
   }, [shop.id]);
-  const actor = r => (r.user_id ? people[r.user_id]?.display_name || 'مستخدم' : 'النظام / حجز أونلاين');
+  const actor = r => (r.user_id ? people[r.user_id]?.display_name || L('مستخدم', 'User') : L('النظام / حجز أونلاين', 'System / online booking'));
   const list = (rows || []).filter(r => who === 'all' || (who === 'staff' ? r.user_id && people[r.user_id]?.role !== 'owner' : people[r.user_id]?.role === 'owner'));
-  return <Sheet title="سجل التعديلات" subtitle="من فعل ماذا ومتى — يحميك من التلاعب" onClose={onClose} size="lg">
-    <Segmented size="sm" items={[{ id: 'all', label: 'الكل' }, { id: 'staff', label: 'الموظفون' }, { id: 'owner', label: 'أنا' }]} value={who} onChange={setWho} />
+  return <Sheet title={L('سجل التعديلات', 'Activity log')} subtitle={L('من فعل ماذا ومتى — يحميك من التلاعب', 'Who did what and when — protects you from tampering')} onClose={onClose} size="lg">
+    <Segmented size="sm" items={[{ id: 'all', label: L('الكل', 'All') }, { id: 'staff', label: L('الموظفون', 'Staff') }, { id: 'owner', label: L('أنا', 'Me') }]} value={who} onChange={setWho} />
     <Alert>{error}</Alert>
     {rows === null ? <div className="loader" /> : list.length ? <div className="list">{list.map(r => {
       const { title, lines } = auditDetails(r, data);
@@ -328,42 +342,44 @@ function AuditLog({ onClose }) {
         <small className="muted">{actor(r)} · {new Date(r.at).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short' })}</small>
       </div>;
     })}</div>
-      : <Empty icon={ShieldCheck} title="لا تعديلات بعد" />}
+      : <Empty icon={ShieldCheck} title={L('لا تعديلات بعد', 'No activity yet')} />}
   </Sheet>;
 }
 
 function Backup({ onClose }) {
   const { data, setData, toast, isManager } = useApp();
   const [pending, setPending] = useState(null);
-  return <Sheet title="النسخ الاحتياطي" subtitle={cloudEnabled ? 'بياناتك محفوظة سحابياً تلقائياً — هذه نسخة إضافية' : 'بياناتك محفوظة على هذا الجهاز'} onClose={onClose}>
+  return <Sheet title={L('النسخ الاحتياطي', 'Backup')} subtitle={cloudEnabled ? L('بياناتك محفوظة سحابياً تلقائياً — هذه نسخة إضافية', 'Your data is backed up to the cloud automatically — this is an extra copy') : L('بياناتك محفوظة على هذا الجهاز', 'Your data is stored on this device')} onClose={onClose}>
     <div className="stack">
-      <Button block variant="secondary" icon={Download} onClick={() => download(`miqass-backup-${localISO()}.json`, JSON.stringify(data), 'application/json')}>تنزيل نسخة كاملة</Button>
-      <Button block variant="secondary" icon={Download} onClick={() => exportAll(data)}>تصدير Excel (CSV)</Button>
-      {isManager && <label className="btn btn-ghost btn-block"><Upload size={18} /><span>استعادة من نسخة</span><input hidden type="file" accept="application/json,.json" onChange={async e => {
+      <Button block variant="secondary" icon={Download} onClick={() => download(`miqass-backup-${localISO()}.json`, JSON.stringify(data), 'application/json')}>{L('تنزيل نسخة كاملة', 'Download full backup')}</Button>
+      <Button block variant="secondary" icon={Download} onClick={() => exportAll(data)}>{L('تصدير Excel (CSV)', 'Export to Excel (CSV)')}</Button>
+      {isManager && <label className="btn btn-ghost btn-block"><Upload size={18} /><span>{L('استعادة من نسخة', 'Restore from backup')}</span><input hidden type="file" accept="application/json,.json" onChange={async e => {
         const file = e.target.files?.[0]; e.target.value = '';
         if (!file) return;
-        try { const parsed = normalizeData(JSON.parse(await file.text())); if (!parsed) throw new Error(); setPending(parsed); } catch { toast('الملف غير صالح', 'error'); }
+        try { const parsed = normalizeData(JSON.parse(await file.text())); if (!parsed) throw new Error(); setPending(parsed); } catch { toast(L('الملف غير صالح', 'Invalid file'), 'error'); }
       }} /></label>}
     </div>
-    {pending && <Confirm title="استبدال البيانات الحالية؟" text={`ستُستبدل البيانات بنسخة فيها ${num(pending.clients.length)} عميل و${num(pending.appointments.length)} موعد.`} danger confirmLabel="استعادة" onClose={() => setPending(null)} onConfirm={() => { setData(pending); toast('تمت الاستعادة'); onClose(); }} />}
+    {pending && <Confirm title={L('استبدال البيانات الحالية؟', 'Replace current data?')} text={L(`ستُستبدل البيانات بنسخة فيها ${num(pending.clients.length)} عميل و${num(pending.appointments.length)} موعد.`, `Your data will be replaced with a backup containing ${plural(num(pending.clients.length), 'client', 'clients')} and ${plural(num(pending.appointments.length), 'appointment', 'appointments')}.`)} danger confirmLabel={L('استعادة', 'Restore')} onClose={() => setPending(null)} onConfirm={() => { setData(pending); toast(L('تمت الاستعادة', 'Restored')); onClose(); }} />}
   </Sheet>;
 }
 
 function Plan({ onClose }) {
   const { license, data, shop } = useApp();
-  return <Sheet title="الاشتراك" onClose={onClose} size="lg">
+  return <Sheet title={L('الاشتراك', 'Subscription')} onClose={onClose} size="lg">
     <div className="stack">
-      <Alert tone={license.status === 'paid' ? 'green' : 'orange'} icon={CreditCard}>{license.status === 'paid' ? `مشترك (${plans.find(p => p.id === license.plan)?.name || license.plan}) — ${license.plan === 'lifetime' ? 'مدى الحياة' : `حتى ${new Date(license.until).toLocaleDateString(LOCALE)}`}` : `فترة تجربة — باقٍ ${license.daysLeft} أيام`}</Alert>
+      <Alert tone={license.status === 'paid' ? 'green' : 'orange'} icon={CreditCard}>{license.status === 'paid'
+        ? L(`مشترك (${plans.find(p => p.id === license.plan)?.name || license.plan}) — ${license.plan === 'lifetime' ? 'مدى الحياة' : `حتى ${new Date(license.until).toLocaleDateString(LOCALE)}`}`, `Subscribed (${plans.find(p => p.id === license.plan)?.name || license.plan}) — ${license.plan === 'lifetime' ? 'Lifetime' : `until ${new Date(license.until).toLocaleDateString(LOCALE)}`}`)
+        : L(`فترة تجربة — باقٍ ${license.daysLeft} أيام`, `Free trial — ${plural(license.daysLeft, 'day', 'days')} left`)}</Alert>
       <div className="plans">{plans.map(plan => { const current = license.status === 'paid' && license.plan === plan.id; return <div key={plan.id} className={`plan ${current ? 'plan-current' : plan.best ? 'plan-best' : ''}`}>
-        {(current || plan.best) && <span className="plan-tag">{current ? 'خطتك الحالية' : 'الأوفر'}</span>}
+        {(current || plan.best) && <span className="plan-tag">{current ? L('خطتك الحالية', 'Your current plan') : L('الأوفر', 'Best value')}</span>}
         <strong>{plan.name}</strong>
-        <div className="plan-price">{plan.price.toLocaleString(LOCALE)} <small>ر.ق {plan.period}</small></div>
+        <div className="plan-price">{plan.price.toLocaleString(LOCALE)} <small>{L('ر.ق', 'QAR')} {plan.period}</small></div>
         <p><Check size={14} /> {plan.note}</p>
         {current
-          ? <Button variant="secondary" icon={Check} block disabled>مفعّلة{plan.id === 'lifetime' ? '' : ` حتى ${new Date(license.until).toLocaleDateString(LOCALE)}`}</Button>
-          : <Button variant={plan.best ? 'primary' : 'secondary'} block onClick={() => openExternal(buyLink(data.shopName || shop.name, plan))}>{license.status === 'paid' ? 'تغيير لهذه الخطة' : 'اشترك'}</Button>}
+          ? <Button variant="secondary" icon={Check} block disabled>{L('مفعّلة', 'Active')}{plan.id === 'lifetime' ? '' : L(` حتى ${new Date(license.until).toLocaleDateString(LOCALE)}`, ` until ${new Date(license.until).toLocaleDateString(LOCALE)}`)}</Button>
+          : <Button variant={plan.best ? 'primary' : 'secondary'} block onClick={() => openExternal(buyLink(data.shopName || shop.name, plan))}>{license.status === 'paid' ? L('تغيير لهذه الخطة', 'Switch to this plan') : L('اشترك', 'Subscribe')}</Button>}
       </div>; })}</div>
-      {cloudEnabled && <Section title="إضافات اختيارية (اشتراك منفصل)">
+      {cloudEnabled && <Section title={L('إضافات اختيارية (اشتراك منفصل)', 'Optional add-ons (separate subscription)')}>
         <div className="stack">{addons.map(a => <AddonOffer key={a.id} id={a.id} shopName={data.shopName || shop.name} />)}</div>
       </Section>}
     </div>
