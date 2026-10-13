@@ -39,7 +39,7 @@ export function noShowRisk(clientId, appointments) {
 // العملاء المنقطعون: تجاوزوا موعد عودتهم المعتاد ولا يوجد لهم حجز قادم.
 export function lapsedClients(clients, appointments, settings, today = localISO()) {
   const fallback = Number(settings?.recoveryDays || 30);
-  return clients.map(client => ({ client, stats: clientStats(client.id, appointments, today) }))
+  return clients.filter(c => c.id !== 'walk-in' && c.phone).map(client => ({ client, stats: clientStats(client.id, appointments, today) }))
     .filter(({ stats }) => stats.lastVisit && !stats.upcoming)
     .map(entry => {
       const expected = Math.max(14, entry.stats.avgInterval || fallback);
@@ -51,7 +51,7 @@ export function lapsedClients(clients, appointments, settings, today = localISO(
 
 // عملاء حان موعدهم المعتاد هذا الأسبوع (تذكير لطيف قبل أن ينقطعوا).
 export function dueSoon(clients, appointments, today = localISO()) {
-  return clients.map(client => ({ client, stats: clientStats(client.id, appointments, today) }))
+  return clients.filter(c => c.id !== 'walk-in' && c.phone).map(client => ({ client, stats: clientStats(client.id, appointments, today) }))
     .filter(({ stats }) => stats.avgInterval && stats.nextDue && !stats.upcoming && stats.nextDue >= addDays(today, -3) && stats.nextDue <= addDays(today, 7));
 }
 
@@ -181,6 +181,8 @@ export function dailyReport(data, date = localISO()) {
 // اقتراحات اليوم الذكية المعروضة في الرئيسية — قصيرة وقابلة للتنفيذ بنقرة.
 export function todayInsights(data, today = localISO()) {
   const insights = [];
+  const online = data.appointments.filter(a => a.status === 'pending' && ['online', 'whatsapp'].includes(a.source) && a.date >= today);
+  if (online.length) insights.push({ id: 'online', tone: 'green', title: `${online.length} حجوزات أونلاين بانتظار تأكيدك`, action: 'appointments' });
   const reminders = data.appointments.filter(a => a.date === addDays(today, 1) && a.status === 'pending' && !data.messages.some(m => m.kind === 'reminder' && m.appointmentId === a.id));
   if (reminders.length) insights.push({ id: 'reminders', tone: 'blue', title: `${reminders.length} تذكير لمواعيد الغد`, action: 'messages' });
   const lapsed = lapsedClients(data.clients, data.appointments, data.settings, today).filter(e => !data.messages.some(m => m.kind === 'recovery' && m.clientId === e.client.id && daysBetween(m.at, today) < 21));

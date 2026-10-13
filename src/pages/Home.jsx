@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   BellRing, Boxes, CalendarCheck2, CalendarPlus, Cake, CircleDollarSign, Clock3, Lightbulb, ListChecks,
-  MessageCircle, Receipt, UserPlus, UserRoundCheck, WalletCards,
+  MessageCircle, Receipt, UserRoundCheck, WalletCards,
 } from 'lucide-react';
 import { amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel } from '../data.js';
 import { incomeIn, todayInsights } from '../smart.js';
@@ -10,7 +10,7 @@ import { Avatar, Badge, Button, Empty, Row, Section, Stat, Tile, useApp } from '
 const insightIcons = { reminders: BellRing, lapsed: UserRoundCheck, stock: Boxes, birthday: Cake, unpaid: Receipt, waitlist: ListChecks };
 
 export default function Home() {
-  const { data, go, vocab, role, staffMember, can, patch, toast } = useApp();
+  const { data, go, role, staffMember, can, patch, toast } = useApp();
   const today = localISO();
   const mine = a => role !== 'staff' || !staffMember || a.staffId === staffMember.id || (a.items || []).some(i => i.staffId === staffMember.id);
   const todays = data.appointments.filter(a => a.date === today && !['cancelled'].includes(a.status) && mine(a)).sort(sortAppointments);
@@ -50,7 +50,7 @@ export default function Home() {
 
     <div className="tiles tiles-4">
       <Tile icon={CalendarPlus} label="حجز جديد" onClick={() => go('appointments', { create: true })} />
-      <Tile icon={UserPlus} label={vocab.newClient} tone="blue" onClick={() => go('clients', { create: true })} />
+      <Tile icon={UserRoundCheck} label="حاضر الآن" hint="بدون موعد" tone="blue" onClick={() => go('appointments', { walkIn: true })} />
       {can('checkout') && <Tile icon={WalletCards} label="تحصيل" tone="green" count={unpaid.length} onClick={() => go('checkout')} />}
       {can('messages') && <Tile icon={MessageCircle} label="رسائل" tone="purple" count={insights.filter(i => i.action === 'messages').length} onClick={() => go('messages')} />}
     </div>

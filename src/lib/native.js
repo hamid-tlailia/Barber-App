@@ -1,17 +1,13 @@
 // تكامل تطبيق أندرويد الأصلي (Capacitor): شريط الحالة، زر الرجوع، وتنبيهات المواعيد على الجهاز.
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { localISO, serviceNames, timeLabel } from '../data.js';
 
 export const isNative = Capacitor.isNativePlatform();
 
 export async function initNative() {
   if (!isNative) return;
-  const [{ App }, { StatusBar, Style }, { SplashScreen }] = await Promise.all([
-    import('@capacitor/app'), import('@capacitor/status-bar'), import('@capacitor/splash-screen'),
-  ]);
-  const dark = document.documentElement.dataset.theme === 'dark';
-  StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {});
-  StatusBar.setBackgroundColor({ color: dark ? '#121110' : '#f6f4ef' }).catch(() => {});
+  const [{ App }, { SplashScreen }] = await Promise.all([import('@capacitor/app'), import('@capacitor/splash-screen')]);
+  setSystemBarsTheme(document.documentElement.dataset.theme === 'dark');
   SplashScreen.hide().catch(() => {});
   App.addListener('backButton', ({ canGoBack }) => {
     // يغلق النافذة المفتوحة أولاً، ثم يعود للرئيسية، ثم يخرج من التطبيق.
@@ -21,6 +17,27 @@ export async function initNative() {
     if (!document.dispatchEvent(event)) return;
     if (canGoBack) window.history.back(); else App.exitApp();
   });
+}
+
+// التطبيق يمتد خلف شريط الحالة (edge-to-edge)؛ نلوّن أيقونات الشريط حسب المظهر.
+export function setSystemBarsTheme(dark) {
+  if (!isNative) return;
+  SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
+}
+
+// إشعار فوري على الجهاز (حجز جديد مثلاً).
+let notifyId = 1000;
+export async function notifyNow(title, body) {
+  if (!isNative) {
+    try { if (window.Notification?.permission === 'granted') new Notification(title, { body }); } catch { /* ignore */ }
+    return;
+  }
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    const permission = await LocalNotifications.checkPermissions();
+    if (permission.display !== 'granted' && (await LocalNotifications.requestPermissions()).display !== 'granted') return;
+    await LocalNotifications.schedule({ notifications: [{ id: notifyId++, title, body }] });
+  } catch { /* الإشعارات اختيارية */ }
 }
 
 // تنبيه قبل كل موعد بـ١٥ دقيقة (لمواعيد اليوم والغد) — يعمل حتى والتطبيق مغلق.

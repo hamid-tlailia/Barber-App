@@ -72,8 +72,10 @@ test('استيراد العملاء من CSV ونص منسوخ مع تجاهل �
 test('العميل المنقطع وخطر الغياب', () => {
   const today = '2026-06-01';
   const visits = [-100, -70, -40].map((d, i) => appt({ id: `v${i}`, date: addDays(today, d), status: 'completed' }));
-  const lapsed = lapsedClients([{ id: 'c1', name: 'أحمد' }], visits, defaultSettings(), today);
+  const lapsed = lapsedClients([{ id: 'c1', name: 'أحمد', phone: '55512345' }], visits, defaultSettings(), today);
   assert.equal(lapsed.length, 1);
+  // الزبون العابر (بدون رقم) لا يُقترح للاسترجاع.
+  assert.equal(lapsedClients([{ id: 'walk-in', name: 'زبون عابر', phone: '' }], visits.map(v => ({ ...v, clientId: 'walk-in' })), defaultSettings(), today).length, 0);
   assert.equal(clientStats('c1', visits, today).avgInterval, 30);
   const risky = [...visits, appt({ id: 'n1', status: 'no_show', date: addDays(today, -20) }), appt({ id: 'n2', status: 'no_show', date: addDays(today, -10) })];
   assert.equal(noShowRisk('c1', risky).level, 'high');

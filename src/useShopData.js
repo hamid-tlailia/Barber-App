@@ -6,7 +6,9 @@ import { cloudEnabled, diffData, mergeRows, pullChanges, pushChanges, subscribe 
 
 const keyFor = shopId => `shop:${shopId}`;
 
-export function useShopData(shop) {
+export function useShopData(shop, onRemoteBookings) {
+  const remoteCb = useRef(onRemoteBookings);
+  remoteCb.current = onRemoteBookings;
   const [data, setDataState] = useState(null);
   const [sync, setSync] = useState({ state: 'idle', pending: 0, lastSync: null, error: '' });
   const meta = useRef({ pending: [], cursor: null });
@@ -32,9 +34,17 @@ export function useShopData(shop) {
         // تُحذف فقط التغييرات التي رُفعت؛ ما أُضيف أثناء الرفع يبقى للدورة التالية.
         meta.current.pending = meta.current.pending.filter(change => !pending.includes(change));
       }
+      const firstPull = !meta.current.cursor;
       const { rows, cursor } = await pullChanges(shopId, meta.current.cursor);
       meta.current.cursor = cursor;
       if (rows.length) {
+        // حجوزات وصلت من رابط الحجز أو واتساب ولم تكن على هذا الجهاز ← إشعار.
+        if (!firstPull) {
+          const known = new Set(dataRef.current.appointments.map(a => a.id));
+          const fresh = rows.filter(r => r.collection === 'appointments' && !r.deleted && !known.has(r.id) && ['online', 'whatsapp'].includes(r.data?.source));
+          const nameOf = id => rows.find(x => x.collection === 'clients' && x.id === id)?.data?.name || dataRef.current.clients.find(c => c.id === id)?.name;
+          if (fresh.length) setTimeout(() => remoteCb.current?.(fresh.map(r => ({ ...r.data, clientName: nameOf(r.data.clientId) }))), 0);
+        }
         const merged = mergeRows(dataRef.current, rows, meta.current.pending);
         dataRef.current = merged;
         setDataState(merged);

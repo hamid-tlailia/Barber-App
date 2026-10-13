@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   BarChart3, Boxes, CalendarDays, Cloud, CloudOff, House, LayoutGrid, LogOut, MessageCircle, Moon, RefreshCw,
@@ -13,13 +13,13 @@ import '@fontsource/ibm-plex-sans-arabic/latin-600.css';
 import '@fontsource/tajawal/arabic-700.css';
 import '@fontsource/tajawal/arabic-800.css';
 import './style.css';
-import { defaultData, defaultSettings, loadLegacyData, localISO, normalizeData, serviceTemplates, uid, vocabulary } from './data.js';
+import { dateLabel, defaultData, defaultSettings, loadLegacyData, localISO, timeLabel, normalizeData, serviceTemplates, uid, vocabulary } from './data.js';
 import { AppContext, Toast, useToast } from './ui.jsx';
 import { prefs } from './lib/store.js';
 import { api, auth, cloudEnabled } from './lib/sync.js';
 import { licenseState, localShop } from './lib/license.js';
 import { useShopData } from './useShopData.js';
-import { initNative, scheduleAppointmentAlerts } from './lib/native.js';
+import { initNative, notifyNow, scheduleAppointmentAlerts, setSystemBarsTheme } from './lib/native.js';
 import Home from './pages/Home.jsx';
 import Appointments from './pages/Appointments.jsx';
 import Clients from './pages/Clients.jsx';
@@ -72,6 +72,7 @@ function useTheme() {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#121110' : '#f6f4ef');
+    setSystemBarsTheme(theme === 'dark');
     prefs.set('theme', mode);
   }, [theme, mode]);
   return { mode, theme, setMode };
@@ -140,19 +141,30 @@ function Gate() {
 }
 
 function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switchShop, addBranch }) {
-  const { data, setData, sync, syncNow } = useShopData(shop);
+  const onRemoteBookings = useCallback(list => {
+    const a = list[0];
+    const name = a.clientName || 'عميل جديد';
+    const text = list.length > 1 ? `${list.length} حجوزات جديدة أونلاين` : `حجز جديد: ${name} — ${dateLabel(a.date, { weekday: 'long' })} ${timeLabel(a.time)}`;
+    notifyNow('📅 حجز جديد', text);
+    toastRef.current?.(text, 'success', { label: 'فتح', run: () => goRef.current?.('appointments', { open: a.id }) });
+  }, []);
+  const toastRef = useRef(null);
+  const goRef = useRef(null);
+  const { data, setData, sync, syncNow } = useShopData(shop, onRemoteBookings);
   const role = shop.role || 'owner';
   const allowed = admin ? [...ACCESS[role], 'admin'] : ACCESS[role];
   const [page, setPageState] = useState('home');
   const [intent, setIntent] = useState(null);
   const [toast, showToast, closeToast] = useToast();
   const [, setTick] = useState(0);
+  toastRef.current = showToast;
 
   const go = useCallback((destination, nextIntent = null) => {
     setPageState(allowed.includes(destination) ? destination : 'home');
     setIntent(nextIntent);
     window.scrollTo({ top: 0 });
   }, [allowed]);
+  goRef.current = go;
 
   // زر الرجوع في أندرويد يعود للرئيسية بدلاً من إغلاق التطبيق.
   useEffect(() => {

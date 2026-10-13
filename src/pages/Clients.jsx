@@ -8,7 +8,7 @@ import { Alert, Avatar, Badge, Button, Confirm, Empty, Field, Row, SearchBox, Se
 import { BookingWizard } from './Appointments.jsx';
 
 export default function Clients() {
-  const { data, intent, setIntent, vocab, role } = useApp();
+  const { data, intent, setIntent, vocab, role, staffMember } = useApp();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [open, setOpen] = useState(null);
@@ -23,7 +23,10 @@ export default function Clients() {
 
   const stats = useMemo(() => Object.fromEntries(data.clients.map(c => [c.id, clientStats(c.id, data.appointments)])), [data.clients, data.appointments]);
   const q = query.trim();
+  // الحلاق يرى عملاءه فقط (من خدمهم أو لديهم موعد معه).
+  const mine = role === 'staff' && staffMember ? new Set(data.appointments.filter(a => a.staffId === staffMember.id || (a.items || []).some(i => i.staffId === staffMember.id)).map(a => a.clientId)) : null;
   const list = data.clients
+    .filter(c => !mine || mine.has(c.id))
     .filter(c => !q || c.name.includes(q) || phoneDigits(c.phone).includes(phoneDigits(q) || '@'))
     .filter(c => filter === 'all' || (filter === 'vip' && ((c.tags || []).includes('VIP') || stats[c.id].spent >= 1000)) || (filter === 'new' && stats[c.id].visits <= 1))
     .sort((a, b) => (stats[b.id].lastVisit || '').localeCompare(stats[a.id].lastVisit || '') || a.name.localeCompare(b.name));

@@ -23,6 +23,7 @@ export default function Appointments() {
 
   useEffect(() => {
     if (intent?.create) setWizard({});
+    if (intent?.walkIn) setWizard({ walkIn: true });
     if (intent?.open) { const a = data.appointments.find(x => x.id === intent.open); if (a) { setOpen(a.id); setDate(a.date); } }
     if (intent) setIntent(null);
   }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -51,7 +52,10 @@ export default function Appointments() {
 
     <div className="page-head">
       <div><h2>{date === localISO() ? 'اليوم' : dateLabel(date)}</h2><small>{num(active.length)} مواعيد · {money(active.reduce((s, a) => s + appointmentTotal(a), 0))}</small></div>
-      {can('appointments') && <Button icon={CalendarPlus} onClick={() => setWizard({ date })}>حجز</Button>}
+      {can('appointments') && <div className="row-buttons">
+        {date === localISO() && <Button variant="secondary" icon={UserRoundCheck} onClick={() => setWizard({ walkIn: true })}>حاضر الآن</Button>}
+        <Button icon={CalendarPlus} onClick={() => setWizard({ date })}>حجز</Button>
+      </div>}
     </div>
 
     {role !== 'staff' && data.staff.length > 1 && <Chips items={[{ id: 'all', label: 'الكل' }, ...data.staff.filter(s => s.active !== false).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffFilter} onChange={setStaffFilter} />}
@@ -169,12 +173,14 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
 export function BookingWizard({ initial, onClose, onDone }) {
   const { data, setData, toast, vocab, role, staffMember } = useApp();
   const edit = initial.edit;
+  const walkIn = Boolean(initial.walkIn);
+  const nowTime = () => { const d = new Date(); const m = d.getHours() * 60 + d.getMinutes(); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60 - (m % 5)).padStart(2, '0')}`; };
   const [step, setStep] = useState(edit ? 1 : initial.clientId ? 1 : 0);
   const [clientId, setClientId] = useState(edit?.clientId || initial.clientId || '');
   const [serviceIds, setServiceIds] = useState(edit ? (edit.items || []).map(i => i.serviceId) : []);
   const [staffId, setStaffId] = useState(edit?.staffId || (role === 'staff' ? staffMember?.id || '' : ''));
   const [date, setDate] = useState(edit?.date || initial.date || localISO());
-  const [time, setTime] = useState(edit?.time || '');
+  const [time, setTime] = useState(edit?.time || (walkIn ? nowTime() : ''));
   const [location, setLocation] = useState(edit?.location || 'salon');
   const [address, setAddress] = useState(edit?.address || '');
   const [notes, setNotes] = useState(edit?.notes || '');
@@ -195,35 +201,41 @@ export function BookingWizard({ initial, onClose, onDone }) {
   const pkg = client && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && serviceIds.includes(p.serviceId) && (!p.expiresAt || p.expiresAt >= localISO()));
 
   const save = () => {
+    if (!time) { setError('اختر وقت الموعد'); return; }
     const record = {
       ...(edit || {}), id: edit?.id || uid(), clientId, items, staffId, date, time, duration, price: total, location,
       address: location === 'home' ? address : '', travel: location === 'home' ? 30 : 0, notes: notes.trim(), deposit: finalDeposit,
-      status: edit?.status || 'confirmed', payments: edit?.payments || [], discount: edit?.discount || 0, source: edit?.source || 'app', createdAt: edit?.createdAt || localISO(),
+      status: edit?.status || (walkIn ? 'arrived' : 'confirmed'), payments: edit?.payments || [], discount: edit?.discount || 0, source: edit?.source || (walkIn ? 'walkin' : 'app'), createdAt: edit?.createdAt || localISO(),
+      ...(walkIn ? { arrivedAt: new Date().toISOString() } : {}),
     };
     const clash = conflicts(others, record);
     if (clash.length) { setError(`يتعارض مع موعد ${data.clients.find(c => c.id === clash[0].clientId)?.name || ''} الساعة ${timeLabel(clash[0].time)}`); return; }
     setData(prev => ({ ...prev, appointments: edit ? prev.appointments.map(a => a.id === edit.id ? record : a) : [...prev.appointments, record] }));
-    toast(edit ? 'تم تحديث الموعد' : 'تم الحجز ✓');
+    toast(edit ? 'تم تحديث الموعد' : walkIn ? 'تم تسجيل الزبون الحاضر ✓' : 'تم الحجز ✓');
     onDone(record);
   };
 
-  const steps = [vocab.client, 'الخدمات', 'الوقت', 'تأكيد'];
-  const canNext = [Boolean(clientId), serviceIds.length > 0, Boolean(time), true][step];
-  return <Sheet title={edit ? 'تعديل الموعد' : 'حجز جديد'} onClose={onClose} size="lg"
+  // الزبون الحاضر بدون موعد: نتخطى خطوة الوقت (الآن) ونختار الحلاق في التأكيد.
+  const keys = walkIn ? ['client', 'services', 'confirm'] : ['client', 'services', 'time', 'confirm'];
+  const key = keys[step];
+  const steps = walkIn ? [vocab.client, 'الخدمات', 'تأكيد'] : [vocab.client, 'الخدمات', 'الوقت', 'تأكيد'];
+  const canNext = { client: Boolean(clientId), services: serviceIds.length > 0, time: Boolean(time), confirm: true }[key];
+  const last = step === keys.length - 1;
+  return <Sheet title={edit ? 'تعديل الموعد' : walkIn ? 'زبون حاضر الآن' : 'حجز جديد'} onClose={onClose} size="lg"
     footer={<>
       {step > 0 && <Button variant="ghost" icon={ArrowRight} onClick={() => setStep(step - 1)}>رجوع</Button>}
       <div className="spacer" />
-      {step < 3 ? <Button disabled={!canNext} icon={ArrowLeft} onClick={() => setStep(step + 1)}>التالي</Button> : <Button icon={Check} onClick={save}>{edit ? 'حفظ' : 'تأكيد الحجز'}</Button>}
+      {!last ? <Button disabled={!canNext} icon={ArrowLeft} onClick={() => setStep(step + 1)}>التالي</Button> : <Button icon={Check} onClick={save}>{edit ? 'حفظ' : walkIn ? 'ابدأ الخدمة' : 'تأكيد الحجز'}</Button>}
     </>}>
     <Steps steps={steps} current={step} />
 
-    {step === 0 && <ClientPicker value={clientId} onChange={id => { setClientId(id); setStep(1); }} />}
+    {key === 'client' && <ClientPicker walkIn={walkIn} value={clientId} onChange={id => { setClientId(id); setStep(1); }} />}
 
-    {step === 1 && <div className="stack">
+    {key === 'services' && <div className="stack">
       {categories.length > 1 && <Chips items={[{ id: 'all', label: 'الكل' }, ...categories.map(c => ({ id: c, label: c }))]} value={category} onChange={setCategory} />}
       <div className="service-grid">{data.services.filter(s => category === 'all' || (s.category || 'عام') === category).map(s => {
         const on = serviceIds.includes(s.id);
-        return <button type="button" key={s.id} className={`service-card ${on ? 'active' : ''}`} onClick={() => { setServiceIds(on ? serviceIds.filter(x => x !== s.id) : [...serviceIds, s.id]); setTime(''); }}>
+        return <button type="button" key={s.id} className={`service-card ${on ? 'active' : ''}`} onClick={() => { setServiceIds(on ? serviceIds.filter(x => x !== s.id) : [...serviceIds, s.id]); if (!walkIn) setTime(''); }}>
           {on && <span className="check"><Check size={14} /></span>}
           <strong>{s.name}</strong><small>{num(s.duration)} دقيقة</small><b>{money(s.price)}</b>
         </button>;
@@ -232,7 +244,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
       {pkg && <Alert tone="green" icon={Check}>لدى {client.name} باقة «{pkg.name}» — متبقٍ {pkg.total - pkg.used} جلسات (تُخصم عند الدفع)</Alert>}
     </div>}
 
-    {step === 2 && <div className="stack">
+    {key === 'time' && <div className="stack">
       {data.staff.length > 0 && role !== 'staff' && <Field label={`${vocab.pro} (اختياري)`}><Chips items={[{ id: '', label: 'أي شخص متاح' }, ...data.staff.filter(s => s.active !== false).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} /></Field>}
       {data.settings.kind !== 'men' || location === 'home' ? <Field label="مكان الخدمة"><Chips items={[{ id: 'salon', label: 'في الصالون' }, { id: 'home', label: 'منزلية' }]} value={location} onChange={v => { setLocation(v); setTime(''); }} /></Field> : null}
       {location === 'home' && <Field label="العنوان"><input value={address} onChange={e => setAddress(e.target.value)} placeholder="المنطقة، الشارع، رقم المبنى" /></Field>}
@@ -243,7 +255,8 @@ export function BookingWizard({ initial, onClose, onDone }) {
         : <Empty icon={CalendarPlus} title="لا أوقات متاحة" text="جرّب يوماً آخر أو موظفاً آخر — أو أضفه لقائمة الانتظار" action={client && <WaitlistButton clientId={client.id} serviceId={serviceIds[0]} staffId={staffId} date={date} onDone={onClose} />} />}
     </div>}
 
-    {step === 3 && <div className="stack">
+    {key === 'confirm' && <div className="stack">
+      {walkIn && data.staff.length > 0 && role !== 'staff' && <Field label={`من سيخدمه؟`}><Chips items={[{ id: '', label: 'بدون تحديد' }, ...data.staff.filter(s => s.active !== false).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={setStaffId} /></Field>}
       <div className="confirm-card">
         <Avatar name={client?.name} size="lg" />
         <strong>{client?.name}</strong>
@@ -252,7 +265,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
         <b>{money(total)}</b>
       </div>
       {risk?.level === 'high' && <Alert tone="orange" icon={ShieldAlert}>{client.name} لم يحضر {risk.stats.noShows} مرات سابقاً — ننصح بعربون</Alert>}
-      <Field label="العربون المطلوب" hint={finalDeposit ? 'يُسجَّل عند الاستلام من شاشة الموعد' : 'بدون عربون'}><div className="money-input"><input type="number" min="0" inputMode="decimal" value={finalDeposit} onChange={e => setDeposit(Number(e.target.value))} /><span>ر.ق</span></div></Field>
+      {!walkIn && <Field label="العربون المطلوب" hint={finalDeposit ? 'يُسجَّل عند الاستلام من شاشة الموعد' : 'بدون عربون'}><div className="money-input"><input type="number" min="0" inputMode="decimal" value={finalDeposit} onChange={e => setDeposit(Number(e.target.value))} /><span>ر.ق</span></div></Field>}
       <Field label="ملاحظات (اختياري)"><textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} placeholder="أي تفاصيل للفريق..." /></Field>
       <Alert>{error}</Alert>
     </div>}
@@ -268,7 +281,9 @@ function WaitlistButton({ clientId, serviceId, staffId, date, onDone }) {
   }}>أضف لقائمة الانتظار</Button>;
 }
 
-export function ClientPicker({ value, onChange }) {
+export const WALK_IN_ID = 'walk-in';
+
+export function ClientPicker({ value, onChange, walkIn = false }) {
   const { data, upsert, vocab } = useApp();
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
@@ -280,9 +295,15 @@ export function ClientPicker({ value, onChange }) {
   const recent = q ? matches : [...new Map(data.appointments.slice().sort((a, b) => b.date.localeCompare(a.date)).map(a => [a.clientId, data.clients.find(c => c.id === a.clientId)]).filter(([, c]) => c)).values()].slice(0, 8);
   const shown = q ? matches : recent.length ? recent : matches;
 
+  const anonymous = () => {
+    if (!data.clients.some(c => c.id === WALK_IN_ID)) upsert('clients', { id: WALK_IN_ID, name: 'زبون عابر', phone: '', notes: 'زبائن بدون تسجيل', createdAt: localISO() });
+    onChange(WALK_IN_ID);
+  };
   const add = () => {
-    if (!name.trim() || phoneDigits(phone).length < 7) { setError('أدخل الاسم ورقماً صحيحاً'); return; }
-    const existing = data.clients.find(c => samePhone(c.phone, phone));
+    if (!name.trim()) { setError('أدخل الاسم'); return; }
+    if (!walkIn && phoneDigits(phone).length < 7) { setError('أدخل الاسم ورقماً صحيحاً'); return; }
+    if (phone && phoneDigits(phone).length < 7) { setError('الرقم غير صحيح — أو اتركه فارغاً'); return; }
+    const existing = phone && data.clients.find(c => samePhone(c.phone, phone));
     if (existing) { onChange(existing.id); return; }
     const id = uid();
     upsert('clients', { id, name: name.trim(), phone: phone.trim(), notes: '', createdAt: localISO() });
@@ -291,7 +312,7 @@ export function ClientPicker({ value, onChange }) {
 
   if (adding) return <div className="stack">
     <Field label="الاسم" required><input autoFocus value={name} onChange={e => setName(e.target.value)} /></Field>
-    <Field label="رقم الهاتف" required><input type="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="5555 1234" /></Field>
+    <Field label={walkIn ? 'رقم الهاتف (اختياري)' : 'رقم الهاتف'} required={!walkIn} hint={walkIn ? 'يفيد لإرسال الفاتورة والتذكير بالزيارة القادمة' : ''}><input type="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="5555 1234" /></Field>
     <Alert>{error}</Alert>
     <div className="row-buttons"><Button variant="ghost" onClick={() => setAdding(false)}>رجوع</Button><Button icon={Check} onClick={add}>حفظ ومتابعة</Button></div>
   </div>;
@@ -299,6 +320,7 @@ export function ClientPicker({ value, onChange }) {
   return <div className="stack">
     <SearchBox value={query} onChange={setQuery} placeholder="ابحث بالاسم أو الرقم" />
     <Button variant="secondary" icon={UserPlus} block onClick={() => { setAdding(true); if (/\d/.test(q)) setPhone(q); else setName(q); }}>{vocab.newClient}</Button>
+    {walkIn && <Button variant="ghost" icon={UserRoundCheck} block onClick={anonymous}>بدون اسم — زبون عابر</Button>}
     {!q && recent.length > 0 && <small className="muted">آخر العملاء</small>}
     <div className="list">{shown.map(c => <Row key={c.id} leading={<Avatar name={c.name} />} title={c.name} subtitle={<span dir="ltr">{c.phone}</span>} trailing={value === c.id ? <Check className="green" size={20} /> : null} onClick={() => onChange(c.id)} />)}</div>
   </div>;
