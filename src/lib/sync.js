@@ -150,7 +150,7 @@ export const api = {
     integration: shop => rpc('admin_get_integration', { p_shop: shop }),
     setIntegration: (shop, v) => rpc('admin_set_integration', {
       p_shop: shop, p_wa_addon: Boolean(v.waAddon), p_ai_addon: Boolean(v.aiAddon), p_phone_number_id: v.phoneNumberId || '',
-      p_token: v.token || '', p_ai_key: v.aiKey || '', p_clear_token: Boolean(v.clearToken), p_clear_ai_key: Boolean(v.clearAiKey),
+      p_token: v.token || '', p_ai_key: v.aiKey || '', p_clear_token: Boolean(v.clearToken), p_clear_ai_key: Boolean(v.clearAiKey), p_ai_provider: v.aiProvider || 'anthropic',
     }),
   },
 };

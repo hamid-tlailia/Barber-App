@@ -5,9 +5,14 @@ import {
   saveRecord, sendText, settingsOf, timeAr, type WaConfig, waConfigFor,
 } from '../_shared/common.ts';
 
-// كل صالون مشترك في المساعد له مفتاحه الخاص (يضعه المدير)؛ مفتاح المنصة احتياطي إن وُجد.
-const PLATFORM_AI_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
-const anthropicFor = (key?: string | null) => (key || PLATFORM_AI_KEY) ? new Anthropic({ apiKey: key || PLATFORM_AI_KEY }) : null;
+// كل صالون مشترك في المساعد له مزوّد ومفتاح يضعهما المدير (Claude أو OpenAI)؛ مفتاح المنصة احتياطي إن وُجد.
+const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') ?? 'gpt-4o-mini';
+type Brain = { provider: 'anthropic' | 'openai'; key: string };
+const brainFor = (provider: string | null, key?: string | null): Brain | null => {
+  const p = provider === 'openai' ? 'openai' : 'anthropic';
+  const k = key || Deno.env.get(p === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY') || '';
+  return k ? { provider: p, key: k } : null;
+};
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-opus-5-5';
 
 // التحقق من أن الطلب قادم فعلاً من Meta (توقيع HMAC بسر التطبيق).
@@ -46,7 +51,7 @@ Deno.serve(async req => {
 
 async function resolveShop(phoneNumberId: string, from: string) {
   // ١) رقم أعمال خاص بالصالون. ٢) آخر تذكير أُرسل لهذا الرقم من رقم المنصة.
-  const fields = 'shop_id, wa_addon, ai_addon, assistant_enabled, ai_key';
+  const fields = 'shop_id, wa_addon, ai_addon, assistant_enabled, ai_key, ai_provider';
   const { data: own } = await db.from('shop_integrations').select(fields).eq('wa_phone_number_id', phoneNumberId).maybeSingle();
   let integ = own;
   if (!integ) {
@@ -56,7 +61,7 @@ async function resolveShop(phoneNumberId: string, from: string) {
   }
   // واتساب والمساعد إضافتان مدفوعتان يفعّلهما المدير.
   if (!integ?.wa_addon) return null;
-  return { shopId: integ.shop_id as string, assistant: Boolean(integ.ai_addon && integ.assistant_enabled), aiKey: integ.ai_key as string | null };
+  return { shopId: integ.shop_id as string, assistant: Boolean(integ.ai_addon && integ.assistant_enabled), aiKey: integ.ai_key as string | null, aiProvider: integ.ai_provider as string | null };
 }
 
 async function handle(phoneNumberId: string, from: string, text: string, profileName?: string) {
@@ -74,8 +79,8 @@ async function handle(phoneNumberId: string, from: string, text: string, profile
     const handled = await replyToReminder(shop.shopId, config, from, confirm);
     if (handled) return;
   }
-  const ai = shop.assistant ? anthropicFor(shop.aiKey) : null;
-  if (ai) await assistant(ai, shop.shopId, config, from, text, profileName);
+  const brain = shop.assistant ? brainFor(shop.aiProvider, shop.aiKey) : null;
+  if (brain) await assistant(brain, shop.shopId, config, from, text, profileName);
 }
 
 async function replyToReminder(shopId: string, config: WaConfig, from: string, confirm: boolean) {
@@ -172,7 +177,7 @@ async function runTool(shopId: string, from: string, name: string, input: Record
   return 'أداة غير معروفة.';
 }
 
-async function assistant(anthropic: Anthropic, shopId: string, config: WaConfig, from: string, text: string, profileName?: string) {
+async function assistant(brain: Brain, shopId: string, config: WaConfig, from: string, text: string, profileName?: string) {
   const [{ data: shop }, { data: convo }, settings] = await Promise.all([
     db.from('shops').select('name, kind, phone').eq('id', shopId).single(),
     db.from('wa_conversations').select('messages').eq('shop_id', shopId).eq('phone', digits(from)).maybeSingle(),
@@ -188,12 +193,29 @@ async function assistant(anthropic: Anthropic, shopId: string, config: WaConfig,
 إذا طلب العميل شيئاً خارج الحجز أو اشتكى، اعتذر بلطف وأخبره أن فريق الصالون سيتواصل معه${shop?.phone ? ` أو يمكنه الاتصال على ${shop.phone}` : ''}.
 ساعات العمل: ${settings.hours?.open ?? '09:00'}–${settings.hours?.close ?? '22:00'}.`;
 
-  const messages: Anthropic.Beta.BetaMessageParam[] = [
-    ...history.map(m => ({ role: m.role, content: m.content })),
-    { role: 'user', content: `${text}\n\n[سياق النظام: اليوم ${dateAr(isoDate(now))} (${isoDate(now)}) الساعة ${now.toISOString().slice(11, 16)}. اسم العميل في واتساب: ${profileName ?? 'غير معروف'}]` },
-  ];
+  const userText = `${text}\n\n[سياق النظام: اليوم ${dateAr(isoDate(now))} (${isoDate(now)}) الساعة ${now.toISOString().slice(11, 16)}. اسم العميل في واتساب: ${profileName ?? 'غير معروف'}]`;
+  const call = (name: string, input: Record<string, any>) => runTool(shopId, from, name, input);
+  const reply = brain.provider === 'openai'
+    ? await askOpenAI(brain.key, system, history, userText, call)
+    : await askClaude(brain.key, system, history, userText, call);
+  if (!reply) return;
+  await sendText(config, from, reply);
+  await db.from('wa_conversations').upsert({
+    shop_id: shopId, phone: digits(from), updated_at: new Date().toISOString(),
+    messages: [...history, { role: 'user', content: text }, { role: 'assistant', content: reply }].slice(-12),
+  });
+}
 
-  let reply = '';
+
+type History = { role: 'user' | 'assistant'; content: string }[];
+type ToolCall = (name: string, input: Record<string, any>) => Promise<string>;
+const safely = async (call: ToolCall, name: string, input: Record<string, any>) => {
+  try { return { ok: true, content: await call(name, input) }; } catch (e) { return { ok: false, content: `خطأ: ${(e as Error).message}` }; }
+};
+
+async function askClaude(key: string, system: string, history: History, userText: string, call: ToolCall) {
+  const anthropic = new Anthropic({ apiKey: key });
+  const messages: Anthropic.Beta.BetaMessageParam[] = [...history.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: userText }];
   for (let turn = 0; turn < 8; turn++) {
     const response = await anthropic.beta.messages.create({
       model: MODEL,
@@ -205,24 +227,43 @@ async function assistant(anthropic: Anthropic, shopId: string, config: WaConfig,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
     } as any);
-    if (response.stop_reason === 'refusal') { reply = 'عذراً، لا أستطيع المساعدة في هذا الطلب. فريق الصالون سيتواصل معك.'; break; }
+    if (response.stop_reason === 'refusal') return 'عذراً، لا أستطيع المساعدة في هذا الطلب. فريق الصالون سيتواصل معك.';
     messages.push({ role: 'assistant', content: response.content as any });
     const toolUses = response.content.filter((b: any) => b.type === 'tool_use') as any[];
     if (response.stop_reason !== 'tool_use' || !toolUses.length) {
-      reply = response.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n').trim();
-      break;
+      return response.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n').trim();
     }
     const results = await Promise.all(toolUses.map(async tool => {
-      try { return { type: 'tool_result' as const, tool_use_id: tool.id, content: await runTool(shopId, from, tool.name, tool.input ?? {}) }; }
-      catch (e) { return { type: 'tool_result' as const, tool_use_id: tool.id, content: `خطأ: ${(e as Error).message}`, is_error: true }; }
+      const r = await safely(call, tool.name, tool.input ?? {});
+      return { type: 'tool_result' as const, tool_use_id: tool.id, content: r.content, ...(r.ok ? {} : { is_error: true }) };
     }));
     messages.push({ role: 'user', content: results });
   }
-  if (!reply) return;
-  await sendText(config, from, reply);
-  await db.from('wa_conversations').upsert({
-    shop_id: shopId, phone: digits(from), updated_at: new Date().toISOString(),
-    messages: [...history, { role: 'user', content: text }, { role: 'assistant', content: reply }].slice(-12),
-  });
+  return '';
 }
 
+// OpenAI (Chat Completions) بنفس الأدوات — للتجربة برصيد OpenAI أو لصالون يفضّله.
+async function askOpenAI(key: string, system: string, history: History, userText: string, call: ToolCall) {
+  const messages: any[] = [{ role: 'system', content: system }, ...history, { role: 'user', content: userText }];
+  const fnTools = tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }));
+  for (let turn = 0; turn < 8; turn++) {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ model: OPENAI_MODEL, messages, tools: fnTools }),
+    });
+    if (!res.ok) throw new Error(`openai ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    const message = (await res.json()).choices?.[0]?.message;
+    if (!message) return '';
+    messages.push(message);
+    const toolCalls = message.tool_calls ?? [];
+    if (!toolCalls.length) return String(message.content ?? '').trim();
+    for (const tc of toolCalls) {
+      let input: Record<string, any> = {};
+      try { input = JSON.parse(tc.function?.arguments || '{}'); } catch { /* وسائط غير صالحة */ }
+      const r = await safely(call, tc.function?.name, input);
+      messages.push({ role: 'tool', tool_call_id: tc.id, content: r.content });
+    }
+  }
+  return '';
+}

@@ -74,13 +74,17 @@ export default function Admin() {
 // الإضافات المدفوعة لكل صالون: لا يراها صاحب الصالون ولا يستطيع تعديلها.
 function Addons({ shopId, onSaved }) {
   const [v, setV] = useState(null);
+  const [initialProvider, setInitialProvider] = useState('anthropic');
   const [error, setError] = useState('');
   useEffect(() => {
     setV(null);
-    api.admin.integration(shopId).then(row => setV({
-      waAddon: row.wa_addon, aiAddon: row.ai_addon, phoneNumberId: row.wa_phone_number_id, token: '', aiKey: '',
+    api.admin.integration(shopId).then(row => {
+      setInitialProvider(row.ai_provider || 'anthropic');
+      setV({
+      waAddon: row.wa_addon, aiAddon: row.ai_addon, aiProvider: row.ai_provider || 'anthropic', phoneNumberId: row.wa_phone_number_id, token: '', aiKey: '',
       hasToken: row.has_token, hasAiKey: row.has_ai_key, clearToken: false, clearAiKey: false,
-    })).catch(e => setError(errorText(e)));
+      });
+    }).catch(e => setError(errorText(e)));
   }, [shopId]);
   const save = async () => {
     setError('');
@@ -98,8 +102,12 @@ function Addons({ shopId, onSaved }) {
           <input dir="ltr" type="password" autoComplete="off" value={v.token} onChange={e => setV({ ...v, token: e.target.value.trim() })} />
         </Field>}
         <Toggle checked={v.aiAddon} onChange={on => setV({ ...v, aiAddon: on })} label="المساعد الذكي (AI)" hint="يرد ويحجز في واتساب 24/7" />
-        {v.aiAddon && <Field label="مفتاح Anthropic الخاص بالصالون" hint={v.hasAiKey ? 'محفوظ — اتركه فارغاً لعدم التغيير' : 'فارغ = يُستخدم مفتاح المنصة إن وُجد'}>
-          <input dir="ltr" type="password" autoComplete="off" placeholder="sk-ant-..." value={v.aiKey} onChange={e => setV({ ...v, aiKey: e.target.value.trim() })} />
+        {v.aiAddon && <Field label="مزوّد الذكاء الاصطناعي">
+          <Segmented items={[{ id: 'anthropic', label: 'Claude' }, { id: 'openai', label: 'OpenAI' }]} value={v.aiProvider} onChange={aiProvider => setV({ ...v, aiProvider })} />
+        </Field>}
+        {v.aiAddon && <Field label={v.aiProvider === 'openai' ? 'مفتاح OpenAI الخاص بالصالون' : 'مفتاح Anthropic الخاص بالصالون'}
+          hint={v.hasAiKey && v.aiProvider === initialProvider ? 'محفوظ — اتركه فارغاً لعدم التغيير' : 'فارغ = يُستخدم مفتاح المنصة إن وُجد'}>
+          <input dir="ltr" type="password" autoComplete="off" placeholder={v.aiProvider === 'openai' ? 'sk-proj-...' : 'sk-ant-...'} value={v.aiKey} onChange={e => setV({ ...v, aiKey: e.target.value.trim() })} />
         </Field>}
         {v.aiAddon && v.hasAiKey && <Toggle checked={v.clearAiKey} onChange={on => setV({ ...v, clearAiKey: on })} label="حذف المفتاح المحفوظ" />}
       </>}
