@@ -263,7 +263,7 @@ function SellGift({ onClose }) {
   return <Sheet title={L('بطاقة هدية جديدة', 'New gift card')} onClose={onClose} footer={<Button block size="lg" icon={TicketPercent} disabled={!(amount > 0)} onClick={() => {
     const code = `GIFT-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const card = { id: uid(), code, amount: Number(amount), balance: Number(amount), buyerName: buyer, recipientName: recipient, createdAt: localISO(), expiresAt: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10) };
-    setData(prev => ({ ...prev, giftCards: [...prev.giftCards, card], sales: [...prev.sales, { id: uid(), kind: 'gift', refId: card.id, label: `بطاقة هدية ${code}`, amount: card.amount, method, at: localISO() }] }));
+    setData(prev => ({ ...prev, giftCards: [...prev.giftCards, card], sales: [...prev.sales, { id: uid(), kind: 'gift', refId: card.id, label: `${L('بطاقة هدية', 'Gift card')} ${code}`, amount: card.amount, method, at: localISO() }] }));
     toast(L('تم إصدار البطاقة', 'Gift card issued')); setDone(card);
   }}>{L('إصدار', 'Issue')} {money(amount)}</Button>}>
     <div className="stack">

@@ -1,10 +1,16 @@
 // صفحة الحجز العامة للعملاء (بدون حساب): الخدمة ← الوقت ← البيانات ← تم.
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarCheck2, Check, MessageCircle, Scissors } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarCheck2, Check, MessageCircle, Scissors, ChevronLeft, ChevronRight } from 'lucide-react';
 import { addDays, availableSlots, dateLabel, defaultSettings, localISO, money, num, timeLabel, whatsappLink } from '../data.js';
 import { api, cloudEnabled, errorText } from '../lib/sync.js';
 import { Alert, Button, Chips, Empty, Field, Steps } from '../ui.jsx';
-import { L } from '../i18n.js';
+import { L, isEn } from '../i18n.js';
+
+// الأسهم تتبع اتجاه اللغة (يمين لليسار في العربية).
+const NextArrow = isEn ? ArrowRight : ArrowLeft;
+const BackArrow = isEn ? ArrowLeft : ArrowRight;
+const NextChevron = isEn ? ChevronRight : ChevronLeft;
+const PrevChevron = isEn ? ChevronLeft : ChevronRight;
 
 export default function PublicBooking({ slug }) {
   const [shop, setShop] = useState(undefined);
@@ -62,14 +68,14 @@ export default function PublicBooking({ slug }) {
           </button>;
         })}</div>
         {items.length > 0 && <div className="summary-bar"><span>{L(`${items.length} خدمات`, `${items.length} ${items.length === 1 ? 'service' : 'services'}`)}</span><strong>{money(total)}</strong></div>}
-        <Button block size="lg" icon={ArrowLeft} disabled={!items.length} onClick={() => setStep(1)}>{L('اختر الوقت', 'Choose a time')}</Button>
+        <Button block size="lg" icon={NextArrow} disabled={!items.length} onClick={() => setStep(1)}>{L('اختر الوقت', 'Choose a time')}</Button>
       </div>}
       {step === 1 && <div className="stack">
         {shop.staff.length > 1 && <Chips items={[{ id: '', label: L('أي شخص', 'Anyone') }, ...shop.staff.map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} />}
         <div className="day-strip day-strip-wide">{Array.from({ length: 14 }, (_, i) => addDays(localISO(), i)).map(d => <button type="button" key={d} className={`day ${d === date ? 'active' : ''}`} onClick={() => { setDate(d); setTime(''); }}><small>{dateLabel(d, { weekday: 'short' })}</small><strong>{dateLabel(d, { day: 'numeric' })}</strong></button>)}</div>
         {slots.length ? <div className="slots">{slots.map(t => <button type="button" key={t} className={`time ${t === time ? 'active' : ''}`} onClick={() => setTime(t)}>{timeLabel(t)}</button>)}</div> : <Empty icon={CalendarCheck2} title={L('لا أوقات متاحة', 'No available times')} text={L('جرّب يوماً آخر', 'Try another day')} />}
         <Alert>{error}</Alert>
-        <div className="row-buttons"><Button variant="ghost" icon={ArrowRight} onClick={() => setStep(0)}>{L('رجوع', 'Back')}</Button><Button icon={ArrowLeft} disabled={!time} onClick={() => setStep(2)}>{L('التالي', 'Next')}</Button></div>
+        <div className="row-buttons"><Button variant="ghost" icon={BackArrow} onClick={() => setStep(0)}>{L('رجوع', 'Back')}</Button><Button icon={NextArrow} disabled={!time} onClick={() => setStep(2)}>{L('التالي', 'Next')}</Button></div>
       </div>}
       {step === 2 && <form className="stack" onSubmit={e => { e.preventDefault(); book(); }}>
         <div className="confirm-card"><strong>{dateLabel(date)} · {timeLabel(time)}</strong><small>{items.map(i => i.name).join(' + ')}</small><b>{money(total)}</b></div>
@@ -77,7 +83,7 @@ export default function PublicBooking({ slug }) {
         <Field label={L('رقم الجوال (واتساب)', 'Mobile number (WhatsApp)')} required><input required type="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="5555 1234" autoComplete="tel" /></Field>
         <Field label={L('ملاحظة (اختياري)', 'Note (optional)')}><input value={note} onChange={e => setNote(e.target.value)} /></Field>
         <Alert>{error}</Alert>
-        <div className="row-buttons"><Button variant="ghost" icon={ArrowRight} onClick={() => setStep(1)}>{L('رجوع', 'Back')}</Button><Button type="submit" icon={Check} disabled={busy}>{busy ? L('لحظة...', 'One moment...') : L('تأكيد الحجز', 'Confirm booking')}</Button></div>
+        <div className="row-buttons"><Button variant="ghost" icon={BackArrow} onClick={() => setStep(1)}>{L('رجوع', 'Back')}</Button><Button type="submit" icon={Check} disabled={busy}>{busy ? L('لحظة...', 'One moment...') : L('تأكيد الحجز', 'Confirm booking')}</Button></div>
       </form>}
     </div>
   </div>;

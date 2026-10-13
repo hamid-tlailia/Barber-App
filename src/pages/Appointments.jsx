@@ -10,7 +10,13 @@ import {
 import { noShowRisk, waitlistMatches } from '../smart.js';
 import { Alert, Avatar, Badge, Button, Chips, Empty, Field, IconButton, Row, SearchBox, Sheet, Steps, openExternal, useApp, NumInput } from '../ui.jsx';
 import { CheckoutSheet } from './Checkout.jsx';
-import { L } from '../i18n.js';
+import { L, isEn } from '../i18n.js';
+
+// الأسهم تتبع اتجاه اللغة (يمين لليسار في العربية).
+const NextArrow = isEn ? ArrowRight : ArrowLeft;
+const BackArrow = isEn ? ArrowLeft : ArrowRight;
+const NextChevron = isEn ? ChevronRight : ChevronLeft;
+const PrevChevron = isEn ? ChevronLeft : ChevronRight;
 
 const dayStrip = (center, count = 14) => Array.from({ length: count }, (_, i) => addDays(center, i - 2));
 
@@ -44,11 +50,11 @@ export default function Appointments() {
 
   return <div className="stack">
     <div className="day-nav">
-      <IconButton icon={ChevronRight} label={L('السابق', 'Previous')} onClick={() => setStartDay(addDays(startDay, -7))} />
+      <IconButton icon={PrevChevron} label={L('السابق', 'Previous')} onClick={() => setStartDay(addDays(startDay, -7))} />
       <div className="day-strip">{days.map(d => <button type="button" key={d} className={`day ${d === date ? 'active' : ''} ${d === localISO() ? 'today' : ''}`} onClick={() => setDate(d)}>
         <small>{dateLabel(d, { weekday: 'short' })}</small><strong>{dateLabel(d, { day: 'numeric' })}</strong>{counts[d] ? <i>{counts[d]}</i> : <i className="empty-dot" />}
       </button>)}</div>
-      <IconButton icon={ChevronLeft} label={L('التالي', 'Next')} onClick={() => setStartDay(addDays(startDay, 7))} />
+      <IconButton icon={NextChevron} label={L('التالي', 'Next')} onClick={() => setStartDay(addDays(startDay, 7))} />
     </div>
 
     <div className="page-head">
@@ -76,7 +82,7 @@ export default function Appointments() {
             {a.status === 'completed' && !isPaid(a) && <Badge tone="red">{L('غير مدفوع', 'Unpaid')}</Badge>}
           </span>
         </span>
-        <ChevronLeft size={18} className="muted" />
+        <NextChevron size={18} className="muted" />
       </button>;
     })}</div> : <Empty icon={CalendarPlus} title={L('لا مواعيد في هذا اليوم', 'No appointments this day')} text={L('اضغط «حجز» لإضافة موعد جديد', 'Tap “Book” to add a new appointment')} />}
 
@@ -224,9 +230,9 @@ export function BookingWizard({ initial, onClose, onDone }) {
   const last = step === keys.length - 1;
   return <Sheet title={edit ? L('تعديل الموعد', 'Edit appointment') : walkIn ? L('زبون حاضر الآن', 'Walk-in client') : L('حجز جديد', 'New booking')} onClose={onClose} size="lg"
     footer={<>
-      {step > 0 && <Button variant="ghost" icon={ArrowRight} onClick={() => setStep(step - 1)}>{L('رجوع', 'Back')}</Button>}
+      {step > 0 && <Button variant="ghost" icon={BackArrow} onClick={() => setStep(step - 1)}>{L('رجوع', 'Back')}</Button>}
       <div className="spacer" />
-      {!last ? <Button disabled={!canNext} icon={ArrowLeft} onClick={() => setStep(step + 1)}>{L('التالي', 'Next')}</Button> : <Button icon={Check} onClick={save}>{edit ? L('حفظ', 'Save') : walkIn ? L('ابدأ الخدمة', 'Start service') : L('تأكيد الحجز', 'Confirm booking')}</Button>}
+      {!last ? <Button disabled={!canNext} icon={NextArrow} onClick={() => setStep(step + 1)}>{L('التالي', 'Next')}</Button> : <Button icon={Check} onClick={save}>{edit ? L('حفظ', 'Save') : walkIn ? L('ابدأ الخدمة', 'Start service') : L('تأكيد الحجز', 'Confirm booking')}</Button>}
     </>}>
     <Steps steps={steps} current={step} />
 

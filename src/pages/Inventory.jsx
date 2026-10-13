@@ -95,7 +95,7 @@ function StockSheet({ product, onClose, onEdit }) {
 
 function ProductForm({ product, onClose }) {
   const { upsert, remove, toast } = useApp();
-  const [v, setV] = useState({ name: '', category: '', quantity: 0, minStock: 3, cost: 0, price: 0, unit: 'قطعة', ...product });
+  const [v, setV] = useState({ name: '', category: '', quantity: 0, minStock: 3, cost: 0, price: 0, unit: L('قطعة', 'pc'), ...product });
   const [confirm, setConfirm] = useState(false);
   const set = (key, numeric) => e => setV({ ...v, [key]: numeric ? Number(e.target.value) : e.target.value });
   return <Sheet title={product ? L('تعديل المنتج', 'Edit product') : L('منتج جديد', 'New product')} onClose={onClose} footer={<>
