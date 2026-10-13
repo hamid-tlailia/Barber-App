@@ -9,10 +9,12 @@ import { plans } from '../lib/license.js';
 import { prefs } from '../lib/store.js';
 import { notifyNow } from '../lib/native.js';
 import { Alert, Badge, Button, Confirm, Empty, Field, Row, SearchBox, Section, Segmented, Sheet, Stat, Toggle, openExternal, useApp } from '../ui.jsx';
+import { L, isEn } from '../i18n.js';
 
 const DAY = 86400000;
 const time = value => (value ? new Date(value).getTime() : 0);
 const dateText = value => new Date(value).toLocaleDateString(LOCALE);
+const days = n => `${n} ${Number(n) === 1 ? 'day' : 'days'}`;
 const statusOf = s => {
   if (s.plan === 'suspended') return 'suspended';
   if (time(s.paid_until) > Date.now()) return 'paid';
@@ -20,7 +22,7 @@ const statusOf = s => {
   if (time(s.trial_ends_at) > Date.now()) return 'trial';
   return 'expired';
 };
-const labels = { paid: ['مشترك', 'green'], grace: ['في المهلة', 'orange'], trial: ['تجربة', 'blue'], expired: ['منتهي', 'red'], suspended: ['موقوف', 'muted'] };
+const labels = { paid: [L('مشترك', 'Subscribed'), 'green'], grace: [L('في المهلة', 'Grace period'), 'orange'], trial: [L('تجربة', 'Trial'), 'blue'], expired: [L('منتهي', 'Expired'), 'red'], suspended: [L('موقوف', 'Suspended'), 'muted'] };
 const daysLeft = s => Math.ceil((time({ paid: s.paid_until, grace: s.grace_until, trial: s.trial_ends_at }[statusOf(s)]) - Date.now()) / DAY);
 // يحتاج متابعة: ينتهي خلال يومين، أو في المهلة، أو انتهى اشتراكه المدفوع خلال آخر أسبوع.
 const needsFollowUp = s => {
@@ -30,10 +32,13 @@ const needsFollowUp = s => {
   return status === 'expired' && s.paid_until && Date.now() - time(s.paid_until) < 7 * DAY;
 };
 const reminderText = s => statusOf(s) === 'grace'
-  ? `مرحباً ${s.name} 👋 انتهى اشتراككم في تطبيق مِقص، ولديكم مهلة حتى ${dateText(s.grace_until)} ثم يتوقف التطبيق. للتجديد يسعدنا خدمتكم.`
+  ? L(`مرحباً ${s.name} 👋 انتهى اشتراككم في تطبيق مِقص، ولديكم مهلة حتى ${dateText(s.grace_until)} ثم يتوقف التطبيق. للتجديد يسعدنا خدمتكم.`,
+    `Hello ${s.name} 👋 Your Miqass subscription has ended. You have a grace period until ${dateText(s.grace_until)}, after which the app will stop working. We'd be happy to help you renew.`)
   : statusOf(s) === 'trial'
-    ? `مرحباً ${s.name} 👋 تنتهي فترة تجربة تطبيق مِقص قريباً. هل نفعّل لكم الاشتراك لتستمروا دون انقطاع؟`
-    : `مرحباً ${s.name} 👋 تذكير: ينتهي اشتراككم في تطبيق مِقص بتاريخ ${dateText(s.paid_until)}. للتجديد يسعدنا خدمتكم.`;
+    ? L(`مرحباً ${s.name} 👋 تنتهي فترة تجربة تطبيق مِقص قريباً. هل نفعّل لكم الاشتراك لتستمروا دون انقطاع؟`,
+      `Hello ${s.name} 👋 Your Miqass free trial ends soon. Shall we activate your subscription so you can continue without interruption?`)
+    : L(`مرحباً ${s.name} 👋 تذكير: ينتهي اشتراككم في تطبيق مِقص بتاريخ ${dateText(s.paid_until)}. للتجديد يسعدنا خدمتكم.`,
+      `Hello ${s.name} 👋 Reminder: your Miqass subscription ends on ${dateText(s.paid_until)}. We'd be happy to help you renew.`);
 
 export default function Admin() {
   const { toast, reloadShops } = useApp();
@@ -52,7 +57,7 @@ export default function Admin() {
     const today = new Date().toISOString().slice(0, 10);
     if (due.length && prefs.get('admin-followup-day', '') !== today) {
       prefs.set('admin-followup-day', today);
-      notifyNow(`⏰ ${num(due.length)} صالون يحتاج متابعة`, due.slice(0, 3).map(s => s.name).join('، '));
+      notifyNow(L(`⏰ ${num(due.length)} صالون يحتاج متابعة`, `⏰ ${num(due.length)} ${due.length === 1 ? 'salon needs' : 'salons need'} follow-up`), due.slice(0, 3).map(s => s.name).join(L('، ', ', ')));
     }
   }, [shops]);
 
@@ -67,27 +72,27 @@ export default function Admin() {
 
   return <div className="stack">
     <div className="stats">
-      <Stat icon={Store} label="كل الصالونات" value={num(shops.length)} />
-      <Stat icon={Crown} tone="green" label="مشتركون" value={num(counts.paid || 0)} onClick={() => setFilter('paid')} />
-      <Stat tone="blue" label="في التجربة" value={num(counts.trial || 0)} onClick={() => setFilter('trial')} />
-      <Stat tone="red" label="منتهي" value={num((counts.expired || 0) + (counts.grace || 0))} onClick={() => setFilter('expired')} />
+      <Stat icon={Store} label={L('كل الصالونات', 'All salons')} value={num(shops.length)} />
+      <Stat icon={Crown} tone="green" label={L('مشتركون', 'Subscribed')} value={num(counts.paid || 0)} onClick={() => setFilter('paid')} />
+      <Stat tone="blue" label={L('في التجربة', 'On trial')} value={num(counts.trial || 0)} onClick={() => setFilter('trial')} />
+      <Stat tone="red" label={L('منتهي', 'Expired')} value={num((counts.expired || 0) + (counts.grace || 0))} onClick={() => setFilter('expired')} />
     </div>
-    {followUp.length > 0 && <Section title={`تحتاج متابعة (${num(followUp.length)})`}>
+    {followUp.length > 0 && <Section title={L(`تحتاج متابعة (${num(followUp.length)})`, `Needs follow-up (${num(followUp.length)})`)}>
       <div className="list">{followUp.map(s => <Row key={s.id} leading={<span className="dot-icon tone-orange"><Timer size={18} /></span>} title={s.name}
-        subtitle={`${labels[statusOf(s)][0]}${statusOf(s) !== 'expired' ? ` · باقٍ ${num(Math.max(0, daysLeft(s)))} يوم` : ' · لم يجدد'}`}
-        trailing={s.phone ? <Button size="sm" variant="secondary" icon={MessageCircle} onClick={event => { event.stopPropagation(); openExternal(whatsappLink(s.phone, reminderText(s))); }}>تذكير</Button> : null}
+        subtitle={`${labels[statusOf(s)][0]}${statusOf(s) !== 'expired' ? L(` · باقٍ ${num(Math.max(0, daysLeft(s)))} يوم`, ` · ${days(num(Math.max(0, daysLeft(s))))} left`) : L(' · لم يجدد', ' · Not renewed')}`}
+        trailing={s.phone ? <Button size="sm" variant="secondary" icon={MessageCircle} onClick={event => { event.stopPropagation(); openExternal(whatsappLink(s.phone, reminderText(s))); }}>{L('تذكير', 'Remind')}</Button> : null}
         onClick={() => setOpen(s.id)} />)}</div>
     </Section>}
-    <div className="page-head"><Segmented size="sm" items={[{ id: 'all', label: 'الكل' }, { id: 'trial', label: 'تجربة' }, { id: 'expired', label: 'منتهي' }, { id: 'paid', label: 'مشترك' }]} value={filter} onChange={setFilter} /><Button variant="ghost" icon={RefreshCw} onClick={load} /></div>
-    <SearchBox value={query} onChange={setQuery} placeholder="اسم، بريد، رقم" />
+    <div className="page-head"><Segmented size="sm" items={[{ id: 'all', label: L('الكل', 'All') }, { id: 'trial', label: L('تجربة', 'Trial') }, { id: 'expired', label: L('منتهي', 'Expired') }, { id: 'paid', label: L('مشترك', 'Subscribed') }]} value={filter} onChange={setFilter} /><Button variant="ghost" icon={RefreshCw} onClick={load} /></div>
+    <SearchBox value={query} onChange={setQuery} placeholder={L('اسم، بريد، رقم', 'Name, email, phone')} />
     {list.length ? <div className="list">{list.map(s => {
       const [label, tone] = labels[statusOf(s)];
       const left = daysLeft(s);
-      const addons = [s.wa_addon && 'واتساب', s.ai_addon && 'AI'].filter(Boolean).join(' + ');
+      const addons = [s.wa_addon && L('واتساب', 'WhatsApp'), s.ai_addon && 'AI'].filter(Boolean).join(' + ');
       const plan = statusOf(s) === 'paid' ? plans.find(p => p.id === s.plan)?.name : '';
-      return <Row key={s.id} title={s.name} subtitle={[s.owner_email, plan, left > 0 && statusOf(s) !== 'suspended' ? `باقٍ ${num(left)} يوم` : '', `${num(s.members)} حساب`, addons].filter(Boolean).join(' · ')}
+      return <Row key={s.id} title={s.name} subtitle={[s.owner_email, plan, left > 0 && statusOf(s) !== 'suspended' ? L(`باقٍ ${num(left)} يوم`, `${days(num(left))} left`) : '', L(`${num(s.members)} حساب`, `${num(s.members)} ${Number(s.members) === 1 ? 'account' : 'accounts'}`), addons].filter(Boolean).join(' · ')}
         trailing={<Badge tone={tone}>{label}</Badge>} onClick={() => setOpen(s.id)} />;
-    })}</div> : <Empty icon={Store} title="لا نتائج" />}
+    })}</div> : <Empty icon={Store} title={L('لا نتائج', 'No results')} />}
 
     {current && <ShopSheet shop={current} act={act} onClose={() => setOpen(null)} />}
   </div>;
@@ -107,14 +112,15 @@ function ShopSheet({ shop, act, onClose }) {
   const choosePlan = plan => {
     const same = paid && shop.plan === plan.id;
     const currentName = plans.find(p => p.id === shop.plan)?.name;
+    const end = plan.id === 'lifetime' ? L('مدى الحياة', 'lifetime') : dateText(untilFor(plan));
     setConfirm({
-      title: same ? `تجديد ${plan.name}؟` : paid ? `تغيير الخطة إلى ${plan.name}؟` : `تفعيل اشتراك ${plan.name}؟`,
+      title: same ? L(`تجديد ${plan.name}؟`, `Renew ${plan.name}?`) : paid ? L(`تغيير الخطة إلى ${plan.name}؟`, `Change plan to ${plan.name}?`) : L(`تفعيل اشتراك ${plan.name}؟`, `Activate ${plan.name} subscription?`),
       text: same
-        ? `يُضاف ${plan.id === 'yearly' ? 'سنة' : 'شهر'} بعد ${dateText(shop.paid_until)} — حتى ${dateText(untilFor(plan))}.`
-        : paid ? `الخطة الحالية «${currentName}» حتى ${dateText(shop.paid_until)}. الخطة الجديدة تبدأ من اليوم حتى ${plan.id === 'lifetime' ? 'مدى الحياة' : dateText(untilFor(plan))}.`
-          : `يُفعَّل الصالون فوراً حتى ${plan.id === 'lifetime' ? 'مدى الحياة' : dateText(untilFor(plan))}.`,
-      label: same ? 'تجديد' : 'تأكيد',
-      run: () => act(() => api.admin.setLicense(shop.id, plan.id, untilFor(plan)), same ? 'تم التجديد' : 'تم تفعيل الخطة'),
+        ? L(`يُضاف ${plan.id === 'yearly' ? 'سنة' : 'شهر'} بعد ${dateText(shop.paid_until)} — حتى ${dateText(untilFor(plan))}.`, `Adds one ${plan.id === 'yearly' ? 'year' : 'month'} after ${dateText(shop.paid_until)} — until ${dateText(untilFor(plan))}.`)
+        : paid ? L(`الخطة الحالية «${currentName}» حتى ${dateText(shop.paid_until)}. الخطة الجديدة تبدأ من اليوم حتى ${plan.id === 'lifetime' ? 'مدى الحياة' : dateText(untilFor(plan))}.`, `Current plan "${currentName}" runs until ${dateText(shop.paid_until)}. The new plan starts today and runs ${plan.id === 'lifetime' ? 'for' : 'until'} ${end}.`)
+          : L(`يُفعَّل الصالون فوراً حتى ${plan.id === 'lifetime' ? 'مدى الحياة' : dateText(untilFor(plan))}.`, `The salon is activated immediately ${plan.id === 'lifetime' ? 'for' : 'until'} ${end}.`),
+      label: same ? L('تجديد', 'Renew') : L('تأكيد', 'Confirm'),
+      run: () => act(() => api.admin.setLicense(shop.id, plan.id, untilFor(plan)), same ? L('تم التجديد', 'Renewed') : L('تم تفعيل الخطة', 'Plan activated')),
     });
   };
   const canGrace = shop.paid_until && status !== 'suspended' && status !== 'grace' && (status === 'expired' || daysLeft(shop) <= 2) && !(time(shop.grace_until) > time(shop.paid_until));
@@ -122,38 +128,38 @@ function ShopSheet({ shop, act, onClose }) {
   return <Sheet title={shop.name} subtitle={shop.owner_email} onClose={onClose} size="lg">
     <div className="stack">
       <div className="list">
-        <Row title="الحالة" trailing={<Badge tone={labels[status][1]}>{labels[status][0]}</Badge>} />
-        <Row title="تاريخ التسجيل" trailing={dateText(shop.created_at)} />
-        {!shop.paid_until && <Row title="نهاية التجربة" trailing={dateText(shop.trial_ends_at)} />}
-        {shop.paid_until && <Row title={paid ? 'مدفوع حتى' : 'انتهى في'} trailing={shop.plan === 'lifetime' ? 'مدى الحياة' : dateText(shop.paid_until)} />}
-        {status === 'grace' && <Row title="المهلة حتى" trailing={<strong className="red">{dateText(shop.grace_until)}</strong>} />}
-        <Row title="آخر نشاط" trailing={shop.last_activity ? dateText(shop.last_activity) : '—'} />
+        <Row title={L('الحالة', 'Status')} trailing={<Badge tone={labels[status][1]}>{labels[status][0]}</Badge>} />
+        <Row title={L('تاريخ التسجيل', 'Signed up')} trailing={dateText(shop.created_at)} />
+        {!shop.paid_until && <Row title={L('نهاية التجربة', 'Trial ends')} trailing={dateText(shop.trial_ends_at)} />}
+        {shop.paid_until && <Row title={paid ? L('مدفوع حتى', 'Paid until') : L('انتهى في', 'Ended on')} trailing={shop.plan === 'lifetime' ? L('مدى الحياة', 'Lifetime') : dateText(shop.paid_until)} />}
+        {status === 'grace' && <Row title={L('المهلة حتى', 'Grace until')} trailing={<strong className="red">{dateText(shop.grace_until)}</strong>} />}
+        <Row title={L('آخر نشاط', 'Last activity')} trailing={shop.last_activity ? dateText(shop.last_activity) : '—'} />
       </div>
-      {shop.phone && <Button variant="secondary" icon={MessageCircle} block onClick={() => openExternal(whatsappLink(shop.phone, needsFollowUp(shop) ? reminderText(shop) : `مرحباً ${shop.name} 👋 كيف وجدتم تطبيق مِقص؟`))}>تواصل مع الصالون</Button>}
+      {shop.phone && <Button variant="secondary" icon={MessageCircle} block onClick={() => openExternal(whatsappLink(shop.phone, needsFollowUp(shop) ? reminderText(shop) : L(`مرحباً ${shop.name} 👋 كيف وجدتم تطبيق مِقص؟`, `Hello ${shop.name} 👋 How are you finding the Miqass app?`)))}>{L('تواصل مع الصالون', 'Contact salon')}</Button>}
 
-      <Section title="الاشتراك">
+      <Section title={L('الاشتراك', 'Subscription')}>
         <div className="plan-picker">{plans.map(plan => {
           const active = paid && shop.plan === plan.id;
           return <button type="button" key={plan.id} className={`plan-option ${active ? 'active' : ''}`} onClick={() => choosePlan(plan)}>
             {active ? <Check size={18} /> : plan.id === 'lifetime' ? <Crown size={18} /> : <CalendarClock size={18} />}
             <strong>{plan.name}</strong>
-            <small>{active ? (plan.id === 'lifetime' ? 'الحالية' : 'الحالية · اضغط للتجديد') : `${plan.price.toLocaleString(LOCALE)} ر.ق`}</small>
+            <small>{active ? (plan.id === 'lifetime' ? L('الحالية', 'Current') : L('الحالية · اضغط للتجديد', 'Current · tap to renew')) : `${plan.price.toLocaleString(LOCALE)} ${L('ر.ق', 'QAR')}`}</small>
           </button>;
         })}</div>
-        {status === 'grace' && <Alert tone="orange" icon={Timer}>الصالون في مهلة السداد حتى {dateText(shop.grace_until)} ويرى تنبيهاً بذلك. بعدها يتوقف التطبيق تماماً.</Alert>}
+        {status === 'grace' && <Alert tone="orange" icon={Timer}>{L(`الصالون في مهلة السداد حتى ${dateText(shop.grace_until)} ويرى تنبيهاً بذلك. بعدها يتوقف التطبيق تماماً.`, `The salon is in a payment grace period until ${dateText(shop.grace_until)} and sees a warning about it. After that the app stops completely.`)}</Alert>}
         <div className="action-grid">
-          {!shop.paid_until && status !== 'suspended' && <Button variant="secondary" icon={CalendarPlus} onClick={() => setConfirm({ title: `تمديد التجربة ${num(7)} أيام؟`, text: 'للصالونات التي لم تشترك بعد.', label: 'تمديد', run: () => act(() => api.admin.extendTrial(shop.id, 7), 'تم تمديد التجربة') })}>تمديد التجربة {num(7)} أيام</Button>}
+          {!shop.paid_until && status !== 'suspended' && <Button variant="secondary" icon={CalendarPlus} onClick={() => setConfirm({ title: L(`تمديد التجربة ${num(7)} أيام؟`, `Extend trial by ${num(7)} days?`), text: L('للصالونات التي لم تشترك بعد.', "For salons that haven't subscribed yet."), label: L('تمديد', 'Extend'), run: () => act(() => api.admin.extendTrial(shop.id, 7), L('تم تمديد التجربة', 'Trial extended')) })}>{L(`تمديد التجربة ${num(7)} أيام`, `Extend trial ${num(7)} days`)}</Button>}
           {canGrace && <Button variant="secondary" icon={Timer} onClick={() => setConfirm({
-            title: 'لم يجدد بعد — مهلة 3 أيام؟',
-            text: `هل جدد الصالون اشتراكه؟ إذا نعم اختر الخطة أعلاه. وإذا تريد إمهاله: يعمل التطبيق ${num(3)} أيام إضافية مع تنبيه لصاحب الصالون، ثم يتوقف تماماً إن لم يسدد.`,
-            label: `منح مهلة ${num(3)} أيام`, run: () => act(() => api.admin.grantGrace(shop.id), 'تم منح المهلة'),
-          })}>مهلة {num(3)} أيام</Button>}
-          {status !== 'suspended' && <Button variant="danger-ghost" icon={Ban} onClick={() => setConfirm({ title: 'إيقاف الصالون؟', text: 'يتوقف التطبيق فوراً لصاحب الصالون وكل موظفيه. يمكنك إعادة التفعيل باختيار خطة.', label: 'إيقاف', danger: true, run: () => act(() => api.admin.setLicense(shop.id, 'suspended', null), 'تم الإيقاف') })}>إيقاف</Button>}
+            title: L('لم يجدد بعد — مهلة 3 أيام؟', 'Not renewed yet — 3-day grace period?'),
+            text: L(`هل جدد الصالون اشتراكه؟ إذا نعم اختر الخطة أعلاه. وإذا تريد إمهاله: يعمل التطبيق ${num(3)} أيام إضافية مع تنبيه لصاحب الصالون، ثم يتوقف تماماً إن لم يسدد.`, `Has the salon renewed? If so, choose the plan above. To give them more time: the app keeps working for ${num(3)} more days with a warning to the salon owner, then stops completely if unpaid.`),
+            label: L(`منح مهلة ${num(3)} أيام`, `Grant ${num(3)}-day grace`), run: () => act(() => api.admin.grantGrace(shop.id), L('تم منح المهلة', 'Grace period granted')),
+          })}>{L(`مهلة ${num(3)} أيام`, `${num(3)}-day grace`)}</Button>}
+          {status !== 'suspended' && <Button variant="danger-ghost" icon={Ban} onClick={() => setConfirm({ title: L('إيقاف الصالون؟', 'Suspend salon?'), text: L('يتوقف التطبيق فوراً لصاحب الصالون وكل موظفيه. يمكنك إعادة التفعيل باختيار خطة.', 'The app stops immediately for the salon owner and all staff. You can reactivate it by choosing a plan.'), label: L('إيقاف', 'Suspend'), danger: true, run: () => act(() => api.admin.setLicense(shop.id, 'suspended', null), L('تم الإيقاف', 'Suspended')) })}>{L('إيقاف', 'Suspend')}</Button>}
         </div>
       </Section>
 
       <Overview shopId={shop.id} />
-      <Addons shopId={shop.id} onSaved={() => act(async () => {}, 'تم حفظ الإضافات')} />
+      <Addons shopId={shop.id} onSaved={() => act(async () => {}, L('تم حفظ الإضافات', 'Add-ons saved'))} />
       <Templates shopId={shop.id} />
     </div>
     {confirm && <Confirm title={confirm.title} text={confirm.text} confirmLabel={confirm.label} danger={confirm.danger} onConfirm={confirm.run} onClose={() => setConfirm(null)} />}
@@ -166,26 +172,28 @@ function Overview({ shopId }) {
   const [error, setError] = useState('');
   useEffect(() => { api.admin.overview(shopId).then(setV).catch(e => setError(errorText(e))); }, [shopId]);
   if (!v) return error ? <Alert>{error}</Alert> : <div className="loader" />;
-  const weekdays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const weekdays = isEn
+    ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    : ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   const closed = (v.hours?.closedDays || []).map(d => weekdays[d]).filter(Boolean);
-  return <Section title="نظرة عامة على الصالون">
+  return <Section title={L('نظرة عامة على الصالون', 'Salon overview')}>
     <div className="stats">
-      <Stat icon={UsersRound} label="الموظفون" value={num(v.staff)} />
-      <Stat label="العملاء" value={num(v.clients)} />
-      <Stat label="مواعيد آخر 30 يوماً" value={num(v.appointments_30d)} />
-      <Stat label="مواعيد قادمة" value={num(v.upcoming)} />
+      <Stat icon={UsersRound} label={L('الموظفون', 'Staff')} value={num(v.staff)} />
+      <Stat label={L('العملاء', 'Clients')} value={num(v.clients)} />
+      <Stat label={L('مواعيد آخر 30 يوماً', 'Appointments, last 30 days')} value={num(v.appointments_30d)} />
+      <Stat label={L('مواعيد قادمة', 'Upcoming appointments')} value={num(v.upcoming)} />
     </div>
     <div className="list">
-      <Row title="ساعات العمل" trailing={v.hours ? `${v.hours.open} – ${v.hours.close}` : '—'} />
-      <Row title="أيام العمل" subtitle={closed.length ? `مغلق: ${closed.join('، ')}` : 'كل أيام الأسبوع'} />
-      <Row title="الخدمات" trailing={num(v.services)} />
-      <Row title="كل المواعيد" trailing={num(v.appointments)} />
-      <Row title="حجوزات أونلاين وواتساب" trailing={num(v.online)} />
-      <Row title="المنتجات" trailing={num(v.products)} />
-      <Row title="رابط الحجز" trailing={v.slug ? <span dir="ltr">{v.slug}</span> : 'غير مفعّل'} />
-      <Row title="أجهزة الإشعارات" trailing={num(v.devices)} />
+      <Row title={L('ساعات العمل', 'Working hours')} trailing={v.hours ? `${v.hours.open} – ${v.hours.close}` : '—'} />
+      <Row title={L('أيام العمل', 'Working days')} subtitle={closed.length ? L(`مغلق: ${closed.join('، ')}`, `Closed: ${closed.join(', ')}`) : L('كل أيام الأسبوع', 'Every day of the week')} />
+      <Row title={L('الخدمات', 'Services')} trailing={num(v.services)} />
+      <Row title={L('كل المواعيد', 'All appointments')} trailing={num(v.appointments)} />
+      <Row title={L('حجوزات أونلاين وواتساب', 'Online & WhatsApp bookings')} trailing={num(v.online)} />
+      <Row title={L('المنتجات', 'Products')} trailing={num(v.products)} />
+      <Row title={L('رابط الحجز', 'Booking link')} trailing={v.slug ? <span dir="ltr">{v.slug}</span> : L('غير مفعّل', 'Not enabled')} />
+      <Row title={L('أجهزة الإشعارات', 'Notification devices')} trailing={num(v.devices)} />
     </div>
-    <div className="list">{(v.members || []).map((m, i) => <Row key={i} title={m.name} subtitle={roleText[m.role] || m.role} trailing={m.suspended ? <Badge tone="muted">موقوف</Badge> : null} />)}</div>
+    <div className="list">{(v.members || []).map((m, i) => <Row key={i} title={m.name} subtitle={roleText[m.role] || m.role} trailing={m.suspended ? <Badge tone="muted">{L('موقوف', 'Suspended')}</Badge> : null} />)}</div>
   </Section>;
 }
 
@@ -195,8 +203,8 @@ function SecretInput({ value, onChange, placeholder }) {
   const [shown, setShown] = useState(false);
   return <div className="secret-input">
     <input dir="ltr" type={shown ? 'text' : 'password'} autoComplete="off" placeholder={placeholder} value={value} onChange={e => onChange(e.target.value.trim())} />
-    <button type="button" className="icon-btn" aria-label={shown ? 'إخفاء' : 'إظهار'} onClick={() => setShown(!shown)}>{shown ? <EyeOff size={18} /> : <Eye size={18} />}</button>
-    <button type="button" className="icon-btn" aria-label="نسخ" disabled={!value} onClick={async () => { try { await navigator.clipboard.writeText(value); toast('تم النسخ'); } catch { setShown(true); } }}><Copy size={18} /></button>
+    <button type="button" className="icon-btn" aria-label={shown ? L('إخفاء', 'Hide') : L('إظهار', 'Show')} onClick={() => setShown(!shown)}>{shown ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+    <button type="button" className="icon-btn" aria-label={L('نسخ', 'Copy')} disabled={!value} onClick={async () => { try { await navigator.clipboard.writeText(value); toast(L('تم النسخ', 'Copied')); } catch { setShown(true); } }}><Copy size={18} /></button>
   </div>;
 }
 
@@ -217,27 +225,27 @@ function Addons({ shopId, onSaved }) {
     try { await api.admin.setIntegration(shopId, { ...v, clearToken: !v.token && !v.tokenHidden, clearAiKey: !v.aiKey && !v.keyHidden }); onSaved(); } catch (e) { setError(errorText(e)); }
   };
   if (!v) return error ? <Alert>{error}</Alert> : <div className="loader" />;
-  return <Section title="الإضافات المدفوعة">
+  return <Section title={L('الإضافات المدفوعة', 'Paid add-ons')}>
     <div className="stack">
-      <Toggle checked={v.waAddon} onChange={on => setV({ ...v, waAddon: on, aiAddon: on && v.aiAddon })} label="واتساب الذكي" hint="تذكيرات تلقائية + ردود 1/2 + تقرير يومي" />
+      <Toggle checked={v.waAddon} onChange={on => setV({ ...v, waAddon: on, aiAddon: on && v.aiAddon })} label={L('واتساب الذكي', 'Smart WhatsApp')} hint={L('تذكيرات تلقائية + ردود 1/2 + تقرير يومي', 'Automatic reminders + 1/2 replies + daily report')} />
       {v.waAddon && <>
-        <Field label="Phone Number ID (اختياري)" hint="فارغ = يُرسل من رقم المنصة. ضعه فقط إذا ربطت رقم الصالون الخاص.">
+        <Field label={L('Phone Number ID (اختياري)', 'Phone Number ID (optional)')} hint={L('فارغ = يُرسل من رقم المنصة. ضعه فقط إذا ربطت رقم الصالون الخاص.', "Empty = sent from the platform number. Only fill this in if you've connected the salon's own number.")}>
           <input dir="ltr" value={v.phoneNumberId} onChange={e => setV({ ...v, phoneNumberId: e.target.value.trim() })} />
         </Field>
-        {v.phoneNumberId && <Field label="Access Token لرقم الصالون"><SecretInput value={v.token} onChange={token => setV({ ...v, token })} /></Field>}
-        <Toggle checked={v.aiAddon} onChange={on => setV({ ...v, aiAddon: on })} label="المساعد الذكي (AI)" hint="يرد ويحجز في واتساب 24/7" />
+        {v.phoneNumberId && <Field label={L('Access Token لرقم الصالون', "Access Token for the salon's number")}><SecretInput value={v.token} onChange={token => setV({ ...v, token })} /></Field>}
+        <Toggle checked={v.aiAddon} onChange={on => setV({ ...v, aiAddon: on })} label={L('المساعد الذكي (AI)', 'AI assistant')} hint={L('يرد ويحجز في واتساب 24/7', 'Replies and books on WhatsApp 24/7')} />
         {v.aiAddon && <>
-          <Field label="مزوّد الذكاء الاصطناعي">
+          <Field label={L('مزوّد الذكاء الاصطناعي', 'AI provider')}>
             <Segmented items={[{ id: 'anthropic', label: 'Claude' }, { id: 'openai', label: 'OpenAI' }]} value={v.aiProvider} onChange={aiProvider => setV({ ...v, aiProvider, aiKey: aiProvider === v.aiProvider ? v.aiKey : '' })} />
           </Field>
-          <Field label={v.aiProvider === 'openai' ? 'مفتاح OpenAI الخاص بالصالون' : 'مفتاح Anthropic الخاص بالصالون'} hint={v.aiKey ? 'لحذف المفتاح امسح الحقل ثم احفظ' : 'فارغ = يُستخدم مفتاح المنصة إن وُجد'}>
+          <Field label={v.aiProvider === 'openai' ? L('مفتاح OpenAI الخاص بالصالون', "Salon's OpenAI key") : L('مفتاح Anthropic الخاص بالصالون', "Salon's Anthropic key")} hint={v.aiKey ? L('لحذف المفتاح امسح الحقل ثم احفظ', 'To remove the key, clear the field and save') : L('فارغ = يُستخدم مفتاح المنصة إن وُجد', "Empty = the platform's key is used, if set")}>
             <SecretInput value={v.aiKey} onChange={aiKey => setV({ ...v, aiKey })} placeholder={v.aiProvider === 'openai' ? 'sk-proj-...' : 'sk-ant-...'} />
           </Field>
-          {v.savedAiKey ? <Alert tone="green" icon={Check}>المساعد مفعّل — المفتاح مسجّل ✓{v.keyHidden ? ' (شغّل ملف 0006 لعرضه هنا)' : ''}</Alert> : <Alert tone="orange">لا يوجد مفتاح محفوظ بعد</Alert>}
+          {v.savedAiKey ? <Alert tone="green" icon={Check}>{L('المساعد مفعّل — المفتاح مسجّل ✓', 'Assistant active — key saved ✓')}{v.keyHidden ? L(' (شغّل ملف 0006 لعرضه هنا)', ' (run migration 0006 to show it here)') : ''}</Alert> : <Alert tone="orange">{L('لا يوجد مفتاح محفوظ بعد', 'No key saved yet')}</Alert>}
         </>}
       </>}
       <Alert>{error}</Alert>
-      <Button icon={Bot} block onClick={save}>حفظ الإضافات</Button>
+      <Button icon={Bot} block onClick={save}>{L('حفظ الإضافات', 'Save add-ons')}</Button>
     </div>
   </Section>;
 }
@@ -248,17 +256,17 @@ function Templates({ shopId }) {
   const [t, setT] = useState(null);
   const [error, setError] = useState('');
   const defaults = defaultSettings().templates;
-  const fields = { reminder: 'تذكير بالموعد', recovery: 'استرجاع عميل منقطع', thanks: 'شكر بعد الزيارة', waitlist: 'عرض من قائمة الانتظار', birthday: 'تهنئة عيد ميلاد' };
+  const fields = { reminder: L('تذكير بالموعد', 'Appointment reminder'), recovery: L('استرجاع عميل منقطع', 'Win back a lapsed client'), thanks: L('شكر بعد الزيارة', 'Thank-you after visit'), waitlist: L('عرض من قائمة الانتظار', 'Waitlist offer'), birthday: L('تهنئة عيد ميلاد', 'Birthday greeting') };
   useEffect(() => { api.admin.templates(shopId).then(saved => setT({ ...defaults, ...saved })).catch(e => setError(errorText(e))); }, [shopId]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!t) return error ? <Alert>{error}</Alert> : <div className="loader" />;
-  return <Section title="نصوص الرسائل">
+  return <Section title={L('نصوص الرسائل', 'Message templates')}>
     <div className="stack">
-      <small className="muted">المتغيرات: {'{name} {shop} {date} {time} {link}'} — لا تظهر هذه النصوص لصاحب الصالون.</small>
+      <small className="muted">{L('المتغيرات:', 'Variables:')} {'{name} {shop} {date} {time} {link}'} — {L('لا تظهر هذه النصوص لصاحب الصالون.', 'These templates are not visible to the salon owner.')}</small>
       {Object.entries(fields).map(([key, label]) => <Field key={key} label={label}><textarea rows="3" value={t[key] || ''} onChange={e => setT({ ...t, [key]: e.target.value })} /></Field>)}
       <Alert>{error}</Alert>
       <Button variant="secondary" icon={MessageSquareText} block onClick={async () => {
-        try { await api.admin.setTemplates(shopId, t); toast('تم حفظ نصوص الصالون'); } catch (e) { setError(errorText(e)); }
-      }}>حفظ النصوص</Button>
+        try { await api.admin.setTemplates(shopId, t); toast(L('تم حفظ نصوص الصالون', 'Salon templates saved')); } catch (e) { setError(errorText(e)); }
+      }}>{L('حفظ النصوص', 'Save templates')}</Button>
     </div>
   </Section>;
 }
