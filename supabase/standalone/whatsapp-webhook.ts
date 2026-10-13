@@ -1,0 +1,347 @@
+// نسخة مستقلة من دالة whatsapp-webhook للصق في محرر Supabase (تتضمن الأدوات المشتركة).
+import Anthropic from 'npm:@anthropic-ai/sdk@0.133.0';
+
+// أدوات مشتركة لدوال الخادم: عميل Supabase بصلاحيات الخدمة، واتساب Cloud API، والوقت المحلي، وحساب الأوقات المتاحة.
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
+
+export const db: SupabaseClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+  auth: { persistSession: false },
+});
+
+const TZ_OFFSET = Number(Deno.env.get('TZ_OFFSET_MINUTES') ?? 180); // قطر UTC+3
+export const localNow = () => new Date(Date.now() + TZ_OFFSET * 60000);
+export const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+export const isoTime = (d: Date) => d.toISOString().slice(11, 16);
+export const addDays = (date: string, days: number) => isoDate(new Date(Date.parse(`${date}T12:00:00Z`) + days * 86400000));
+export const digits = (p: string) => String(p || '').replace(/\D/g, '');
+export const samePhone = (a: string, b: string) => digits(a).length >= 7 && digits(a).slice(-8) === digits(b).slice(-8);
+export const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+export const fromMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+export const timeAr = (t: string) => { const h = Number(t.slice(0, 2)); return `${h % 12 || 12}:${t.slice(3, 5)} ${h < 12 ? 'ص' : 'م'}`; };
+export const dateAr = (d: string) => new Intl.DateTimeFormat('ar-QA', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${d}T12:00:00Z`));
+export const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+// يُشترط لاستدعاء دوال الجدولة: مفتاح سري يعرفه pg_cron فقط.
+export const authorizedCron = (req: Request) => {
+  const secret = Deno.env.get('CRON_SECRET');
+  return Boolean(secret) && req.headers.get('authorization') === `Bearer ${secret}`;
+};
+
+/* ───────── واتساب ───────── */
+
+export type WaConfig = { phoneNumberId: string; token: string };
+const GRAPH = 'https://graph.facebook.com/v21.0';
+
+export async function waConfigFor(shopId: string): Promise<WaConfig | null> {
+  const { data } = await db.from('shop_integrations').select('wa_phone_number_id, wa_token').eq('shop_id', shopId).maybeSingle();
+  if (data?.wa_phone_number_id && data?.wa_token) return { phoneNumberId: data.wa_phone_number_id, token: data.wa_token };
+  const phoneNumberId = Deno.env.get('WA_PHONE_NUMBER_ID'); const token = Deno.env.get('WA_TOKEN');
+  return phoneNumberId && token ? { phoneNumberId, token } : null;
+}
+
+export const waNumber = (phone: string) => {
+  const d = digits(phone);
+  return d.startsWith('974') || d.length !== 8 ? d : `974${d}`;
+};
+
+async function waPost(config: WaConfig, body: Record<string, unknown>) {
+  const res = await fetch(`${GRAPH}/${config.phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${config.token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ messaging_product: 'whatsapp', ...body }),
+  });
+  if (!res.ok) throw new Error(`whatsapp ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export const sendText = (config: WaConfig, to: string, text: string) =>
+  waPost(config, { to: waNumber(to), type: 'text', text: { body: text.slice(0, 4000) } });
+
+// رسائل المبادرة (خارج نافذة ٢٤ ساعة) يجب أن تكون قوالب معتمدة من Meta. المعاملات بدون أسطر جديدة.
+export const sendTemplate = (config: WaConfig, to: string, name: string, params: string[]) =>
+  waPost(config, {
+    to: waNumber(to), type: 'template',
+    template: { name, language: { code: Deno.env.get('WA_TEMPLATE_LANG') ?? 'ar' }, components: [{ type: 'body', parameters: params.map(text => ({ type: 'text', text: text.replace(/\s*\n\s*/g, ' | ').slice(0, 1000) })) }] },
+  });
+
+/* ───────── بيانات الصالون ───────── */
+
+export type Rec = { id: string; data: Record<string, any> };
+
+export async function collection(shopId: string, name: string): Promise<Rec[]> {
+  const { data, error } = await db.from('records').select('id, data').eq('shop_id', shopId).eq('collection', name).eq('deleted', false);
+  if (error) throw error;
+  return data as Rec[];
+}
+
+export async function settingsOf(shopId: string) {
+  const { data } = await db.from('records').select('data').eq('shop_id', shopId).eq('collection', 'meta').eq('id', 'settings').maybeSingle();
+  return (data?.data?.settings ?? {}) as Record<string, any>;
+}
+
+export async function saveRecord(shopId: string, name: string, id: string, data: Record<string, unknown>) {
+  const { error } = await db.from('records').upsert({ shop_id: shopId, collection: name, id, data, deleted: false }, { onConflict: 'shop_id,collection,id' });
+  if (error) throw error;
+}
+
+export async function logMessage(shopId: string, kind: string, clientId: string, appointmentId = '') {
+  const id = crypto.randomUUID();
+  await saveRecord(shopId, 'messages', id, { id, kind, clientId, appointmentId, at: isoDate(localNow()), channel: 'whatsapp-api' });
+}
+
+/* ───────── الأوقات المتاحة (نفس منطق التطبيق في src/data.js) ───────── */
+
+type Item = { serviceId: string; name: string; price: number; duration: number; processing?: number; staffId?: string };
+const active = (status: string) => !['cancelled', 'no_show'].includes(status);
+
+function blocks(a: Record<string, any>) {
+  const out: { staffId: string; start: number; end: number }[] = [];
+  let cursor = toMin(a.time);
+  for (const item of a.items ?? []) {
+    const d = Number(item.duration || 0);
+    out.push({ staffId: item.staffId || a.staffId || '', start: cursor, end: cursor + Math.max(5, d - Number(item.processing || 0)) });
+    cursor += d;
+  }
+  if (!out.length) out.push({ staffId: a.staffId || '', start: cursor, end: cursor + Number(a.duration || 30) });
+  return out;
+}
+
+export function conflicts(appointments: Record<string, any>[], candidate: Record<string, any>) {
+  const mine = blocks(candidate);
+  return appointments.some(o => o.id !== candidate.id && o.date === candidate.date && active(o.status) && blocks(o).some(b => mine.some(m =>
+    !(m.staffId && b.staffId && m.staffId !== b.staffId) && m.start < b.end && b.start < m.end)));
+}
+
+export function availableSlots(appointments: Record<string, any>[], date: string, items: Item[], staffId: string, settings: Record<string, any>) {
+  const hours = settings.hours ?? { open: '09:00', close: '22:00', closedDays: [] };
+  if ((hours.closedDays ?? []).includes(new Date(`${date}T12:00:00Z`).getUTCDay())) return [];
+  const step = Number(settings.slotStep || 15);
+  const duration = items.reduce((s, i) => s + i.duration, 0) || 30;
+  const now = localNow();
+  const today = isoDate(now);
+  const slots: string[] = [];
+  for (let m = toMin(hours.open); m + duration <= toMin(hours.close); m += step) {
+    if (date === today && m < now.getUTCHours() * 60 + now.getUTCMinutes() + 30) continue;
+    const time = fromMin(m);
+    if (!conflicts(appointments, { date, time, staffId, items: items.map(i => ({ ...i, staffId: i.staffId || staffId })) })) slots.push(time);
+  }
+  return slots;
+}
+
+export const fill = (template: string, values: Record<string, string>) => String(template || '').replace(/\{(\w+)\}/g, (_, k) => values[k] ?? '');
+
+/* ───────── الدالة ───────── */
+// استقبال رسائل واتساب: ردود التذكير (1 تأكيد / 2 إلغاء) + المساعد الذكي للحجز بالعربي.
+
+const anthropic = Deno.env.get('ANTHROPIC_API_KEY') ? new Anthropic() : null;
+const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-opus-5-5';
+
+// التحقق من أن الطلب قادم فعلاً من Meta (توقيع HMAC بسر التطبيق).
+async function verifySignature(req: Request, body: string) {
+  const secret = Deno.env.get('WA_APP_SECRET');
+  if (!secret) return false;
+  const header = req.headers.get('x-hub-signature-256') ?? '';
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body)));
+  const expected = `sha256=${[...mac].map(b => b.toString(16).padStart(2, '0')).join('')}`;
+  if (header.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= header.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
+}
+
+Deno.serve(async req => {
+  const url = new URL(req.url);
+  if (req.method === 'GET') {
+    const ok = url.searchParams.get('hub.mode') === 'subscribe' && url.searchParams.get('hub.verify_token') === Deno.env.get('WA_VERIFY_TOKEN');
+    return ok ? new Response(url.searchParams.get('hub.challenge') ?? '') : new Response('forbidden', { status: 403 });
+  }
+  const raw = await req.text();
+  if (!(await verifySignature(req, raw))) return new Response('bad signature', { status: 401 });
+  const payload = JSON.parse(raw);
+  for (const entry of payload.entry ?? []) for (const change of entry.changes ?? []) {
+    const value = change.value ?? {};
+    for (const message of value.messages ?? []) {
+      if (message.type !== 'text') continue;
+      try { await handle(value.metadata?.phone_number_id, message.from, message.text.body.trim(), value.contacts?.[0]?.profile?.name); }
+      catch (e) { console.error('handle failed', e); }
+    }
+  }
+  return json({ ok: true }); // Meta تتوقع 200 سريعاً وإلا تعيد الإرسال
+});
+
+async function resolveShop(phoneNumberId: string, from: string) {
+  // ١) رقم أعمال خاص بالصالون. ٢) آخر تذكير أُرسل لهذا الرقم من رقم المنصة.
+  const { data: own } = await db.from('shop_integrations').select('shop_id, assistant_enabled').eq('wa_phone_number_id', phoneNumberId).maybeSingle();
+  if (own) return { shopId: own.shop_id as string, assistant: Boolean(own.assistant_enabled), outbox: null };
+  const { data: recent } = await db.from('wa_outbox').select('shop_id, appointment_id, sent_at').like('phone', `%${digits(from).slice(-8)}`).order('sent_at', { ascending: false }).limit(1).maybeSingle();
+  if (!recent) return null;
+  const { data: integ } = await db.from('shop_integrations').select('assistant_enabled').eq('shop_id', recent.shop_id).maybeSingle();
+  return { shopId: recent.shop_id as string, assistant: Boolean(integ?.assistant_enabled), outbox: recent };
+}
+
+async function handle(phoneNumberId: string, from: string, text: string, profileName?: string) {
+  const shop = await resolveShop(phoneNumberId, from);
+  if (!shop) return;
+  const { data: activeShop } = await db.rpc('shop_active', { p_shop: shop.shopId });
+  if (!activeShop) return;
+  const config = await waConfigFor(shop.shopId);
+  if (!config) return;
+
+  // ردود سريعة على التذكير.
+  const normalized = text.replace(/[١٢]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  if (/^(1|تأكيد|اكيد|أكيد|نعم)$/.test(normalized) || /^(2|إلغاء|الغاء|لا)$/.test(normalized)) {
+    const confirm = /^(1|تأكيد|اكيد|أكيد|نعم)$/.test(normalized);
+    const handled = await replyToReminder(shop.shopId, config, from, confirm);
+    if (handled) return;
+  }
+  if (shop.assistant && anthropic) await assistant(shop.shopId, config, from, text, profileName);
+}
+
+async function replyToReminder(shopId: string, config: WaConfig, from: string, confirm: boolean) {
+  // نتعامل مع «1/2» كرد على تذكير فقط إذا أُرسل تذكير لهذا الرقم خلال ٤٨ ساعة.
+  const { data: reminder } = await db.from('wa_outbox').select('id').eq('shop_id', shopId).eq('kind', 'reminder')
+    .like('phone', `%${digits(from).slice(-8)}`).gt('sent_at', new Date(Date.now() - 48 * 3600000).toISOString()).limit(1).maybeSingle();
+  if (!reminder) return false;
+  const [appointments, clients] = await Promise.all([collection(shopId, 'appointments'), collection(shopId, 'clients')]);
+  const client = clients.find(c => samePhone(c.data.phone, from));
+  if (!client) return false;
+  const today = isoDate(localNow());
+  const next = appointments.filter(a => a.data.clientId === client.id && a.data.date >= today && ['pending', 'confirmed'].includes(a.data.status))
+    .sort((a, b) => `${a.data.date}${a.data.time}`.localeCompare(`${b.data.date}${b.data.time}`))[0];
+  if (!next) return false;
+  await saveRecord(shopId, 'appointments', next.id, { ...next.data, status: confirm ? 'confirmed' : 'cancelled', confirmedVia: 'whatsapp' });
+  await sendText(config, from, confirm
+    ? `تم تأكيد موعدك ✅ ${dateAr(next.data.date)} الساعة ${timeAr(next.data.time)}. نراك قريباً!`
+    : 'تم إلغاء موعدك. نتمنى رؤيتك قريباً — أرسل لنا متى ما أردت حجز موعد جديد 🙏');
+  return true;
+}
+
+/* ───────── المساعد الذكي ───────── */
+
+const tools: Anthropic.Tool[] = [
+  { name: 'list_services', description: 'قائمة خدمات الصالون مع الأسعار والمدة والمعرّفات، وقائمة الموظفين.', input_schema: { type: 'object', properties: {}, additionalProperties: false } },
+  {
+    name: 'find_available_times', description: 'الأوقات المتاحة في يوم محدد لمجموعة خدمات. التاريخ بصيغة YYYY-MM-DD.',
+    input_schema: { type: 'object', properties: { date: { type: 'string' }, service_ids: { type: 'array', items: { type: 'string' } }, staff_id: { type: 'string' } }, required: ['date', 'service_ids'], additionalProperties: false },
+  },
+  {
+    name: 'book_appointment', description: 'حجز موعد بعد أن يؤكد العميل صراحة الخدمة واليوم والوقت والاسم.',
+    input_schema: { type: 'object', properties: { name: { type: 'string' }, date: { type: 'string' }, time: { type: 'string', description: 'HH:MM بنظام 24 ساعة' }, service_ids: { type: 'array', items: { type: 'string' } }, staff_id: { type: 'string' }, note: { type: 'string' } }, required: ['name', 'date', 'time', 'service_ids'], additionalProperties: false },
+  },
+  { name: 'my_appointments', description: 'مواعيد هذا العميل القادمة (يتعرف عليه برقم الواتساب).', input_schema: { type: 'object', properties: {}, additionalProperties: false } },
+  {
+    name: 'cancel_appointment', description: 'إلغاء موعد قادم لهذا العميل بعد تأكيده.',
+    input_schema: { type: 'object', properties: { appointment_id: { type: 'string' } }, required: ['appointment_id'], additionalProperties: false },
+  },
+];
+
+async function runTool(shopId: string, from: string, name: string, input: Record<string, any>): Promise<string> {
+  const [services, staff, appointments, clients, settings] = await Promise.all([
+    collection(shopId, 'services'), collection(shopId, 'staff'), collection(shopId, 'appointments'), collection(shopId, 'clients'), settingsOf(shopId),
+  ]);
+  const client = clients.find(c => samePhone(c.data.phone, from));
+  const items = (ids: string[], staffId = '') => services.filter(s => ids?.includes(s.id)).map(s => ({
+    serviceId: s.id, name: s.data.name, price: Number(s.data.price || 0), duration: Number(s.data.duration || 30), processing: Number(s.data.processing || 0), staffId,
+  }));
+  const today = isoDate(localNow());
+
+  if (name === 'list_services') {
+    return JSON.stringify({
+      services: services.filter(s => s.data.online !== false).map(s => ({ id: s.id, name: s.data.name, price: s.data.price, minutes: s.data.duration, deposit: s.data.deposit || 0 })),
+      staff: staff.filter(s => s.data.active !== false).map(s => ({ id: s.id, name: s.data.name, specialty: s.data.specialty })),
+      hours: settings.hours,
+    });
+  }
+  if (name === 'find_available_times') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || input.date < today || input.date > addDays(today, 60)) return 'تاريخ غير صالح — يجب أن يكون خلال الشهرين القادمين.';
+    const chosen = items(input.service_ids, input.staff_id || '');
+    if (!chosen.length) return 'لم يتم العثور على الخدمات. استخدم list_services للحصول على المعرّفات.';
+    const slots = availableSlots(appointments.map(a => ({ id: a.id, ...a.data })), input.date, chosen, input.staff_id || '', settings);
+    return slots.length ? JSON.stringify({ date: input.date, times: slots.slice(0, 24) }) : 'لا توجد أوقات متاحة في هذا اليوم.';
+  }
+  if (name === 'book_appointment') {
+    const chosen = items(input.service_ids, input.staff_id || '');
+    if (!chosen.length || !/^\d{2}:\d{2}$/.test(input.time) || input.date < today) return 'بيانات الحجز غير مكتملة.';
+    const candidate = { id: crypto.randomUUID(), date: input.date, time: input.time, staffId: input.staff_id || '', items: chosen, status: 'pending' };
+    if (conflicts(appointments.map(a => ({ id: a.id, ...a.data })), candidate)) return 'هذا الوقت لم يعد متاحاً. اقترح وقتاً آخر.';
+    let clientId = client?.id;
+    if (!clientId) {
+      clientId = crypto.randomUUID();
+      await saveRecord(shopId, 'clients', clientId, { id: clientId, name: String(input.name).slice(0, 80), phone: from, notes: '', source: 'whatsapp', createdAt: today });
+    }
+    const total = chosen.reduce((s, i) => s + i.price, 0);
+    const deposit = services.filter(s => input.service_ids.includes(s.id)).reduce((s, x) => s + Number(x.data.deposit || 0), 0);
+    await saveRecord(shopId, 'appointments', candidate.id, {
+      ...candidate, clientId, duration: chosen.reduce((s, i) => s + i.duration, 0), price: total, discount: 0, deposit, payments: [],
+      location: 'salon', notes: String(input.note || '').slice(0, 300), source: 'whatsapp', createdAt: today,
+    });
+    return JSON.stringify({ booked: true, id: candidate.id, date: input.date, time: input.time, total, deposit, status: 'pending — سيؤكده الصالون' });
+  }
+  if (name === 'my_appointments') {
+    if (!client) return 'لا توجد مواعيد مسجلة لهذا الرقم.';
+    const mine = appointments.filter(a => a.data.clientId === client.id && a.data.date >= today && ['pending', 'confirmed'].includes(a.data.status));
+    return JSON.stringify(mine.map(a => ({ id: a.id, date: a.data.date, time: a.data.time, services: (a.data.items ?? []).map((i: any) => i.name), status: a.data.status })));
+  }
+  if (name === 'cancel_appointment') {
+    const target = appointments.find(a => a.id === input.appointment_id && client && a.data.clientId === client.id);
+    if (!target) return 'لم يتم العثور على الموعد.';
+    await saveRecord(shopId, 'appointments', target.id, { ...target.data, status: 'cancelled', cancelledVia: 'whatsapp' });
+    return 'تم الإلغاء.';
+  }
+  return 'أداة غير معروفة.';
+}
+
+async function assistant(shopId: string, config: WaConfig, from: string, text: string, profileName?: string) {
+  const [{ data: shop }, { data: convo }, settings] = await Promise.all([
+    db.from('shops').select('name, kind, phone').eq('id', shopId).single(),
+    db.from('wa_conversations').select('messages').eq('shop_id', shopId).eq('phone', digits(from)).maybeSingle(),
+    settingsOf(shopId),
+  ]);
+  const now = localNow();
+  // نخزن النص فقط بين الرسائل؛ آخر ١٢ رسالة تكفي لسياق الحجز.
+  const history: { role: 'user' | 'assistant'; content: string }[] = (convo?.messages ?? []).slice(-12);
+  const system = `أنت موظف الاستقبال الرقمي لـ«${shop?.name}» (${shop?.kind === 'women' ? 'صالون نسائي' : shop?.kind === 'mixed' ? 'صالون للرجال والسيدات' : 'صالون حلاقة رجالي'}) في قطر.
+تتحدث بالعربية الخليجية المهذبة وباختصار مناسب لواتساب (٣ أسطر غالباً). العملة ريال قطري.
+مهامك: الإجابة عن الخدمات والأسعار، اقتراح أوقات متاحة، الحجز، عرض أو إلغاء مواعيد العميل.
+قواعد: استخدم الأدوات دائماً للأسعار والأوقات ولا تخمّن. قبل book_appointment اعرض ملخص الحجز واطلب تأكيداً صريحاً. اقترح ٣ أوقات كحد أقصى.
+إذا طلب العميل شيئاً خارج الحجز أو اشتكى، اعتذر بلطف وأخبره أن فريق الصالون سيتواصل معه${shop?.phone ? ` أو يمكنه الاتصال على ${shop.phone}` : ''}.
+ساعات العمل: ${settings.hours?.open ?? '09:00'}–${settings.hours?.close ?? '22:00'}.`;
+
+  const messages: Anthropic.Beta.BetaMessageParam[] = [
+    ...history.map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: `${text}\n\n[سياق النظام: اليوم ${dateAr(isoDate(now))} (${isoDate(now)}) الساعة ${now.toISOString().slice(11, 16)}. اسم العميل في واتساب: ${profileName ?? 'غير معروف'}]` },
+  ];
+
+  let reply = '';
+  for (let turn = 0; turn < 8; turn++) {
+    const response = await anthropic!.beta.messages.create({
+      model: MODEL,
+      max_tokens: 4000,
+      system,
+      tools,
+      messages,
+      output_config: { effort: 'low' },
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+    } as any);
+    if (response.stop_reason === 'refusal') { reply = 'عذراً، لا أستطيع المساعدة في هذا الطلب. فريق الصالون سيتواصل معك.'; break; }
+    messages.push({ role: 'assistant', content: response.content as any });
+    const toolUses = response.content.filter((b: any) => b.type === 'tool_use') as any[];
+    if (response.stop_reason !== 'tool_use' || !toolUses.length) {
+      reply = response.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n').trim();
+      break;
+    }
+    const results = await Promise.all(toolUses.map(async tool => {
+      try { return { type: 'tool_result' as const, tool_use_id: tool.id, content: await runTool(shopId, from, tool.name, tool.input ?? {}) }; }
+      catch (e) { return { type: 'tool_result' as const, tool_use_id: tool.id, content: `خطأ: ${(e as Error).message}`, is_error: true }; }
+    }));
+    messages.push({ role: 'user', content: results });
+  }
+  if (!reply) return;
+  await sendText(config, from, reply);
+  await db.from('wa_conversations').upsert({
+    shop_id: shopId, phone: digits(from), updated_at: new Date().toISOString(),
+    messages: [...history, { role: 'user', content: text }, { role: 'assistant', content: reply }].slice(-12),
+  });
+}
