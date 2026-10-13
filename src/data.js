@@ -184,8 +184,14 @@ export const loadLegacyData = () => {
 /* ───────────── التنسيق ───────────── */
 
 // شكل الأرقام: 123 (افتراضي) أو ١٢٣ — يُختار من الإعدادات ويُحفظ على الجهاز.
-export const digitStyle = (() => { try { return JSON.parse(localStorage.getItem('miqass-digits')) || 'latn'; } catch { return 'latn'; } })();
-export const LOCALE = digitStyle === 'arab' ? 'ar-QA' : 'ar-QA-u-nu-latn';
+export let digitStyle = (() => { try { return JSON.parse(localStorage.getItem('miqass-digits')) || 'latn'; } catch { return 'latn'; } })();
+export let LOCALE = digitStyle === 'arab' ? 'ar-QA' : 'ar-QA-u-nu-latn';
+// يغيّر شكل الأرقام فوراً بدون إعادة تحميل (التصديرات حيّة في وحدات ES).
+export function setDigitStyle(style) {
+  digitStyle = style === 'arab' ? 'arab' : 'latn';
+  LOCALE = digitStyle === 'arab' ? 'ar-QA' : 'ar-QA-u-nu-latn';
+  try { localStorage.setItem('miqass-digits', JSON.stringify(digitStyle)); } catch { /* ignore */ }
+}
 
 export const dateLabel = (date, options = { weekday: 'long', day: 'numeric', month: 'long' }) =>
   new Intl.DateTimeFormat(LOCALE, options).format(new Date(`${date}T12:00:00`));

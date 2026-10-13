@@ -144,14 +144,6 @@ input[type='checkbox'] { width: auto; min-height: 0; }
 .tiles { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); }
 .tiles-3 { grid-template-columns: repeat(3, 1fr); }
 .tiles-4 { grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 520px) {
-  .tiles-3 { grid-template-columns: repeat(2, 1fr); } .tiles-4 { grid-template-columns: repeat(2, 1fr); }
-  .tile { min-height: 108px; padding: 14px 8px; }
-  .stat { padding: 14px 6px; gap: 4px; }
-  .stat-icon { width: 36px; height: 36px; border-radius: 12px; }
-  .stat-value { font-size: 18px; }
-  .stat-label { font-size: 12px; }
-}
 .tile {
   position: relative; display: grid; justify-items: center; align-content: center; gap: 10px; min-height: 124px; padding: 18px 10px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); text-align: center;
@@ -173,10 +165,11 @@ input[type='checkbox'] { width: auto; min-height: 0; }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; }
 .stats-3 { grid-template-columns: repeat(3, 1fr); }
-.stat { display: grid; justify-items: center; gap: 6px; padding: 18px 10px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.stat { display: grid; justify-items: center; gap: 8px; padding: 20px 10px 18px; text-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 button.stat:active { transform: scale(.98); }
 .stat-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: var(--tone-soft); color: var(--tone); }
-.stat-value { font-family: 'Tajawal', sans-serif; font-size: 22px; font-weight: 800; line-height: 1.1; }
+.stat-value { font-family: 'Tajawal', sans-serif; font-size: 22px; font-weight: 800; line-height: 1.1; margin-top: 8px; }
+.stat-label { margin-top: 2px; }
 .stat-label { color: var(--muted); font-size: 13px; font-weight: 500; }
 
 .section { display: grid; gap: 12px; }
@@ -552,4 +545,17 @@ input.toggle:checked:active::after { inset-inline-start: 17px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
+}
+
+/* شاشة فوق التطبيق (إضافة فرع) — تُغلق دون فقدان الصفحة الحالية */
+.overlay-screen { position: fixed; inset: 0; z-index: 70; overflow-y: auto; background: var(--bg); animation: sheet-up .44s var(--ease-spring); }
+
+/* تعديلات الهاتف — في آخر الملف لتتغلب على القواعد الأساسية */
+@media (max-width: 520px) {
+  .tiles-3 { grid-template-columns: repeat(2, 1fr); } .tiles-4 { grid-template-columns: repeat(2, 1fr); }
+  .tile { min-height: 108px; padding: 14px 8px; }
+  .stat { padding: 18px 6px 16px; gap: 8px; }
+  .stat-icon { width: 40px; height: 40px; border-radius: 13px; }
+  .stat-value { font-size: 18px; }
+  .stat-label { font-size: 12px; }
 }

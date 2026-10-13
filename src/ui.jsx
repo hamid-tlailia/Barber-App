@@ -98,6 +98,29 @@ export function Sheet({ title, subtitle, onClose, children, footer, size = 'md' 
     };
   }, [requestClose]);
 
+  // السحب من داخل المحتوى عندما يكون في أعلاه: نلتقط اللمس قبل أن يتحول لتمرير.
+  useEffect(() => {
+    const el = panel.current?.querySelector('.sheet-body');
+    if (!el || window.matchMedia?.('(min-width: 700px)').matches) return undefined;
+    let start = null;
+    const down = e => { start = el.scrollTop <= 0 && !e.target.closest('input, textarea, select, .day-strip, .chips, .segmented') ? e.touches[0].clientY : null; };
+    const move = e => {
+      if (start === null) return;
+      const y = e.touches[0].clientY;
+      if (!drag.current) {
+        if (y - start > 6 && el.scrollTop <= 0) drag.current = { startY: y, lastY: y, lastT: performance.now(), velocity: 0, dy: 0, active: true };
+        else if (start - y > 4) { start = null; return; } else return;
+      }
+      e.preventDefault();
+      onPointerMove({ clientY: y });
+    };
+    const up = () => { start = null; if (drag.current) onPointerUp(); };
+    el.addEventListener('touchstart', down, { passive: true });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', up); el.addEventListener('touchcancel', up);
+    return () => { el.removeEventListener('touchstart', down); el.removeEventListener('touchmove', move); el.removeEventListener('touchend', up); el.removeEventListener('touchcancel', up); };
+  });
+
   // السحب للأسفل من المقبض أو شريط العنوان (مثل تطبيقات الهاتف).
   const onPointerDown = event => {
     if (event.pointerType === 'mouse' || window.matchMedia?.('(min-width: 700px)').matches) return;

@@ -3,7 +3,7 @@ import {
   Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
-import { dateLabel, digitStyle, localISO, money, normalizeData, num, roleText, uid, LOCALE } from '../data.js';
+import { dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { buyLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp } from '../ui.jsx';
@@ -12,7 +12,7 @@ import { exportAll } from './Lock.jsx';
 const weekdays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 export default function Settings() {
-  const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme } = useApp();
+  const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh } = useApp();
   const [open, setOpen] = useState(null);
   useEffect(() => { if (intent?.open) setOpen(intent.open); if (intent) setIntent(null); }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
   const owner = role === 'owner';
@@ -38,7 +38,7 @@ export default function Settings() {
   ];
   const Sheets = { shop: ShopSettings, services: ServicesSettings, hours: HoursSettings, packages: PackagesSettings, gifts: GiftCards, booking: BookingSettings, smart: SmartSettings, templates: TemplatesSettings, whatsapp: WhatsAppSettings, audit: AuditLog, backup: Backup, plan: Plan };
   const Current = open && Sheets[open];
-  const setDigits = value => { if (value === digitStyle) return; try { localStorage.setItem('miqass-digits', JSON.stringify(value)); } catch { /* ignore */ } window.location.reload(); };
+  const setDigits = value => { if (value === digitStyle) return; setDigitStyle(value); refresh(); };
   return <div className="stack-lg">
     {groups.map(group => <Section key={group.title} title={group.title}>
       <div className="list">{group.items.filter(Boolean).map(item => <Row key={item.id} leading={<span className="dot-icon tone-accent"><item.icon size={18} /></span>} title={item.label} onClick={() => setOpen(item.id)} />)}</div>

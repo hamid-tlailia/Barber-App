@@ -130,12 +130,13 @@ function Gate() {
   if (cloudEnabled && !session) return <AuthScreen />;
   if (!localReady) return <Onboarding local onCreated={() => setLocalReady(true)} />;
   const shop = shops.find(entry => entry.id === shopId) || (shops.length === 1 ? shops[0] : null);
-  if (adding) return <Onboarding onCancel={() => setAdding(false)} onCreated={async id => { setAdding(false); prefs.set('shop', id); setShopId(id); await loadShops(); }} onJoined={async id => { setAdding(false); prefs.set('shop', id); setShopId(id); await loadShops(); }} />;
+  const addingScreen = adding && <div className="overlay-screen"><Onboarding onCancel={() => setAdding(false)} onCreated={async id => { setAdding(false); prefs.set('shop', id); setShopId(id); await loadShops(); }} onJoined={async id => { setAdding(false); prefs.set('shop', id); setShopId(id); await loadShops(); }} /></div>;
+  if (adding && !shop) return addingScreen;
   if (!shops.length) return <Onboarding onCreated={async id => { prefs.set('shop', id); setShopId(id); await loadShops(); }} onJoined={async id => { prefs.set('shop', id); setShopId(id); await loadShops(); }} />;
   if (!shop) return <ShopPicker shops={shops} onPick={id => { prefs.set('shop', id); setShopId(id); }} />;
   const license = licenseState(shop, anchor);
-  return <Shell key={shop.id} shop={shop} shops={shops} license={license} admin={admin} theme={theme} notice={error}
-    reloadShops={loadShops} addBranch={() => setAdding(true)} switchShop={id => { prefs.set('shop', id); setShopId(id); }} />;
+  return <>{addingScreen}<Shell key={shop.id} shop={shop} shops={shops} license={license} admin={admin} theme={theme} notice={error}
+    reloadShops={loadShops} addBranch={() => setAdding(true)} switchShop={id => { prefs.set('shop', id); setShopId(id); }} /></>;
 }
 
 function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switchShop, addBranch }) {
@@ -145,6 +146,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
   const [page, setPageState] = useState('home');
   const [intent, setIntent] = useState(null);
   const [toast, showToast, closeToast] = useToast();
+  const [, setTick] = useState(0);
 
   const go = useCallback((destination, nextIntent = null) => {
     setPageState(allowed.includes(destination) ? destination : 'home');
@@ -154,7 +156,10 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
 
   // زر الرجوع في أندرويد يعود للرئيسية بدلاً من إغلاق التطبيق.
   useEffect(() => {
-    const handler = event => { if (page !== 'home') { event.preventDefault?.(); go('home'); } };
+    const handler = event => {
+      if (document.querySelector('.overlay-screen')) return; // شاشة إضافة الفرع تعالج الرجوع بنفسها
+      if (page !== 'home') { event.preventDefault?.(); go('home'); }
+    };
     document.addEventListener('app-back', handler);
     return () => document.removeEventListener('app-back', handler);
   }, [page, go]);
@@ -197,7 +202,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
   const staffMember = shop.staff_id ? data.staff.find(member => member.id === shop.staff_id) : null;
   const context = {
     data, setData, ...helpers, shop, role, license, vocab, go, intent, setIntent, toast: showToast, theme, sync, syncNow,
-    reloadShops, switchShop, addBranch, shops, admin, staffMember, can: name => allowed.includes(name),
+    reloadShops, switchShop, addBranch, shops, admin, refresh: () => setTick(t => t + 1), staffMember, can: name => allowed.includes(name),
     isManager: role === 'owner' || role === 'manager',
   };
   const Page = PAGES[page].component;
