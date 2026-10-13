@@ -3,9 +3,9 @@ import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
-import { dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, uid, LOCALE } from '../data.js';
+import { dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, uid, whatsappLink, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
-import { buyLink, plans } from '../lib/license.js';
+import { SALES_WHATSAPP, buyLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { notifyNow, pushState, pushSupported } from '../lib/native.js';
@@ -226,34 +226,49 @@ function TemplatesSettings({ onClose }) {
   </Sheet>;
 }
 
+// صاحب الصالون يرى التفضيلات فقط؛ الربط والمفاتيح يضعها مدير المنصة بعد الاشتراك في الإضافة.
+const ADDONS = {
+  wa: { title: 'واتساب الذكي', points: ['تذكير تلقائي لكل عميل قبل موعده', 'العميل يرد 1 للتأكيد أو 2 للإلغاء ويتحدث الجدول وحده', 'تقرير يومي لك كل ليلة: الدخل والمواعيد والغياب'] },
+  ai: { title: 'المساعد الذكي (AI)', points: ['يرد على عملائك في واتساب 24/7 بالعربي', 'يجيب عن الأسعار ويقترح الأوقات ويحجز مباشرة', 'لا تفوتك حجوزات الليل وأوقات الانشغال'] },
+};
+
+function AddonOffer({ id, shopName }) {
+  const addon = ADDONS[id];
+  return <div className="addon-offer">
+    <strong>{addon.title}</strong>
+    <ul>{addon.points.map(p => <li key={p}><Check size={14} /> {p}</li>)}</ul>
+    <Button variant="secondary" icon={MessageSquareText} block onClick={() => openExternal(whatsappLink(SALES_WHATSAPP, `مرحباً، أريد تفعيل إضافة «${addon.title}» لصالون ${shopName}`))}>اطلب التفعيل</Button>
+  </div>;
+}
+
 function WhatsAppSettings({ onClose }) {
-  const { shop, toast } = useApp();
-  const [v, setV] = useState({ phoneNumberId: '', token: '', ownerWhatsapp: '', reminders: true, assistant: false, daily: true });
-  const [connected, setConnected] = useState(false);
+  const { shop, data, toast } = useApp();
+  const [v, setV] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => {
-    api.integration(shop.id).then(row => {
-      if (!row) return;
-      setConnected(Boolean(row.wa_phone_number_id));
-      setV(prev => ({ ...prev, phoneNumberId: row.wa_phone_number_id || '', ownerWhatsapp: row.owner_whatsapp || '', reminders: row.reminders_enabled, assistant: row.assistant_enabled, daily: row.daily_report_enabled }));
-    }).catch(() => {});
-  }, [shop.id]);
+    api.integration(shop.id).then(row => setV({
+      waAddon: Boolean(row?.wa_addon), aiAddon: Boolean(row?.ai_addon), ownerWhatsapp: row?.owner_whatsapp || shop.phone || '',
+      reminders: row?.reminders_enabled ?? true, assistant: row?.assistant_enabled ?? false, daily: row?.daily_report_enabled ?? true,
+    })).catch(e => setError(errorText(e)));
+  }, [shop.id, shop.phone]);
   const save = async () => {
     try { await api.saveIntegration(shop.id, v); toast('تم الحفظ'); onClose(); } catch (e) { setError(errorText(e)); }
   };
-  return <Sheet title="واتساب الذكي" subtitle="أتمتة كاملة عبر WhatsApp Business" onClose={onClose} footer={<Button block icon={Check} onClick={save}>حفظ</Button>}>
-    <div className="stack">
+  const shopName = data.shopName || shop.name;
+  return <Sheet title="واتساب الذكي" subtitle="أتمتة كاملة عبر WhatsApp Business" onClose={onClose} footer={v?.waAddon && <Button block icon={Check} onClick={save}>حفظ</Button>}>
+    <Alert>{error}</Alert>
+    {!v ? !error && <div className="loader" /> : !v.waAddon ? <div className="stack">
+      <p className="muted small">إضافات اختيارية لصالونك — نفعّلها لك خلال دقائق بعد الاشتراك.</p>
+      <AddonOffer id="wa" shopName={shopName} />
+      <AddonOffer id="ai" shopName={shopName} />
+    </div> : <div className="stack">
       <Toggle checked={v.reminders} onChange={on => setV({ ...v, reminders: on })} label="تذكير تلقائي قبل كل موعد" hint="العميل يرد 1 للتأكيد أو 2 للإلغاء — ويتحدث الجدول تلقائياً" />
-      <Toggle checked={v.assistant} onChange={on => setV({ ...v, assistant: on })} label="المساعد الذكي (AI)" hint="يرد على العملاء ويحجز ويجيب عن الأسعار بالعربي 24/7" />
       <Toggle checked={v.daily} onChange={on => setV({ ...v, daily: on })} label="تقرير يومي لصاحب المحل" hint="الدخل، المواعيد، الغياب، الأفضل أداءً — كل ليلة" />
-      <Field label="واتساب صاحب المحل (للتقرير اليومي)"><input type="tel" dir="ltr" value={v.ownerWhatsapp} onChange={e => setV({ ...v, ownerWhatsapp: e.target.value })} placeholder="974XXXXXXXX" /></Field>
-      <Section title={connected ? 'رقم الأعمال مربوط ✓' : 'ربط رقم الصالون (اختياري)'}>
-        <small className="muted">بدون ربط، تُرسل التذكيرات من رقم المنصة. للمساعد الذكي باسم صالونك اربط رقمك من Meta Business.</small>
-        <Field label="Phone Number ID"><input dir="ltr" value={v.phoneNumberId} onChange={e => setV({ ...v, phoneNumberId: e.target.value })} /></Field>
-        <Field label="Access Token" hint={connected ? 'محفوظ بشكل آمن — اتركه فارغاً لعدم التغيير' : 'يُحفظ مشفراً ولا يظهر مجدداً'}><input dir="ltr" type="password" value={v.token} onChange={e => setV({ ...v, token: e.target.value })} /></Field>
-      </Section>
-      <Alert>{error}</Alert>
-    </div>
+      {v.daily && <Field label="رقم واتساب لاستلام التقرير"><input type="tel" dir="ltr" value={v.ownerWhatsapp} onChange={e => setV({ ...v, ownerWhatsapp: e.target.value })} placeholder="974XXXXXXXX" /></Field>}
+      {v.aiAddon
+        ? <Toggle checked={v.assistant} onChange={on => setV({ ...v, assistant: on })} label="المساعد الذكي (AI)" hint="يرد على العملاء ويحجز ويجيب عن الأسعار بالعربي 24/7" />
+        : <AddonOffer id="ai" shopName={shopName} />}
+    </div>}
   </Sheet>;
 }
 

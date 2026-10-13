@@ -1,9 +1,9 @@
 // لوحة المطوّر (أنت): متابعة الصالونات في التجربة وتفعيل الاشتراكات بعد الدفع.
 import React, { useEffect, useState } from 'react';
-import { Ban, CalendarPlus, Check, Crown, MessageCircle, RefreshCw, Store } from 'lucide-react';
+import { Ban, Bot, CalendarPlus, Check, Crown, MessageCircle, RefreshCw, Store } from 'lucide-react';
 import { num, whatsappLink, LOCALE } from '../data.js';
 import { api, errorText } from '../lib/sync.js';
-import { Alert, Badge, Button, Empty, Field, Row, SearchBox, Segmented, Sheet, Stat, openExternal, useApp } from '../ui.jsx';
+import { Alert, Badge, Button, Empty, Field, Row, SearchBox, Section, Segmented, Sheet, Stat, Toggle, openExternal, useApp } from '../ui.jsx';
 
 const addMonths = months => { const d = new Date(); d.setMonth(d.getMonth() + months); return d.toISOString(); };
 const statusOf = s => s.plan === 'suspended' ? 'suspended' : s.active ? (s.paid_until && new Date(s.paid_until) > new Date() ? 'paid' : 'trial') : 'expired';
@@ -39,7 +39,8 @@ export default function Admin() {
     {list.length ? <div className="list">{list.map(s => {
       const [label, tone] = labels[statusOf(s)];
       const left = Math.ceil((new Date(statusOf(s) === 'paid' ? s.paid_until : s.trial_ends_at) - Date.now()) / 86400000);
-      return <Row key={s.id} title={s.name} subtitle={`${s.owner_email} · ${num(s.records)} سجل${left > 0 ? ` · باقٍ ${num(left)} يوم` : ''}`} trailing={<Badge tone={tone}>{label}</Badge>} onClick={() => setOpen(s.id)} />;
+      const addons = [s.wa_addon && 'واتساب', s.ai_addon && 'AI'].filter(Boolean).join(' + ');
+      return <Row key={s.id} title={s.name} subtitle={`${s.owner_email} · ${num(s.records)} سجل${left > 0 ? ` · باقٍ ${num(left)} يوم` : ''}${addons ? ` · ${addons}` : ''}`} trailing={<Badge tone={tone}>{label}</Badge>} onClick={() => setOpen(s.id)} />;
     })}</div> : <Empty icon={Store} title="لا نتائج" />}
 
     {current && <Sheet title={current.name} subtitle={current.owner_email} onClose={() => setOpen(null)}>
@@ -64,7 +65,46 @@ export default function Admin() {
           <Button variant="secondary" icon={CalendarPlus} onClick={() => act(() => api.admin.extendTrial(current.id, 7), 'تم تمديد التجربة ٧ أيام')}>تمديد التجربة ٧ أيام</Button>
           <Button variant="danger-ghost" icon={Ban} onClick={() => act(() => api.admin.setLicense(current.id, 'suspended', null), 'تم الإيقاف')}>إيقاف</Button>
         </div>
+        <Addons shopId={current.id} onSaved={() => act(async () => {}, 'تم حفظ الإضافات')} />
       </div>
     </Sheet>}
   </div>;
+}
+
+// الإضافات المدفوعة لكل صالون: لا يراها صاحب الصالون ولا يستطيع تعديلها.
+function Addons({ shopId, onSaved }) {
+  const [v, setV] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    setV(null);
+    api.admin.integration(shopId).then(row => setV({
+      waAddon: row.wa_addon, aiAddon: row.ai_addon, phoneNumberId: row.wa_phone_number_id, token: '', aiKey: '',
+      hasToken: row.has_token, hasAiKey: row.has_ai_key, clearToken: false, clearAiKey: false,
+    })).catch(e => setError(errorText(e)));
+  }, [shopId]);
+  const save = async () => {
+    setError('');
+    try { await api.admin.setIntegration(shopId, v); onSaved(); } catch (e) { setError(errorText(e)); }
+  };
+  if (!v) return error ? <Alert>{error}</Alert> : <div className="loader" />;
+  return <Section title="الإضافات المدفوعة">
+    <div className="stack">
+      <Toggle checked={v.waAddon} onChange={on => setV({ ...v, waAddon: on, aiAddon: on && v.aiAddon })} label="واتساب الذكي" hint="تذكيرات تلقائية + ردود 1/2 + تقرير يومي" />
+      {v.waAddon && <>
+        <Field label="Phone Number ID (اختياري)" hint="فارغ = يُرسل من رقم المنصة. ضعه فقط إذا ربطت رقم الصالون الخاص.">
+          <input dir="ltr" value={v.phoneNumberId} onChange={e => setV({ ...v, phoneNumberId: e.target.value.trim() })} />
+        </Field>
+        {v.phoneNumberId && <Field label="Access Token لرقم الصالون" hint={v.hasToken ? 'محفوظ — اتركه فارغاً لعدم التغيير' : 'يُحفظ في الخادم ولا يظهر مجدداً'}>
+          <input dir="ltr" type="password" autoComplete="off" value={v.token} onChange={e => setV({ ...v, token: e.target.value.trim() })} />
+        </Field>}
+        <Toggle checked={v.aiAddon} onChange={on => setV({ ...v, aiAddon: on })} label="المساعد الذكي (AI)" hint="يرد ويحجز في واتساب 24/7" />
+        {v.aiAddon && <Field label="مفتاح Anthropic الخاص بالصالون" hint={v.hasAiKey ? 'محفوظ — اتركه فارغاً لعدم التغيير' : 'فارغ = يُستخدم مفتاح المنصة إن وُجد'}>
+          <input dir="ltr" type="password" autoComplete="off" placeholder="sk-ant-..." value={v.aiKey} onChange={e => setV({ ...v, aiKey: e.target.value.trim() })} />
+        </Field>}
+        {v.aiAddon && v.hasAiKey && <Toggle checked={v.clearAiKey} onChange={on => setV({ ...v, clearAiKey: on })} label="حذف المفتاح المحفوظ" />}
+      </>}
+      <Alert>{error}</Alert>
+      <Button icon={Bot} block onClick={save}>حفظ الإضافات</Button>
+    </div>
+  </Section>;
 }

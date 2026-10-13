@@ -505,6 +505,11 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .plan-price small { font-size: 13px; color: var(--muted); font-family: 'IBM Plex Sans Arabic', sans-serif; font-weight: 500; }
 .plan p { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; color: var(--ink-2); min-height: 38px; }
 .plan p svg { color: var(--green); flex: none; margin-top: 3px; }
+.addon-offer { display: grid; gap: 10px; padding: 16px; border-radius: var(--radius); border: 1.5px solid var(--line); background: var(--surface-2); }
+.addon-offer strong { font-size: 1.05rem; }
+.addon-offer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.addon-offer li { display: flex; gap: 8px; align-items: flex-start; color: var(--muted); font-size: .92rem; }
+.addon-offer li svg { flex: none; margin-top: 4px; color: var(--green); }
 .roi-hero { display: grid; justify-items: center; gap: 4px; padding: 18px; text-align: center; border-radius: var(--radius); background: var(--green-soft); color: var(--green); }
 .roi-hero strong { font-family: 'Tajawal', sans-serif; font-size: 30px; font-weight: 800; }
 .roi-hero small { color: var(--ink-2); }

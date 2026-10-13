@@ -128,12 +128,11 @@ export const api = {
   },
   integration: async shop => {
     const { data } = await supabase.from('shop_integrations')
-      .select('wa_phone_number_id,owner_whatsapp,reminders_enabled,assistant_enabled,daily_report_enabled').eq('shop_id', shop).maybeSingle();
+      .select('owner_whatsapp,reminders_enabled,assistant_enabled,daily_report_enabled,wa_addon,ai_addon').eq('shop_id', shop).maybeSingle();
     return data;
   },
   saveIntegration: (shop, v) => rpc('save_integration', {
-    p_shop: shop, p_phone_number_id: v.phoneNumberId || '', p_token: v.token || '', p_owner_whatsapp: v.ownerWhatsapp || '',
-    p_reminders: Boolean(v.reminders), p_assistant: Boolean(v.assistant), p_daily: Boolean(v.daily),
+    p_shop: shop, p_owner_whatsapp: v.ownerWhatsapp || '', p_reminders: Boolean(v.reminders), p_assistant: Boolean(v.assistant), p_daily: Boolean(v.daily),
   }),
   saveDeviceToken: async (shop, token) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -148,6 +147,11 @@ export const api = {
     shops: () => rpc('admin_list_shops'),
     setLicense: (shop, plan, paidUntil, note) => rpc('admin_set_license', { p_shop: shop, p_plan: plan, p_paid_until: paidUntil, p_note: note ?? null }),
     extendTrial: (shop, days) => rpc('admin_extend_trial', { p_shop: shop, p_days: days }),
+    integration: shop => rpc('admin_get_integration', { p_shop: shop }),
+    setIntegration: (shop, v) => rpc('admin_set_integration', {
+      p_shop: shop, p_wa_addon: Boolean(v.waAddon), p_ai_addon: Boolean(v.aiAddon), p_phone_number_id: v.phoneNumberId || '',
+      p_token: v.token || '', p_ai_key: v.aiKey || '', p_clear_token: Boolean(v.clearToken), p_clear_ai_key: Boolean(v.clearAiKey),
+    }),
   },
 };
 

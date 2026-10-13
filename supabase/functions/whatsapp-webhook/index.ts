@@ -5,7 +5,9 @@ import {
   saveRecord, sendText, settingsOf, timeAr, type WaConfig, waConfigFor,
 } from '../_shared/common.ts';
 
-const anthropic = Deno.env.get('ANTHROPIC_API_KEY') ? new Anthropic() : null;
+// كل صالون مشترك في المساعد له مفتاحه الخاص (يضعه المدير)؛ مفتاح المنصة احتياطي إن وُجد.
+const PLATFORM_AI_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+const anthropicFor = (key?: string | null) => (key || PLATFORM_AI_KEY) ? new Anthropic({ apiKey: key || PLATFORM_AI_KEY }) : null;
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-opus-5-5';
 
 // التحقق من أن الطلب قادم فعلاً من Meta (توقيع HMAC بسر التطبيق).
@@ -44,12 +46,17 @@ Deno.serve(async req => {
 
 async function resolveShop(phoneNumberId: string, from: string) {
   // ١) رقم أعمال خاص بالصالون. ٢) آخر تذكير أُرسل لهذا الرقم من رقم المنصة.
-  const { data: own } = await db.from('shop_integrations').select('shop_id, assistant_enabled').eq('wa_phone_number_id', phoneNumberId).maybeSingle();
-  if (own) return { shopId: own.shop_id as string, assistant: Boolean(own.assistant_enabled), outbox: null };
-  const { data: recent } = await db.from('wa_outbox').select('shop_id, appointment_id, sent_at').like('phone', `%${digits(from).slice(-8)}`).order('sent_at', { ascending: false }).limit(1).maybeSingle();
-  if (!recent) return null;
-  const { data: integ } = await db.from('shop_integrations').select('assistant_enabled').eq('shop_id', recent.shop_id).maybeSingle();
-  return { shopId: recent.shop_id as string, assistant: Boolean(integ?.assistant_enabled), outbox: recent };
+  const fields = 'shop_id, wa_addon, ai_addon, assistant_enabled, ai_key';
+  const { data: own } = await db.from('shop_integrations').select(fields).eq('wa_phone_number_id', phoneNumberId).maybeSingle();
+  let integ = own;
+  if (!integ) {
+    const { data: recent } = await db.from('wa_outbox').select('shop_id').like('phone', `%${digits(from).slice(-8)}`).order('sent_at', { ascending: false }).limit(1).maybeSingle();
+    if (!recent) return null;
+    ({ data: integ } = await db.from('shop_integrations').select(fields).eq('shop_id', recent.shop_id).maybeSingle());
+  }
+  // واتساب والمساعد إضافتان مدفوعتان يفعّلهما المدير.
+  if (!integ?.wa_addon) return null;
+  return { shopId: integ.shop_id as string, assistant: Boolean(integ.ai_addon && integ.assistant_enabled), aiKey: integ.ai_key as string | null };
 }
 
 async function handle(phoneNumberId: string, from: string, text: string, profileName?: string) {
@@ -67,7 +74,8 @@ async function handle(phoneNumberId: string, from: string, text: string, profile
     const handled = await replyToReminder(shop.shopId, config, from, confirm);
     if (handled) return;
   }
-  if (shop.assistant && anthropic) await assistant(shop.shopId, config, from, text, profileName);
+  const ai = shop.assistant ? anthropicFor(shop.aiKey) : null;
+  if (ai) await assistant(ai, shop.shopId, config, from, text, profileName);
 }
 
 async function replyToReminder(shopId: string, config: WaConfig, from: string, confirm: boolean) {
@@ -164,7 +172,7 @@ async function runTool(shopId: string, from: string, name: string, input: Record
   return 'أداة غير معروفة.';
 }
 
-async function assistant(shopId: string, config: WaConfig, from: string, text: string, profileName?: string) {
+async function assistant(anthropic: Anthropic, shopId: string, config: WaConfig, from: string, text: string, profileName?: string) {
   const [{ data: shop }, { data: convo }, settings] = await Promise.all([
     db.from('shops').select('name, kind, phone').eq('id', shopId).single(),
     db.from('wa_conversations').select('messages').eq('shop_id', shopId).eq('phone', digits(from)).maybeSingle(),
@@ -187,7 +195,7 @@ async function assistant(shopId: string, config: WaConfig, from: string, text: s
 
   let reply = '';
   for (let turn = 0; turn < 8; turn++) {
-    const response = await anthropic!.beta.messages.create({
+    const response = await anthropic.beta.messages.create({
       model: MODEL,
       max_tokens: 4000,
       system,

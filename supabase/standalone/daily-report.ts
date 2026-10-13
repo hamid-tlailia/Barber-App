@@ -1,6 +1,5 @@
 // نسخة مستقلة من دالة daily-report للصق في محرر Supabase (تتضمن الأدوات المشتركة).
 
-
 // أدوات مشتركة لدوال الخادم: عميل Supabase بصلاحيات الخدمة، واتساب Cloud API، والوقت المحلي، وحساب الأوقات المتاحة.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 
@@ -130,7 +129,6 @@ export function availableSlots(appointments: Record<string, any>[], date: string
 
 export const fill = (template: string, values: Record<string, string>) => String(template || '').replace(/\{(\w+)\}/g, (_, k) => values[k] ?? '');
 
-/* ───────── الدالة ───────── */
 // تقرير نهاية اليوم لصاحب الصالون عبر واتساب. يُستدعى يومياً (مثلاً 23:00 بتوقيت قطر) من pg_cron.
 
 const TEMPLATE = Deno.env.get('WA_TEMPLATE_REPORT') ?? 'daily_report';
@@ -138,7 +136,7 @@ const money = (v: number) => `${Math.round(v).toLocaleString('ar-QA')} ر.ق`;
 
 Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);
-  const { data: shops, error } = await db.from('shop_integrations').select('shop_id, owner_whatsapp, shops!inner(name)').eq('daily_report_enabled', true).not('owner_whatsapp', 'is', null);
+  const { data: shops, error } = await db.from('shop_integrations').select('shop_id, owner_whatsapp, shops!inner(name)').eq('daily_report_enabled', true).eq('wa_addon', true).not('owner_whatsapp', 'is', null);
   if (error) return json({ error: error.message }, 500);
   const today = isoDate(localNow());
   let sent = 0; const failures: string[] = [];

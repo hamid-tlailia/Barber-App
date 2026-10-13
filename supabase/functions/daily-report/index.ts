@@ -6,7 +6,7 @@ const money = (v: number) => `${Math.round(v).toLocaleString('ar-QA')} ر.ق`;
 
 Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);
-  const { data: shops, error } = await db.from('shop_integrations').select('shop_id, owner_whatsapp, shops!inner(name)').eq('daily_report_enabled', true).not('owner_whatsapp', 'is', null);
+  const { data: shops, error } = await db.from('shop_integrations').select('shop_id, owner_whatsapp, shops!inner(name)').eq('daily_report_enabled', true).eq('wa_addon', true).not('owner_whatsapp', 'is', null);
   if (error) return json({ error: error.message }, 500);
   const today = isoDate(localNow());
   let sent = 0; const failures: string[] = [];

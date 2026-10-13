@@ -8,7 +8,7 @@ const TEMPLATE = Deno.env.get('WA_TEMPLATE_REMINDER') ?? 'appointment_reminder';
 
 Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);
-  const { data: shops, error } = await db.from('shop_integrations').select('shop_id, reminders_enabled, shops!inner(name)').eq('reminders_enabled', true);
+  const { data: shops, error } = await db.from('shop_integrations').select('shop_id, reminders_enabled, shops!inner(name)').eq('reminders_enabled', true).eq('wa_addon', true);
   if (error) return json({ error: error.message }, 500);
 
   const now = localNow();

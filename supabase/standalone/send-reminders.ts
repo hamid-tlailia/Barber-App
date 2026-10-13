@@ -1,6 +1,5 @@
 // نسخة مستقلة من دالة send-reminders للصق في محرر Supabase (تتضمن الأدوات المشتركة).
 
-
 // أدوات مشتركة لدوال الخادم: عميل Supabase بصلاحيات الخدمة، واتساب Cloud API، والوقت المحلي، وحساب الأوقات المتاحة.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 
@@ -130,7 +129,6 @@ export function availableSlots(appointments: Record<string, any>[], date: string
 
 export const fill = (template: string, values: Record<string, string>) => String(template || '').replace(/\{(\w+)\}/g, (_, k) => values[k] ?? '');
 
-/* ───────── الدالة ───────── */
 // تذكير تلقائي بالمواعيد عبر واتساب. يُستدعى كل ساعة من pg_cron.
 // العميل يرد 1 للتأكيد أو 2 للإلغاء — تعالجها دالة whatsapp-webhook.
 
@@ -138,7 +136,7 @@ const TEMPLATE = Deno.env.get('WA_TEMPLATE_REMINDER') ?? 'appointment_reminder';
 
 Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);
-  const { data: shops, error } = await db.from('shop_integrations').select('shop_id, reminders_enabled, shops!inner(name)').eq('reminders_enabled', true);
+  const { data: shops, error } = await db.from('shop_integrations').select('shop_id, reminders_enabled, shops!inner(name)').eq('reminders_enabled', true).eq('wa_addon', true);
   if (error) return json({ error: error.message }, 500);
 
   const now = localNow();
