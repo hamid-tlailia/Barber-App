@@ -130,7 +130,7 @@ function Gate() {
   if (cloudEnabled && !session) return <AuthScreen />;
   if (!localReady) return <Onboarding local onCreated={() => setLocalReady(true)} />;
   const shop = shops.find(entry => entry.id === shopId) || (shops.length === 1 ? shops[0] : null);
-  if (adding) return <Onboarding onCreated={async id => { setAdding(false); prefs.set('shop', id); setShopId(id); await loadShops(); }} onJoined={async id => { setAdding(false); prefs.set('shop', id); setShopId(id); await loadShops(); }} />;
+  if (adding) return <Onboarding onCancel={() => setAdding(false)} onCreated={async id => { setAdding(false); prefs.set('shop', id); setShopId(id); await loadShops(); }} onJoined={async id => { setAdding(false); prefs.set('shop', id); setShopId(id); await loadShops(); }} />;
   if (!shops.length) return <Onboarding onCreated={async id => { prefs.set('shop', id); setShopId(id); await loadShops(); }} onJoined={async id => { prefs.set('shop', id); setShopId(id); await loadShops(); }} />;
   if (!shop) return <ShopPicker shops={shops} onPick={id => { prefs.set('shop', id); setShopId(id); }} />;
   const license = licenseState(shop, anchor);
@@ -208,7 +208,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
     <div className="app">
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark"><Scissors size={20} /></span><span><strong>{data.shopName || 'مِقص'}</strong><small>{shops.length > 1 ? 'تبديل الفرع من الإعدادات' : vocab.shop}</small></span></div>
-        <nav>{allowed.filter(id => id !== 'more').map(id => {
+        <nav>{allowed.filter(id => !['more', 'settings', 'admin'].includes(id)).map(id => {
           const Icon = PAGES[id].icon;
           return <button type="button" key={id} className={page === id ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{id === 'clients' ? vocab.clients : PAGES[id].label}</span></button>;
         })}</nav>
@@ -223,7 +223,8 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
           <div className="topbar-title"><h1>{page === 'home' ? (data.shopName || 'مِقص') : page === 'clients' ? vocab.clients : page === 'team' ? vocab.team : PAGES[page].label}</h1></div>
           <div className="topbar-actions">
             {SyncIcon && <button type="button" className={`sync-pill sync-${sync.state}`} onClick={syncNow} title={sync.error || 'مزامنة'}><SyncIcon size={16} className={sync.state === 'syncing' ? 'spin' : ''} />{sync.pending ? <span>{sync.pending}</span> : null}</button>}
-            {admin && <button type="button" className="icon-btn" onClick={() => go('admin')} aria-label="لوحة المطوّر"><ShieldCheck size={19} /></button>}
+            {admin && <button type="button" className={`icon-btn ${page === 'admin' ? 'active' : ''}`} onClick={() => go('admin')} aria-label="لوحة المطوّر"><ShieldCheck size={19} /></button>}
+            {allowed.includes('settings') && <button type="button" className={`icon-btn ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')} aria-label="الإعدادات"><Settings2 size={19} /></button>}
           </div>
         </header>
         {license.status === 'trial' && <TrialBanner license={license} shop={shop} />}

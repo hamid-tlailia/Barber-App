@@ -216,6 +216,7 @@ button.row:active { background: var(--surface-3); }
 .btn-block { width: 100%; }
 .icon-btn { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); flex: none; }
 .icon-btn:hover { background: var(--surface-2); }
+.icon-btn.active { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
 
 .field { display: grid; gap: 7px; }
 .field-label { font-weight: 600; font-size: 14px; color: var(--ink-2); }
@@ -248,10 +249,10 @@ button.row:active { background: var(--surface-3); }
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--line); cursor: pointer; }
 .toggle-row span { display: grid; gap: 2px; }
 .toggle-row small { color: var(--muted); }
-.toggle { appearance: none; width: 50px; height: 30px; border-radius: 15px; background: var(--line-strong); position: relative; flex: none; cursor: pointer; transition: background .2s; border: 0; padding: 0; min-height: 0; }
-.toggle::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); transition: inset-inline-start .2s; }
-.toggle:checked { background: var(--green); }
-.toggle:checked::after { inset-inline-start: 23px; }
+input.toggle { appearance: none; -webkit-appearance: none; width: 52px; height: 32px; border-radius: 16px; background: color-mix(in srgb, var(--muted) 55%, var(--surface-3)); position: relative; flex: none; cursor: pointer; transition: background .2s; border: 0; padding: 0; min-height: 0; }
+input.toggle::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); transition: inset-inline-start .2s; }
+input.toggle:checked { background: var(--green); }
+input.toggle:checked::after { inset-inline-start: 23px; }
 
 .alert { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; background: var(--tone-soft); color: var(--tone); }
 .alert svg { flex: none; margin-top: 2px; }

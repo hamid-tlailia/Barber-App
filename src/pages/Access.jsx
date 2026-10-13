@@ -1,5 +1,5 @@
 // الدخول، إنشاء الصالون لأول مرة، واختيار الفرع.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, KeyRound, Mail, Scissors, Sparkles, Store, UserRound, UsersRound } from 'lucide-react';
 import { serviceTemplates } from '../data.js';
 import { api, auth, errorText } from '../lib/sync.js';
@@ -72,7 +72,7 @@ const kinds = [
   { id: 'mixed', label: 'صالون مختلط', hint: 'رجال وسيدات', icon: UsersRound, tone: 'blue' },
 ];
 
-export function Onboarding({ onCreated, onJoined, local = false }) {
+export function Onboarding({ onCreated, onJoined, onCancel, local = false }) {
   const [step, setStep] = useState(0);
   const [kind, setKind] = useState('');
   const [name, setName] = useState('');
@@ -83,6 +83,19 @@ export function Onboarding({ onCreated, onJoined, local = false }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // زر الرجوع في أندرويد: خطوة للخلف، ثم إلغاء إضافة الفرع.
+  useEffect(() => {
+    const handler = event => {
+      if (joining) setJoining(false);
+      else if (step > 0) setStep(step - 1);
+      else if (onCancel) onCancel();
+      else return;
+      event.preventDefault();
+    };
+    document.addEventListener('app-back', handler);
+    return () => document.removeEventListener('app-back', handler);
+  }, [joining, step, onCancel]);
 
   const pickKind = id => { setKind(id); setServices(serviceTemplates[id].map(s => s.name)); setStep(1); };
   const create = async () => {
@@ -108,11 +121,12 @@ export function Onboarding({ onCreated, onJoined, local = false }) {
     </div>
   </AuthLayout>;
 
-  return <AuthLayout title="لنجهّز صالونك" subtitle="ثلاث خطوات بسيطة — أقل من دقيقة">
+  return <AuthLayout title={onCancel ? 'فرع جديد' : 'لنجهّز صالونك'} subtitle="ثلاث خطوات بسيطة — أقل من دقيقة">
     <Steps steps={['النوع', 'البيانات', 'الخدمات']} current={step} />
     {step === 0 && <div className="stack">
       <div className="tiles tiles-3">{kinds.map(k => <Tile key={k.id} icon={k.icon} label={k.label} hint={k.hint} tone={k.tone} onClick={() => pickKind(k.id)} />)}</div>
-      {!local && <Button variant="ghost" icon={Building2} block onClick={() => setJoining(true)}>أنا موظف ولدي رمز دعوة</Button>}
+      {!local && !onCancel && <Button variant="ghost" icon={Building2} block onClick={() => setJoining(true)}>أنا موظف ولدي رمز دعوة</Button>}
+      {onCancel && <Button variant="ghost" icon={ArrowRight} block onClick={onCancel}>رجوع</Button>}
     </div>}
     {step === 1 && <form className="stack" onSubmit={e => { e.preventDefault(); setStep(2); }}>
       <Field label="اسم الصالون" required><div className="input-icon"><Store size={18} /><input required autoFocus value={name} onChange={e => setName(e.target.value)} placeholder={kind === 'women' ? 'مثال: صالون لمسة' : 'مثال: صالون مِقص'} /></div></Field>

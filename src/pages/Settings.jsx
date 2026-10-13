@@ -3,44 +3,59 @@ import {
   Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
-import { dateLabel, localISO, money, normalizeData, num, roleText, uid } from '../data.js';
+import { dateLabel, digitStyle, localISO, money, normalizeData, num, roleText, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { buyLink, plans } from '../lib/license.js';
-import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Sheet, Tile, Toggle, download, openExternal, useApp } from '../ui.jsx';
+import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 
 const weekdays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 export default function Settings() {
-  const { intent, setIntent, shop, shops, switchShop, addBranch, role } = useApp();
+  const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme } = useApp();
   const [open, setOpen] = useState(null);
   useEffect(() => { if (intent?.open) setOpen(intent.open); if (intent) setIntent(null); }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
   const owner = role === 'owner';
-  const items = [
-    { id: 'shop', icon: Store, label: 'بيانات الصالون', tone: 'accent' },
-    { id: 'services', icon: Scissors, label: 'الخدمات والأسعار', tone: 'accent' },
-    { id: 'hours', icon: Clock3, label: 'ساعات العمل', tone: 'orange' },
-    { id: 'packages', icon: Package, label: 'الباقات', tone: 'purple' },
-    { id: 'gifts', icon: Gift, label: 'بطاقات الهدايا', tone: 'blue' },
-    { id: 'booking', icon: Link2, label: 'رابط الحجز', tone: 'green' },
-    { id: 'smart', icon: SlidersHorizontal, label: 'القواعد الذكية', tone: 'purple' },
-    { id: 'templates', icon: MessageSquareText, label: 'نصوص الرسائل', tone: 'blue' },
-    cloudEnabled && owner && { id: 'whatsapp', icon: Bot, label: 'واتساب الذكي', tone: 'green' },
-    cloudEnabled && { id: 'audit', icon: History, label: 'سجل التعديلات', tone: 'red' },
-    { id: 'backup', icon: DatabaseBackup, label: 'النسخ الاحتياطي', tone: 'orange' },
-    owner && { id: 'plan', icon: CreditCard, label: 'الاشتراك', tone: 'green' },
-  ].filter(Boolean);
+  const groups = [
+    { title: 'الصالون', items: [
+      { id: 'shop', icon: Store, label: 'بيانات الصالون' },
+      { id: 'services', icon: Scissors, label: 'الخدمات والأسعار' },
+      { id: 'hours', icon: Clock3, label: 'ساعات العمل' },
+      { id: 'packages', icon: Package, label: 'الباقات' },
+      { id: 'gifts', icon: Gift, label: 'بطاقات الهدايا' },
+    ] },
+    { title: 'العملاء والرسائل', items: [
+      cloudEnabled && { id: 'booking', icon: Link2, label: 'رابط الحجز الأونلاين' },
+      cloudEnabled && owner && { id: 'whatsapp', icon: Bot, label: 'واتساب الذكي' },
+      { id: 'templates', icon: MessageSquareText, label: 'نصوص الرسائل' },
+      { id: 'smart', icon: SlidersHorizontal, label: 'القواعد الذكية' },
+    ] },
+    { title: 'الحساب', items: [
+      owner && { id: 'plan', icon: CreditCard, label: 'الاشتراك' },
+      cloudEnabled && { id: 'audit', icon: History, label: 'سجل التعديلات' },
+      { id: 'backup', icon: DatabaseBackup, label: 'النسخ الاحتياطي' },
+    ] },
+  ];
   const Sheets = { shop: ShopSettings, services: ServicesSettings, hours: HoursSettings, packages: PackagesSettings, gifts: GiftCards, booking: BookingSettings, smart: SmartSettings, templates: TemplatesSettings, whatsapp: WhatsAppSettings, audit: AuditLog, backup: Backup, plan: Plan };
   const Current = open && Sheets[open];
+  const setDigits = value => { if (value === digitStyle) return; try { localStorage.setItem('miqass-digits', JSON.stringify(value)); } catch { /* ignore */ } window.location.reload(); };
   return <div className="stack-lg">
-    <div className="tiles tiles-3">{items.map(item => <Tile key={item.id} icon={item.icon} label={item.label} tone={item.tone} onClick={() => setOpen(item.id)} />)}</div>
-    {cloudEnabled && <Section title="الفروع والحساب">
+    {groups.map(group => <Section key={group.title} title={group.title}>
+      <div className="list">{group.items.filter(Boolean).map(item => <Row key={item.id} leading={<span className="dot-icon tone-accent"><item.icon size={18} /></span>} title={item.label} onClick={() => setOpen(item.id)} />)}</div>
+    </Section>)}
+    <Section title="المظهر">
       <div className="list">
-        {shops.map(s => <Row key={s.id} leading={<Store size={18} />} title={s.name} subtitle={`${roleText[s.role]}${s.active ? '' : ' · يحتاج تفعيل'}`} trailing={s.id === shop.id ? <Badge tone="green">الحالي</Badge> : <Button size="sm" variant="secondary" onClick={() => switchShop(s.id)}>فتح</Button>} />)}
-        {owner && <Row leading={<Plus size={18} />} title="إضافة فرع جديد" subtitle="كل فرع بمواعيده وفريقه واشتراكه" onClick={addBranch} />}
-        <Row leading={<LogOut size={18} />} title="تسجيل الخروج" onClick={() => auth.signOut()} />
+        <Row title="الألوان" trailing={<Segmented size="sm" items={[{ id: 'light', label: 'فاتح' }, { id: 'dark', label: 'داكن' }, { id: 'system', label: 'تلقائي' }]} value={theme.mode} onChange={theme.setMode} />} />
+        <Row title="شكل الأرقام" trailing={<Segmented size="sm" items={[{ id: 'latn', label: '123' }, { id: 'arab', label: '١٢٣' }]} value={digitStyle} onChange={setDigits} />} />
+      </div>
+    </Section>
+    {cloudEnabled && <Section title="الفروع">
+      <div className="list">
+        {shops.map(s => <Row key={s.id} leading={<span className="dot-icon tone-blue"><Store size={18} /></span>} title={s.name} subtitle={`${roleText[s.role]}${s.active ? '' : ' · يحتاج تفعيل'}`} trailing={s.id === shop.id ? <Badge tone="green">الحالي</Badge> : <Button size="sm" variant="secondary" onClick={() => switchShop(s.id)}>فتح</Button>} />)}
+        {owner && <Row leading={<span className="dot-icon tone-green"><Plus size={18} /></span>} title="إضافة فرع جديد" subtitle="كل فرع بمواعيده وفريقه واشتراكه" onClick={addBranch} />}
       </div>
     </Section>}
+    {cloudEnabled && <Button variant="danger-ghost" icon={LogOut} block onClick={() => auth.signOut()}>تسجيل الخروج</Button>}
     {Current && <Current onClose={() => setOpen(null)} />}
   </div>;
 }
@@ -249,7 +264,7 @@ function AuditLog({ onClose }) {
     {rows === null ? <div className="loader" /> : rows.length ? <div className="list">{rows.map(r => <Row key={r.id}
       leading={<Badge tone={r.action === 'delete' ? 'red' : r.action === 'create' ? 'green' : 'blue'}>{actions[r.action]}</Badge>}
       title={`${names[r.collection] || r.collection}${describe(r) ? ` · ${describe(r)}` : ''}`}
-      subtitle={new Date(r.at).toLocaleString('ar-QA', { dateStyle: 'medium', timeStyle: 'short' })} />)}</div>
+      subtitle={new Date(r.at).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short' })} />)}</div>
       : <Empty icon={ShieldCheck} title="لا تعديلات بعد" />}
   </Sheet>;
 }
@@ -275,11 +290,11 @@ function Plan({ onClose }) {
   const { license, data, shop } = useApp();
   return <Sheet title="الاشتراك" onClose={onClose} size="lg">
     <div className="stack">
-      <Alert tone={license.status === 'paid' ? 'green' : 'orange'} icon={CreditCard}>{license.status === 'paid' ? `مشترك (${plans.find(p => p.id === license.plan)?.name || license.plan}) — ${license.plan === 'lifetime' ? 'مدى الحياة' : `حتى ${new Date(license.until).toLocaleDateString('ar-QA')}`}` : `فترة تجربة — باقٍ ${license.daysLeft} أيام`}</Alert>
+      <Alert tone={license.status === 'paid' ? 'green' : 'orange'} icon={CreditCard}>{license.status === 'paid' ? `مشترك (${plans.find(p => p.id === license.plan)?.name || license.plan}) — ${license.plan === 'lifetime' ? 'مدى الحياة' : `حتى ${new Date(license.until).toLocaleDateString(LOCALE)}`}` : `فترة تجربة — باقٍ ${license.daysLeft} أيام`}</Alert>
       <div className="plans">{plans.map(plan => <div key={plan.id} className={`plan ${plan.best ? 'plan-best' : ''}`}>
         {plan.best && <span className="plan-tag">الأوفر</span>}
         <strong>{plan.name}</strong>
-        <div className="plan-price">{plan.price.toLocaleString('ar-QA')} <small>ر.ق {plan.period}</small></div>
+        <div className="plan-price">{plan.price.toLocaleString(LOCALE)} <small>ر.ق {plan.period}</small></div>
         <p><Check size={14} /> {plan.note}</p>
         <Button variant={plan.best ? 'primary' : 'secondary'} block onClick={() => openExternal(buyLink(data.shopName || shop.name, plan))}>اشترك</Button>
       </div>)}</div>

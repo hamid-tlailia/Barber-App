@@ -100,6 +100,7 @@ export const auth = {
 };
 
 const rpc = async (name, args) => {
+  if (!supabase) throw new Error('هذه الميزة تحتاج الحساب السحابي');
   const { data, error } = await supabase.rpc(name, args);
   if (error) throw error;
   return data;
@@ -162,5 +163,5 @@ export const errorText = error => {
 };
 
 // رابط الحجز العام يجب أن يشير لنسخة الويب المنشورة (وليس لعنوان تطبيق أندرويد الداخلي).
-const publicBase = (import.meta.env?.VITE_PUBLIC_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+export const publicBase = (import.meta.env?.VITE_PUBLIC_URL || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
 export const bookingUrl = slug => (slug ? `${publicBase}/?book=${slug}` : '');

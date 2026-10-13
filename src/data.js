@@ -183,10 +183,14 @@ export const loadLegacyData = () => {
 
 /* ───────────── التنسيق ───────────── */
 
+// شكل الأرقام: 123 (افتراضي) أو ١٢٣ — يُختار من الإعدادات ويُحفظ على الجهاز.
+export const digitStyle = (() => { try { return JSON.parse(localStorage.getItem('miqass-digits')) || 'latn'; } catch { return 'latn'; } })();
+export const LOCALE = digitStyle === 'arab' ? 'ar-QA' : 'ar-QA-u-nu-latn';
+
 export const dateLabel = (date, options = { weekday: 'long', day: 'numeric', month: 'long' }) =>
-  new Intl.DateTimeFormat('ar-QA', options).format(new Date(`${date}T12:00:00`));
-export const num = value => new Intl.NumberFormat('ar-QA', { maximumFractionDigits: 1 }).format(value || 0);
-export const money = value => `${new Intl.NumberFormat('ar-QA', { maximumFractionDigits: 2 }).format(value || 0)} ر.ق`;
+  new Intl.DateTimeFormat(LOCALE, options).format(new Date(`${date}T12:00:00`));
+export const num = value => new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 }).format(value || 0);
+export const money = value => `${new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 2 }).format(value || 0)} ر.ق`;
 export const timeLabel = time => {
   if (!time) return '';
   const [hours, minutes] = time.split(':').map(Number);

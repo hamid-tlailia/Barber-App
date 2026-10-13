@@ -1,7 +1,7 @@
 // قفل التطبيق بعد انتهاء التجربة، مع إبقاء خيار تصدير البيانات لأن البيانات ملك صاحب الصالون.
 import React from 'react';
 import { Check, Download, Lock as LockIcon, LogOut, MessageCircle, Sparkles, Store, Timer } from 'lucide-react';
-import { localISO, money, toCSV } from '../data.js';
+import { localISO, money, toCSV, LOCALE } from '../data.js';
 import { roi } from '../smart.js';
 import { TRIAL_DAYS, buyLink, plans } from '../lib/license.js';
 import { auth, cloudEnabled } from '../lib/sync.js';
@@ -38,7 +38,7 @@ export default function Lock({ shop, data, license, shops, switchShop }) {
       <div className="plans">{plans.map(plan => <div key={plan.id} className={`plan ${plan.best ? 'plan-best' : ''}`}>
         {plan.best && <span className="plan-tag">الأوفر</span>}
         <strong>{plan.name}</strong>
-        <div className="plan-price">{plan.price.toLocaleString('ar-QA')} <small>ر.ق {plan.period}</small></div>
+        <div className="plan-price">{plan.price.toLocaleString(LOCALE)} <small>ر.ق {plan.period}</small></div>
         <p><Check size={14} /> {plan.note}</p>
         <Button variant={plan.best ? 'primary' : 'secondary'} icon={MessageCircle} block onClick={() => openExternal(buyLink(data.shopName, plan))}>اشترك عبر واتساب</Button>
       </div>)}</div>

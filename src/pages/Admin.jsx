@@ -1,7 +1,7 @@
 // لوحة المطوّر (أنت): متابعة الصالونات في التجربة وتفعيل الاشتراكات بعد الدفع.
 import React, { useEffect, useState } from 'react';
 import { Ban, CalendarPlus, Check, Crown, MessageCircle, RefreshCw, Store } from 'lucide-react';
-import { num, whatsappLink } from '../data.js';
+import { num, whatsappLink, LOCALE } from '../data.js';
 import { api, errorText } from '../lib/sync.js';
 import { Alert, Badge, Button, Empty, Field, Row, SearchBox, Segmented, Sheet, Stat, openExternal, useApp } from '../ui.jsx';
 
@@ -46,10 +46,10 @@ export default function Admin() {
       <div className="stack">
         <div className="list">
           <Row title="الحالة" trailing={<Badge tone={labels[statusOf(current)][1]}>{labels[statusOf(current)][0]}</Badge>} />
-          <Row title="تاريخ التسجيل" trailing={new Date(current.created_at).toLocaleDateString('ar-QA')} />
-          <Row title="نهاية التجربة" trailing={new Date(current.trial_ends_at).toLocaleDateString('ar-QA')} />
-          {current.paid_until && <Row title="مدفوع حتى" trailing={new Date(current.paid_until).toLocaleDateString('ar-QA')} />}
-          <Row title="آخر نشاط" trailing={current.last_activity ? new Date(current.last_activity).toLocaleDateString('ar-QA') : '—'} />
+          <Row title="تاريخ التسجيل" trailing={new Date(current.created_at).toLocaleDateString(LOCALE)} />
+          <Row title="نهاية التجربة" trailing={new Date(current.trial_ends_at).toLocaleDateString(LOCALE)} />
+          {current.paid_until && <Row title="مدفوع حتى" trailing={new Date(current.paid_until).toLocaleDateString(LOCALE)} />}
+          <Row title="آخر نشاط" trailing={current.last_activity ? new Date(current.last_activity).toLocaleDateString(LOCALE) : '—'} />
           <Row title="حجم الاستخدام" trailing={`${num(current.records)} سجل`} />
         </div>
         {current.phone && <Button variant="secondary" icon={MessageCircle} block onClick={() => openExternal(whatsappLink(current.phone, `مرحباً ${current.name} 👋 كيف وجدتم تجربة تطبيق مِقص؟`))}>تواصل مع الصالون</Button>}

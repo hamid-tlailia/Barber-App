@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Check, Copy, KeyRound, MessageCircle, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import { money, num, roleText, uid, whatsappLink } from '../data.js';
 import { commissions } from '../smart.js';
-import { api, cloudEnabled, errorText } from '../lib/sync.js';
+import { api, cloudEnabled, errorText, publicBase } from '../lib/sync.js';
+
+const appLink = /localhost|capacitor:/.test(publicBase) ? '' : publicBase;
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, openExternal, useApp } from '../ui.jsx';
 
 const ranges = [{ id: 'today', label: 'اليوم' }, { id: 'week', label: 'الأسبوع' }, { id: 'month', label: 'الشهر' }, { id: 'lastMonth', label: 'الشهر الماضي' }];
@@ -82,7 +84,7 @@ function Accounts({ onClose }) {
   const invite = async () => {
     try { setCode(await api.createInvite(shop.id, role, staffId)); } catch (e) { setError(errorText(e)); }
   };
-  const inviteText = `انضم لفريق ${data.shopName} على تطبيق مِقص:\n1) حمّل التطبيق وأنشئ حساباً\n2) اختر «لدي رمز دعوة» وأدخل: ${code}`;
+  const inviteText = `انضم لفريق ${data.shopName} على تطبيق مِقص:\n1) افتح التطبيق${appLink ? ` (${appLink})` : ''} وأنشئ حساباً\n2) اختر «أنا موظف ولدي رمز دعوة» وأدخل: ${code}`;
   const staffMember = data.staff.find(s => s.id === staffId);
   return <Sheet title="حسابات الفريق" subtitle="كل موظف يدخل بحسابه وصلاحياته" onClose={onClose}>
     <div className="stack">
