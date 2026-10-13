@@ -19,7 +19,7 @@ import { prefs } from './lib/store.js';
 import { api, auth, cloudEnabled } from './lib/sync.js';
 import { licenseState, localShop } from './lib/license.js';
 import { useShopData } from './useShopData.js';
-import { initNative, notifyNow, scheduleAppointmentAlerts, setSystemBarsTheme } from './lib/native.js';
+import { initNative, notifyNow, registerPush, scheduleAppointmentAlerts, setSystemBarsTheme } from './lib/native.js';
 import Home from './pages/Home.jsx';
 import Appointments from './pages/Appointments.jsx';
 import Clients from './pages/Clients.jsx';
@@ -145,7 +145,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
     const a = list[0];
     const name = a.clientName || 'عميل جديد';
     const text = list.length > 1 ? `${list.length} حجوزات جديدة أونلاين` : `حجز جديد: ${name} — ${dateLabel(a.date, { weekday: 'long' })} ${timeLabel(a.time)}`;
-    notifyNow('📅 حجز جديد', text);
+    if (!(import.meta.env.VITE_PUSH === '1' && document.hidden)) notifyNow('📅 حجز جديد', text); // في الخلفية يصل إشعار Firebase بدلاً منه
     toastRef.current?.(text, 'success', { label: 'فتح', run: () => goRef.current?.('appointments', { open: a.id }) });
   }, []);
   const toastRef = useRef(null);
@@ -191,6 +191,12 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
         services: serviceTemplates[seed.kind].filter(s => seed.services.includes(s.name)).map(s => ({ id: uid(), processing: 0, deposit: 0, online: true, ...s })) }));
     }
   }, [Boolean(data)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // تسجيل الجهاز لإشعارات Firebase (حجز جديد حتى والتطبيق مغلق).
+  useEffect(() => {
+    if (!cloudEnabled || shop.id === 'local') return;
+    registerPush(token => api.saveDeviceToken(shop.id, token).catch(() => {}), payload => { if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId }); });
+  }, [shop.id]);
 
   useEffect(() => { if (data) scheduleAppointmentAlerts(data, shop.staff_id); }, [data?.appointments]); // eslint-disable-line react-hooks/exhaustive-deps
 

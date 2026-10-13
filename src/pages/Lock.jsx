@@ -27,13 +27,16 @@ export const exportAll = data => {
 
 export default function Lock({ shop, data, license, shops, switchShop }) {
   const value = roi(data, '2000-01-01');
+  // الموظفون يتوقفون مع صاحب الصالون، لكن لا نعرض لهم الأسعار ولا التصدير.
+  const owner = (shop.role || 'owner') === 'owner';
   return <div className="auth lock">
     <div className="auth-card auth-card-wide">
       <div className="auth-brand">
         <span className="brand-mark brand-mark-lg lock-mark"><LockIcon size={28} /></span>
         <h1>{license.status === 'suspended' ? 'الحساب موقوف' : license.status === 'expired' ? 'انتهى الاشتراك' : 'انتهت فترة التجربة'}</h1>
-        <p>بياناتك محفوظة بأمان. اشترك لتكمل العمل من حيث توقفت.</p>
+        <p>{owner ? 'بياناتك محفوظة بأمان. اشترك لتكمل العمل من حيث توقفت.' : `اشتراك «${data.shopName || shop.name}» متوقف حالياً. تواصل مع صاحب الصالون لتفعيله — سيفتح التطبيق تلقائياً بعدها.`}</p>
       </div>
+      {owner && <>
       {value.total > 0 && <div className="roi-hero"><Sparkles size={20} /><span>خلال التجربة حقق لك التطبيق</span><strong>{money(value.total)}</strong><small>{value.lines.filter(l => l.count).map(l => `${l.count} ${l.label}`).join(' · ')}</small></div>}
       <div className="plans">{plans.map(plan => <div key={plan.id} className={`plan ${plan.best ? 'plan-best' : ''}`}>
         {plan.best && <span className="plan-tag">الأوفر</span>}
@@ -43,8 +46,9 @@ export default function Lock({ shop, data, license, shops, switchShop }) {
         <Button variant={plan.best ? 'primary' : 'secondary'} icon={MessageCircle} block onClick={() => openExternal(buyLink(data.shopName, plan))}>اشترك عبر واتساب</Button>
       </div>)}</div>
       <p className="muted center small">بعد الدفع نفعّل حسابك خلال دقائق — يفتح التطبيق تلقائياً.</p>
+      </>}
       <div className="row-buttons center">
-        <Button variant="ghost" icon={Download} onClick={() => exportAll(data)}>تصدير بياناتي</Button>
+        {owner && <Button variant="ghost" icon={Download} onClick={() => exportAll(data)}>تصدير بياناتي</Button>}
         {shops.length > 1 && shops.filter(s => s.id !== shop.id).map(s => <Button key={s.id} variant="ghost" icon={Store} onClick={() => switchShop(s.id)}>{s.name}</Button>)}
         {cloudEnabled && <Button variant="ghost" icon={LogOut} onClick={() => auth.signOut()}>خروج</Button>}
       </div>

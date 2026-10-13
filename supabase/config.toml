@@ -7,3 +7,6 @@ verify_jwt = false
 
 [functions.daily-report]
 verify_jwt = false
+
+[functions.notify-booking]
+verify_jwt = false

@@ -135,6 +135,11 @@ export const api = {
     p_shop: shop, p_phone_number_id: v.phoneNumberId || '', p_token: v.token || '', p_owner_whatsapp: v.ownerWhatsapp || '',
     p_reminders: Boolean(v.reminders), p_assistant: Boolean(v.assistant), p_daily: Boolean(v.daily),
   }),
+  saveDeviceToken: async (shop, token) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('device_tokens').upsert({ token, user_id: user.id, shop_id: shop, platform: 'android', updated_at: new Date().toISOString() });
+  },
   publicShop: slug => rpc('public_shop', { p_slug: slug }),
   publicBook: v => rpc('public_book', {
     p_slug: v.slug, p_name: v.name, p_phone: v.phone, p_service_ids: v.serviceIds, p_staff: v.staffId || '', p_date: v.date, p_time: v.time, p_note: v.note || '',

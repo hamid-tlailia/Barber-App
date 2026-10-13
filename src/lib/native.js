@@ -70,3 +70,20 @@ export async function scheduleAppointmentAlerts(data, staffId) {
     });
   } catch { /* التنبيهات اختيارية */ }
 }
+
+// إشعارات Firebase (تصل حتى والتطبيق مغلق). تُفعَّل فقط عند بناء التطبيق مع google-services.json.
+let pushReady = false;
+export async function registerPush(saveToken, onOpen) {
+  if (!isNative || pushReady || import.meta.env?.VITE_PUSH !== '1') return;
+  pushReady = true;
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    let permission = await PushNotifications.checkPermissions();
+    if (permission.receive === 'prompt') permission = await PushNotifications.requestPermissions();
+    if (permission.receive !== 'granted') return;
+    await PushNotifications.createChannel({ id: 'bookings', name: 'الحجوزات الجديدة', importance: 5, sound: 'default', vibration: true }).catch(() => {});
+    await PushNotifications.addListener('registration', ({ value }) => saveToken(value));
+    await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => onOpen?.(notification.data || {}));
+    await PushNotifications.register();
+  } catch { pushReady = false; }
+}
