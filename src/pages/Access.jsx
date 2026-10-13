@@ -6,6 +6,7 @@ import { api, auth, errorText } from '../lib/sync.js';
 import { prefs } from '../lib/store.js';
 import { Alert, Button, Field, Steps, Tile, Toggle } from '../ui.jsx';
 import { TRIAL_DAYS } from '../lib/license.js';
+import { deviceId } from '../lib/native.js';
 import { L, isEn } from '../i18n.js';
 
 // أسهم الرجوع والتالي تتبع اتجاه الصفحة.
@@ -110,7 +111,7 @@ export function Onboarding({ onCreated, onJoined, onCancel, local = false }) {
   const create = async () => {
     setBusy(true); setError('');
     try {
-      const id = local ? 'local' : await api.createShop(name.trim(), kind, phone.trim());
+      const id = local ? 'local' : await api.createShop(name.trim(), kind, phone.trim(), await deviceId());
       prefs.set(`seed:${id}`, { kind, name: name.trim(), phone: phone.trim(), services, sample });
       if (local) prefs.set('local-setup', true);
       await onCreated(id);

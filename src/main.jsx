@@ -22,7 +22,7 @@ import { prefs } from './lib/store.js';
 import { api, auth, cloudEnabled } from './lib/sync.js';
 import { licenseState, localShop } from './lib/license.js';
 import { useShopData } from './useShopData.js';
-import { initNative, notifyNow, registerPush, scheduleAppointmentAlerts, setSystemBarsTheme } from './lib/native.js';
+import { deviceId, initNative, notifyNow, registerPush, scheduleAppointmentAlerts, setSystemBarsTheme } from './lib/native.js';
 import Home from './pages/Home.jsx';
 import Appointments from './pages/Appointments.jsx';
 import Clients from './pages/Clients.jsx';
@@ -214,6 +214,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
     payload => { if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId }); },
   ), [shop.id]);
   useEffect(() => { if (cloudEnabled && shop.id !== 'local') enablePush(); }, [enablePush]);
+  useEffect(() => { if (cloudEnabled && role === 'owner' && shop.id !== 'local') deviceId().then(id => id && api.registerDevice(shop.id, id).catch(() => {})); }, [shop.id, role]);
 
   useEffect(() => { if (data) scheduleAppointmentAlerts(data, shop.staff_id); }, [data?.appointments]); // eslint-disable-line react-hooks/exhaustive-deps
 

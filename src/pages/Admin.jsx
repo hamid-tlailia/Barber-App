@@ -91,7 +91,7 @@ export default function Admin() {
       const addons = [s.wa_addon && L('واتساب', 'WhatsApp'), s.ai_addon && 'AI'].filter(Boolean).join(' + ');
       const plan = statusOf(s) === 'paid' ? plans.find(p => p.id === s.plan)?.name : '';
       return <Row key={s.id} title={s.name} subtitle={[s.owner_email, plan, left > 0 && statusOf(s) !== 'suspended' ? L(`باقٍ ${num(left)} يوم`, `${days(num(left))} left`) : '', L(`${num(s.members)} حساب`, `${num(s.members)} ${Number(s.members) === 1 ? 'account' : 'accounts'}`), addons].filter(Boolean).join(' · ')}
-        trailing={<Badge tone={tone}>{label}</Badge>} onClick={() => setOpen(s.id)} />;
+        trailing={<span className="row-end">{s.duplicate_of && <Badge tone="red">{L('مكرر؟', 'Duplicate?')}</Badge>}<Badge tone={tone}>{label}</Badge></span>} onClick={() => setOpen(s.id)} />;
     })}</div> : <Empty icon={Store} title={L('لا نتائج', 'No results')} />}
 
     {current && <ShopSheet shop={current} act={act} onClose={() => setOpen(null)} />}
@@ -135,6 +135,7 @@ function ShopSheet({ shop, act, onClose }) {
         {status === 'grace' && <Row title={L('المهلة حتى', 'Grace until')} trailing={<strong className="red">{dateText(shop.grace_until)}</strong>} />}
         <Row title={L('آخر نشاط', 'Last activity')} trailing={shop.last_activity ? dateText(shop.last_activity) : '—'} />
       </div>
+      {shop.duplicate_of && <Alert tone="red">{L(`قد يكون نفس صاحب صالون «${shop.duplicate_of}» بحساب جديد (نفس الهاتف أو الجهاز) — لا تُمنح له تجربة جديدة تلقائياً.`, `May be the same owner as “${shop.duplicate_of}” with a new account (same phone or device) — no new free trial was granted automatically.`)}</Alert>}
       {shop.phone && <Button variant="secondary" icon={MessageCircle} block onClick={() => openExternal(whatsappLink(shop.phone, needsFollowUp(shop) ? reminderText(shop) : L(`مرحباً ${shop.name} 👋 كيف وجدتم تطبيق مِقص؟`, `Hello ${shop.name} 👋 How are you finding the Miqass app?`)))}>{L('تواصل مع الصالون', 'Contact salon')}</Button>}
 
       <Section title={L('الاشتراك', 'Subscription')}>

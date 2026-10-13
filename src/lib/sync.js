@@ -136,7 +136,8 @@ export const api = {
     const { data } = await supabase.from('app_admins').select('user_id').limit(1);
     return Boolean(data?.length);
   },
-  createShop: (name, kind, phone) => rpc('create_shop', { p_name: name, p_kind: kind, p_phone: phone }),
+  createShop: (name, kind, phone, device) => rpc('create_shop', { p_name: name, p_kind: kind, p_phone: phone, p_device: device || null }),
+  registerDevice: (shop, device) => rpc('register_device', { p_shop: shop, p_device: device }),
   updateShop: (shop, { name, kind, phone, slug }) => rpc('update_shop', { p_shop: shop, p_name: name, p_kind: kind, p_phone: phone, p_slug: slug || '' }),
   team: shop => rpc('shop_team', { p_shop: shop }),
   createInvite: (shop, role, staffId) => rpc('create_invite', { p_shop: shop, p_role: role, p_staff: staffId || '' }),

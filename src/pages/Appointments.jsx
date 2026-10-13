@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, Ban, BellRing, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight,
+  ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight,
   ListPlus, MapPin, MessageCircle, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
 import {
@@ -53,7 +53,7 @@ export default function Appointments() {
     <div className="day-nav">
       <IconButton icon={PrevChevron} label={L('السابق', 'Previous')} onClick={() => setStartDay(addDays(startDay, -7))} />
       <div className="day-strip">{days.map(d => <button type="button" key={d} className={`day ${d === date ? 'active' : ''} ${d === localISO() ? 'today' : ''}`} onClick={() => setDate(d)}>
-        <small>{dateLabel(d, { weekday: 'short' })}</small><strong>{dateLabel(d, { day: 'numeric' })}</strong>{counts[d] ? <i>{counts[d]}</i> : <i className="empty-dot" />}
+        <small>{dateLabel(d, { weekday: 'short' })}</small><strong>{dateLabel(d, { day: 'numeric' })}</strong>{counts[d] ? <i>{num(counts[d])}</i> : <i className="empty-dot" aria-label={L('لا حجوزات', 'No bookings')}><CalendarOff size={14} /></i>}
       </button>)}</div>
       <IconButton icon={NextChevron} label={L('التالي', 'Next')} onClick={() => setStartDay(addDays(startDay, 7))} />
     </div>

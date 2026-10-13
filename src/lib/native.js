@@ -26,6 +26,16 @@ export function setSystemBarsTheme(dark) {
   SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
 }
 
+// معرّف ثابت للجهاز (لمنع تكرار التجربة المجانية من نفس الهاتف بحساب جديد).
+export async function deviceId() {
+  try {
+    if (isNative) { const { Device } = await import('@capacitor/device'); return (await Device.getId()).identifier; }
+    let id = localStorage.getItem('miqass-device');
+    if (!id) { id = `web-${crypto.randomUUID()}`; localStorage.setItem('miqass-device', id); }
+    return id;
+  } catch { return ''; }
+}
+
 // إشعار فوري على الجهاز (حجز جديد مثلاً).
 let notifyId = 1000;
 export async function notifyNow(title, body) {
