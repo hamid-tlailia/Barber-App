@@ -77,9 +77,16 @@ export function buildReport(data, from, to, today = localISO()) {
   else for (let d = from; d <= end; d = addDays(d, 1)) { const k = bucket(d); if (keys.at(-1) !== k) keys.push(k); }
   const totals = {};
   for (const p of income) { const k = bucket(String(p.at).slice(0, 10)); totals[k] = (totals[k] || 0) + Number(p.amount || 0); }
-  const chart = keys.map(k => ({ label: k.length === 10 ? dateLabel(k, { day: 'numeric' }) : k.length === 7 ? dateLabel(`${k}-01`, { month: 'short' }) : k, value: totals[k] || 0 }));
+  // تسميات واضحة: يوم/شهر عندما تمتد الفترة عبر أكثر من شهر، وشهر/سنة للفترات الطويلة.
+  const multiMonth = new Set(keys.filter(k => k.length === 10).map(k => k.slice(0, 7))).size > 1;
+  const multiYear = new Set(keys.map(k => k.slice(0, 4))).size > 1;
+  const chart = keys.map(k => ({
+    label: k.length === 10 ? (multiMonth ? dateLabel(k, { day: 'numeric', month: 'numeric' }) : dateLabel(k, { day: 'numeric' }))
+      : k.length === 7 ? dateLabel(`${k}-01`, multiYear ? { month: 'numeric', year: '2-digit' } : { month: 'short' }) : k,
+    value: totals[k] || 0,
+  }));
 
-  return { appts, done, statuses, served, walkIns, newClients, payments, tips: sum(tipsList), tipsList, income, revenue, byMethod, redeemed, sales, salesByKind, productCost, expensesList, expenses, expensesByCategory, staff, topServices, unpaid, avgTicket, use, chart, span };
+  return { appts, done, statuses, served, walkIns, newClients, payments, tips: sum(tipsList), tipsList, income, revenue, byMethod, redeemed, sales, salesByKind, productCost, expensesList, expenses, expensesByCategory, staff, topServices, unpaid, avgTicket, use, chart, span, from, to };
 }
 
 // جداول التقرير الكاملة — نفس المحتوى لـ Excel و Word.
@@ -120,6 +127,9 @@ function reportTables(data, r, periodText) {
       ...r.payments.map(p => [String(p.at).slice(0, 10), clients[p.appointment.clientId]?.name || '', p.kind === 'tip' ? L('بقشيش', 'Tip') : p.kind === 'deposit' ? L('عربون', 'Deposit') : L('دفعة', 'Payment'), methodName(p.method), round(p.amount)])] },
   ];
 }
+
+// نطاق تواريخ الرسم مع السنة حتى لا تختلط الأشهر.
+const chartRange = r => r.from && r.to ? `${dateLabel(r.from, { day: 'numeric', month: 'short', year: 'numeric' })} – ${dateLabel(r.to, { day: 'numeric', month: 'short', year: 'numeric' })}` : '';
 
 export default function Reports() {
   const { data, license } = useApp();
@@ -173,7 +183,7 @@ export default function Reports() {
       <div className="roi-lines">{value.lines.filter(l => l.count).map(l => <span key={l.key}>{l.label}: <b>{num(l.count)}</b></span>)}{value.reminders > 0 && <span>{L('تذكيرات أُرسلت:', 'Reminders sent:')} <b>{num(value.reminders)}</b></span>}</div>
     </div>}
 
-    {r.chart.length > 1 && <Section title={r.span <= 31 ? L('الدخل اليومي', 'Daily income') : r.span <= 731 ? L('الدخل الشهري', 'Monthly income') : L('الدخل السنوي', 'Yearly income')}><Bars data={r.chart} format={v => num(Math.round(v))} /></Section>}
+    {r.chart.length > 1 && <Section title={`${r.span <= 31 ? L('الدخل اليومي', 'Daily income') : r.span <= 731 ? L('الدخل الشهري', 'Monthly income') : L('الدخل السنوي', 'Yearly income')} · ${chartRange(r)}`}><Bars data={r.chart} format={v => num(Math.round(v))} /></Section>}
 
     <Section title={L('الربح التقديري', 'Estimated profit')}>
       <div className="list">

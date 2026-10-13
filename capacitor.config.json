@@ -7,8 +7,9 @@
   },
   "plugins": {
     "SplashScreen": {
-      "launchAutoHide": false,
-      "backgroundColor": "#121110",
+      "launchAutoHide": true,
+      "launchShowDuration": 0,
+      "launchFadeOutDuration": 150,
       "showSpinner": false
     },
     "LocalNotifications": {

@@ -1,10 +1,10 @@
 // لوحة المالك (أنت): متابعة الصالونات، تفعيل الاشتراكات والمهلة، الإضافات المدفوعة ونصوص الرسائل لكل صالون.
 import React, { useEffect, useState } from 'react';
 import {
-  Ban, Bot, CalendarClock, CalendarPlus, Check, Copy, Crown, Eye, EyeOff, MessageCircle, MessageSquareText, RefreshCw, Store, Timer, UsersRound,
+  Ban, Bot, CalendarClock, CalendarPlus, Check, Copy, Crown, ExternalLink, Eye, EyeOff, MessageCircle, MessageSquareText, RefreshCw, Store, Timer, UsersRound,
 } from 'lucide-react';
 import { defaultSettings, num, roleText, whatsappLink, LOCALE } from '../data.js';
-import { api, errorText } from '../lib/sync.js';
+import { api, bookingUrl, errorText } from '../lib/sync.js';
 import { plans } from '../lib/license.js';
 import { prefs } from '../lib/store.js';
 import { notifyNow } from '../lib/native.js';
@@ -74,8 +74,8 @@ export default function Admin() {
     <div className="stats">
       <Stat icon={Store} label={L('كل الصالونات', 'All salons')} value={num(shops.length)} />
       <Stat icon={Crown} tone="green" label={L('مشتركون', 'Subscribed')} value={num(counts.paid || 0)} onClick={() => setFilter('paid')} />
-      <Stat tone="blue" label={L('في التجربة', 'On trial')} value={num(counts.trial || 0)} onClick={() => setFilter('trial')} />
-      <Stat tone="red" label={L('منتهي', 'Expired')} value={num((counts.expired || 0) + (counts.grace || 0))} onClick={() => setFilter('expired')} />
+      <Stat icon={Timer} tone="blue" label={L('في التجربة', 'On trial')} value={num(counts.trial || 0)} onClick={() => setFilter('trial')} />
+      <Stat icon={Ban} tone="red" label={L('منتهي', 'Expired')} value={num((counts.expired || 0) + (counts.grace || 0))} onClick={() => setFilter('expired')} />
     </div>
     {followUp.length > 0 && <Section title={L(`تحتاج متابعة (${num(followUp.length)})`, `Needs follow-up (${num(followUp.length)})`)}>
       <div className="list">{followUp.map(s => <Row key={s.id} leading={<span className="dot-icon tone-orange"><Timer size={18} /></span>} title={s.name}
@@ -179,9 +179,9 @@ function Overview({ shopId }) {
   return <Section title={L('نظرة عامة على الصالون', 'Salon overview')}>
     <div className="stats">
       <Stat icon={UsersRound} label={L('الموظفون', 'Staff')} value={num(v.staff)} />
-      <Stat label={L('العملاء', 'Clients')} value={num(v.clients)} />
-      <Stat label={L('مواعيد آخر 30 يوماً', 'Appointments, last 30 days')} value={num(v.appointments_30d)} />
-      <Stat label={L('مواعيد قادمة', 'Upcoming appointments')} value={num(v.upcoming)} />
+      <Stat icon={UsersRound} tone="blue" label={L('العملاء', 'Clients')} value={num(v.clients)} />
+      <Stat icon={CalendarClock} tone="green" label={L('مواعيد آخر 30 يوماً', 'Appointments, last 30 days')} value={num(v.appointments_30d)} />
+      <Stat icon={CalendarPlus} tone="orange" label={L('مواعيد قادمة', 'Upcoming appointments')} value={num(v.upcoming)} />
     </div>
     <div className="list">
       <Row title={L('ساعات العمل', 'Working hours')} trailing={v.hours ? `${v.hours.open} – ${v.hours.close}` : '—'} />
@@ -190,7 +190,9 @@ function Overview({ shopId }) {
       <Row title={L('كل المواعيد', 'All appointments')} trailing={num(v.appointments)} />
       <Row title={L('حجوزات أونلاين وواتساب', 'Online & WhatsApp bookings')} trailing={num(v.online)} />
       <Row title={L('المنتجات', 'Products')} trailing={num(v.products)} />
-      <Row title={L('رابط الحجز', 'Booking link')} trailing={v.slug ? <span dir="ltr">{v.slug}</span> : L('غير مفعّل', 'Not enabled')} />
+      {v.slug ? <Row title={L('رابط الحجز', 'Booking link')} subtitle={<span dir="ltr" className="link-text">{bookingUrl(v.slug)}</span>}
+        trailing={<Button size="sm" variant="secondary" icon={ExternalLink} onClick={() => openExternal(bookingUrl(v.slug))}>{L('فتح', 'Open')}</Button>} />
+        : <Row title={L('رابط الحجز', 'Booking link')} trailing={L('غير مفعّل', 'Not enabled')} />}
       <Row title={L('أجهزة الإشعارات', 'Notification devices')} trailing={num(v.devices)} />
     </div>
     <div className="list">{(v.members || []).map((m, i) => <Row key={i} title={m.name} subtitle={roleText[m.role] || m.role} trailing={m.suspended ? <Badge tone="muted">{L('موقوف', 'Suspended')}</Badge> : null} />)}</div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Award, CalendarPlus, Camera, Check, Contact, FileUp, FlaskConical, Image, MessageCircle, Package, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound,
+  Award, CalendarCheck, CalendarPlus, Camera, Check, Contact, FileUp, FlaskConical, Image, MessageCircle, Package, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound, Wallet,
 } from 'lucide-react';
 import { appointmentTotal, dateLabel, importClients, localISO, money, num, phoneDigits, samePhone, serviceNames, statusText, uid, whatsappLink } from '../data.js';
 import { clientStats, loyaltyPoints, noShowRisk } from '../smart.js';
@@ -146,8 +146,8 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
 
       {tab === 'overview' && <>
         <div className="stats stats-3">
-          <Stat label={L('زيارات', 'Visits')} value={num(stats.visits)} />
-          {role !== 'staff' && <Stat label={L('إجمالي الإنفاق', 'Total spent')} tone="green" value={money(stats.spent)} />}
+          <Stat icon={CalendarCheck} label={L('زيارات', 'Visits')} value={num(stats.visits)} />
+          {role !== 'staff' && <Stat icon={Wallet} label={L('إجمالي الإنفاق', 'Total spent')} tone="green" value={money(stats.spent)} />}
           <Stat icon={Award} label={L('نقاط الولاء', 'Loyalty points')} tone="purple" value={num(points)} />
         </div>
         <div className="list">

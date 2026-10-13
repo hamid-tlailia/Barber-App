@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowDownToLine, ArrowUpFromLine, Boxes, Check, Download, PackagePlus, Send, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, Boxes, Check, Download, PackagePlus, Send, Trash2, TriangleAlert, Wallet } from 'lucide-react';
 import { localISO, money, num, toCSV, uid } from '../data.js';
 import { stockForecast } from '../smart.js';
 import { Alert, Badge, Button, Confirm, Empty, Field, Meter, Row, SearchBox, Section, Segmented, Sheet, Stat, download, openExternal, useApp, NumInput } from '../ui.jsx';
@@ -25,7 +25,7 @@ export default function Inventory() {
     <div className="stats">
       <Stat icon={Boxes} label={L('منتجات', 'Products')} value={num(data.products.length)} />
       <Stat icon={TriangleAlert} tone={low.length ? 'red' : 'green'} label={L('تحتاج طلب', 'Need reorder')} value={num(low.length)} onClick={() => setFilter('low')} />
-      {isManager && <Stat label={L('قيمة المخزون', 'Stock value')} tone="blue" value={money(value)} />}
+      {isManager && <Stat icon={Wallet} label={L('قيمة المخزون', 'Stock value')} tone="blue" value={money(value)} />}
     </div>
     {low.length > 0 && <div className="auto-card">
       <span className="tile-icon tone-red"><TriangleAlert size={24} /></span>

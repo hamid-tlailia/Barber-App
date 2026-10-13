@@ -60,6 +60,8 @@ export const PAGES = {
   admin: { label: L('لوحة المطوّر', 'Developer panel'), icon: Crown, component: Admin },
 };
 const TABS = ['home', 'appointments', 'clients', 'checkout', 'more'];
+// أسماء قصيرة لشريط التبويبات حتى تتسع بالتساوي.
+const TAB_LABELS = { appointments: () => L('المواعيد', 'Bookings'), checkout: () => L('الدفع', 'Pay') };
 
 function useTheme() {
   const [mode, setMode] = useState(() => prefs.get('theme', 'system'));
@@ -274,7 +276,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
 
       <nav className="tabbar">{tabs.map(id => {
         const Icon = PAGES[id].icon;
-        return <button type="button" key={id} className={page === id || (id === 'more' && !tabs.includes(page)) ? 'active' : ''} onClick={() => go(id)}><Icon size={22} /><span>{id === 'clients' ? vocab.clients : PAGES[id].label.split(' ')[0]}</span></button>;
+        return <button type="button" key={id} className={page === id || (id === 'more' && ['messages', 'reports', 'inventory', 'team'].includes(page)) ? 'active' : ''} onClick={() => go(id)}><Icon size={22} /><span>{id === 'clients' ? vocab.clients : TAB_LABELS[id]?.() || PAGES[id].label.split(' ')[0]}</span></button>;
       })}</nav>
       <Toast toast={toast} onClose={closeToast} />
     </div>

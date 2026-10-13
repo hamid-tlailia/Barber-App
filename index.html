@@ -8,11 +8,13 @@
     <script>
       (() => {
         try {
-          const mode = localStorage.getItem('miqass-theme-mode-v1') || 'system';
+          let mode = 'system'; try { mode = JSON.parse(localStorage.getItem('miqass-theme')) || 'system'; } catch { /* default */ }
           const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
           const theme = dark ? 'dark' : 'light';
           document.documentElement.dataset.theme = theme;
           document.documentElement.style.colorScheme = theme;
+          document.documentElement.style.background = dark ? '#121110' : '#f6f4ef';
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#121110' : '#f6f4ef');
         } catch { /* The app applies its default theme after loading. */ }
       })();
     </script>

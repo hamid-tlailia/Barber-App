@@ -343,7 +343,7 @@ function AuditLog({ onClose }) {
           <strong>{AUDIT_NAMES[r.collection] || r.collection}{title ? ` · ${title}` : ''}</strong>
         </div>
         {lines.length > 0 && <ul className="audit-lines">{lines.map((line, i) => <li key={i}>{line}</li>)}</ul>}
-        <small className="muted">{actor(r)} · {new Date(r.at).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short' })}</small>
+        <div className="audit-meta"><Badge tone={!r.user_id ? 'muted' : people[r.user_id]?.role === 'owner' ? 'orange' : 'purple'}>{actor(r)}</Badge><small className="muted" dir="auto">{new Date(r.at).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short' })}</small></div>
       </div>;
     })}</div>
       : <Empty icon={ShieldCheck} title={L('لا تعديلات بعد', 'No activity yet')} />}
