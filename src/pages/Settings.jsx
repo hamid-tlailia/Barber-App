@@ -3,9 +3,9 @@ import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
-import { dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, uid, whatsappLink, LOCALE } from '../data.js';
+import { dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
-import { SALES_WHATSAPP, buyLink, plans } from '../lib/license.js';
+import { addonLink, addons, buyLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { notifyNow, pushState, pushSupported } from '../lib/native.js';
@@ -227,17 +227,16 @@ function TemplatesSettings({ onClose }) {
 }
 
 // صاحب الصالون يرى التفضيلات فقط؛ الربط والمفاتيح يضعها مدير المنصة بعد الاشتراك في الإضافة.
-const ADDONS = {
-  wa: { title: 'واتساب الذكي', points: ['تذكير تلقائي لكل عميل قبل موعده', 'العميل يرد 1 للتأكيد أو 2 للإلغاء ويتحدث الجدول وحده', 'تقرير يومي لك كل ليلة: الدخل والمواعيد والغياب'] },
-  ai: { title: 'المساعد الذكي (AI)', points: ['يرد على عملائك في واتساب 24/7 بالعربي', 'يجيب عن الأسعار ويقترح الأوقات ويحجز مباشرة', 'لا تفوتك حجوزات الليل وأوقات الانشغال'] },
-};
-
+// كل إضافة اشتراك منفصل فوق الباقة، ونعرض سعرها بوضوح قبل الطلب.
 function AddonOffer({ id, shopName }) {
-  const addon = ADDONS[id];
+  const addon = addons.find(a => a.id === id);
+  const required = addon.requires && addons.find(a => a.id === addon.requires);
   return <div className="addon-offer">
-    <strong>{addon.title}</strong>
+    <div className="addon-head"><strong>{addon.name}</strong><Badge tone="blue">اشتراك إضافي</Badge></div>
+    <div className="addon-price">+{addon.monthly.toLocaleString(LOCALE)} <small>ر.ق / شهر</small> <span className="muted small">أو {addon.yearly.toLocaleString(LOCALE)} ر.ق / سنة</span></div>
     <ul>{addon.points.map(p => <li key={p}><Check size={14} /> {p}</li>)}</ul>
-    <Button variant="secondary" icon={MessageSquareText} block onClick={() => openExternal(whatsappLink(SALES_WHATSAPP, `مرحباً، أريد تفعيل إضافة «${addon.title}» لصالون ${shopName}`))}>اطلب التفعيل</Button>
+    <small className="muted">يُضاف إلى اشتراكك في التطبيق ولا يشمله{required ? ` · يتطلب «${required.name}»` : ''}.</small>
+    <Button variant="secondary" icon={MessageSquareText} block onClick={() => openExternal(addonLink(shopName, addon))}>اطلب التفعيل</Button>
   </div>;
 }
 
@@ -258,7 +257,7 @@ function WhatsAppSettings({ onClose }) {
   return <Sheet title="واتساب الذكي" subtitle="أتمتة كاملة عبر WhatsApp Business" onClose={onClose} footer={v?.waAddon && <Button block icon={Check} onClick={save}>حفظ</Button>}>
     <Alert>{error}</Alert>
     {!v ? !error && <div className="loader" /> : !v.waAddon ? <div className="stack">
-      <p className="muted small">إضافات اختيارية لصالونك — نفعّلها لك خلال دقائق بعد الاشتراك.</p>
+      <p className="muted small">إضافات اختيارية باشتراك منفصل عن باقة التطبيق — نفعّلها لك خلال دقائق بعد الدفع.</p>
       <AddonOffer id="wa" shopName={shopName} />
       <AddonOffer id="ai" shopName={shopName} />
     </div> : <div className="stack">
@@ -324,6 +323,9 @@ function Plan({ onClose }) {
         <p><Check size={14} /> {plan.note}</p>
         <Button variant={plan.best ? 'primary' : 'secondary'} block onClick={() => openExternal(buyLink(data.shopName || shop.name, plan))}>اشترك</Button>
       </div>)}</div>
+      {cloudEnabled && <Section title="إضافات اختيارية (اشتراك منفصل)">
+        <div className="stack">{addons.map(a => <AddonOffer key={a.id} id={a.id} shopName={data.shopName || shop.name} />)}</div>
+      </Section>}
     </div>
   </Sheet>;
 }

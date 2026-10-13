@@ -41,4 +41,12 @@ export const plans = [
   { id: 'lifetime', name: 'مدى الحياة', price: 2999, note: 'دفعة واحدة + 499 ر.ق سنوياً للسحابة والدعم', period: 'مرة واحدة' },
 ];
 
+// إضافات اختيارية فوق الباقة الأساسية — اشتراك منفصل بسعر واضح للعميل.
+export const addons = [
+  { id: 'wa', name: 'واتساب الذكي', monthly: 49, yearly: 490, points: ['تذكير تلقائي لكل عميل قبل موعده', 'العميل يرد 1 للتأكيد أو 2 للإلغاء ويتحدث الجدول وحده', 'تقرير يومي لك كل ليلة: الدخل والمواعيد والغياب'] },
+  { id: 'ai', name: 'المساعد الذكي (AI)', monthly: 99, yearly: 990, requires: 'wa', points: ['يرد على عملائك في واتساب 24/7 بالعربي', 'يجيب عن الأسعار ويقترح الأوقات ويحجز مباشرة', 'لا تفوتك حجوزات الليل وأوقات الانشغال'] },
+];
+
+export const addonLink = (shopName, addon) => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(`مرحباً، أرغب في إضافة «${addon.name}» (${addon.monthly} ر.ق شهرياً أو ${addon.yearly} ر.ق سنوياً) لصالون «${shopName || ''}» في تطبيق مِقص.`)}`;
+
 export const buyLink = (shopName, plan) => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(`مرحباً، أرغب في تفعيل اشتراك ${plan?.name || ''} لصالون «${shopName || ''}» في تطبيق مِقص.`)}`;
