@@ -31,7 +31,7 @@ import Reports from './pages/Reports.jsx';
 import Settings from './pages/Settings.jsx';
 import More from './pages/More.jsx';
 import { AuthScreen, Onboarding, ShopPicker, Splash } from './pages/Access.jsx';
-import Lock, { TrialBanner } from './pages/Lock.jsx';
+import Lock, { SubscriptionBanner, TrialBanner } from './pages/Lock.jsx';
 import Admin from './pages/Admin.jsx';
 import PublicBooking from './pages/PublicBooking.jsx';
 
@@ -39,8 +39,8 @@ import PublicBooking from './pages/PublicBooking.jsx';
 const ACCESS = {
   owner: ['home', 'appointments', 'clients', 'checkout', 'messages', 'inventory', 'team', 'reports', 'settings', 'more'],
   manager: ['home', 'appointments', 'clients', 'checkout', 'messages', 'inventory', 'team', 'reports', 'settings', 'more'],
-  reception: ['home', 'appointments', 'clients', 'checkout', 'messages', 'inventory', 'more'],
-  staff: ['home', 'appointments', 'clients', 'more'],
+  reception: ['home', 'appointments', 'clients', 'checkout', 'messages', 'inventory', 'settings', 'more'],
+  staff: ['home', 'appointments', 'clients', 'settings'],
 };
 
 export const PAGES = {
@@ -136,6 +136,8 @@ function Gate() {
   if (!shops.length) return <Onboarding onCreated={async id => { prefs.set('shop', id); setShopId(id); await loadShops(); }} onJoined={async id => { prefs.set('shop', id); setShopId(id); await loadShops(); }} />;
   if (!shop) return <ShopPicker shops={shops} onPick={id => { prefs.set('shop', id); setShopId(id); }} />;
   const license = licenseState(shop, anchor);
+  // حساب الموظف موقوف: لا نحمّل بيانات الصالون أصلاً.
+  if (license.status === 'member_suspended') return <Lock shop={shop} data={null} license={license} shops={shops} switchShop={id => { prefs.set('shop', id); setShopId(id); }} />;
   return <>{addingScreen}<Shell key={shop.id} shop={shop} shops={shops} license={license} admin={admin} theme={theme} notice={error}
     reloadShops={loadShops} addBranch={() => setAdding(true)} switchShop={id => { prefs.set('shop', id); setShopId(id); }} /></>;
 }
@@ -225,7 +227,8 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
     isManager: role === 'owner' || role === 'manager',
   };
   const Page = PAGES[page].component;
-  const tabs = TABS.filter(id => allowed.includes(id));
+  // من ليس لديه أقسام في «المزيد» (مثل الموظف) يرى الإعدادات مكانها.
+  const tabs = TABS.map(id => (id === 'more' && !allowed.includes('more') ? 'settings' : id)).filter(id => allowed.includes(id));
   const SyncIcon = !cloudEnabled ? null : sync.state === 'error' || sync.state === 'offline' ? CloudOff : sync.state === 'syncing' ? RefreshCw : Cloud;
 
   return <AppContext.Provider value={context}>
@@ -248,17 +251,18 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
           <div className="topbar-actions">
             {SyncIcon && <button type="button" className={`sync-pill sync-${sync.state}`} onClick={syncNow} title={sync.error || 'مزامنة'}><SyncIcon size={16} className={sync.state === 'syncing' ? 'spin' : ''} />{sync.pending ? <span>{sync.pending}</span> : null}</button>}
             {admin && <button type="button" className={`icon-btn ${page === 'admin' ? 'active' : ''}`} onClick={() => go('admin')} aria-label="لوحة المطوّر"><ShieldCheck size={19} /></button>}
-            {allowed.includes('settings') && <button type="button" className={`icon-btn ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')} aria-label="الإعدادات"><Settings2 size={19} /></button>}
+            {allowed.includes('settings') && !tabs.includes('settings') && <button type="button" className={`icon-btn ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')} aria-label="الإعدادات"><Settings2 size={19} /></button>}
           </div>
         </header>
         {license.status === 'trial' && <TrialBanner license={license} shop={shop} />}
+        <SubscriptionBanner license={license} shop={shop} />
         {notice && <div className="notice">{notice}</div>}
         <div className="page" key={page}><Page /></div>
       </main>
 
       <nav className="tabbar">{tabs.map(id => {
         const Icon = PAGES[id].icon;
-        return <button type="button" key={id} className={page === id || (id === 'more' && !TABS.includes(page)) ? 'active' : ''} onClick={() => go(id)}><Icon size={22} /><span>{id === 'clients' ? vocab.clients : PAGES[id].label.split(' ')[0]}</span></button>;
+        return <button type="button" key={id} className={page === id || (id === 'more' && !tabs.includes(page)) ? 'active' : ''} onClick={() => go(id)}><Icon size={22} /><span>{id === 'clients' ? vocab.clients : PAGES[id].label.split(' ')[0]}</span></button>;
       })}</nav>
       <Toast toast={toast} onClose={closeToast} />
     </div>

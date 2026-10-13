@@ -1,7 +1,7 @@
 // قفل التطبيق بعد انتهاء التجربة، مع إبقاء خيار تصدير البيانات لأن البيانات ملك صاحب الصالون.
 import React from 'react';
 import { Check, Download, Lock as LockIcon, LogOut, MessageCircle, Sparkles, Store, Timer } from 'lucide-react';
-import { localISO, money, toCSV, LOCALE } from '../data.js';
+import { localISO, money, num, toCSV, LOCALE } from '../data.js';
 import { roi } from '../smart.js';
 import { TRIAL_DAYS, buyLink, plans } from '../lib/license.js';
 import { auth, cloudEnabled } from '../lib/sync.js';
@@ -18,6 +18,22 @@ export function TrialBanner({ license, shop }) {
   </div>;
 }
 
+// انتهى الاشتراك وهو في المهلة، أو قارب على الانتهاء: تنبيه واضح مع التواصل مع المالك.
+export function SubscriptionBanner({ license, shop }) {
+  const { data, isManager } = useApp();
+  const grace = license.status === 'grace';
+  if (!grace && !(license.status === 'paid' && license.plan !== 'lifetime' && license.daysLeft <= 2)) return null;
+  const shopName = data.shopName || shop.name;
+  const text = grace
+    ? `انتهى الاشتراك — لديك مهلة ${num(license.daysLeft)} ${license.daysLeft === 1 ? 'يوم' : 'أيام'} ثم يتوقف التطبيق تماماً`
+    : `ينتهي اشتراكك خلال ${num(license.daysLeft)} ${license.daysLeft === 1 ? 'يوم' : 'أيام'}`;
+  return <div className="trial-banner urgent">
+    <Timer size={18} />
+    <span>{text}</span>
+    {isManager && <button type="button" onClick={() => openExternal(buyLink(shopName, plans.find(p => p.id === license.plan)))}>جدّد الآن</button>}
+  </div>;
+}
+
 export const exportAll = data => {
   const clients = Object.fromEntries(data.clients.map(c => [c.id, c]));
   download(`clients-${localISO()}.csv`, toCSV([['الاسم', 'الهاتف', 'ملاحظات'], ...data.clients.map(c => [c.name, c.phone, c.notes])]));
@@ -26,9 +42,22 @@ export const exportAll = data => {
 };
 
 export default function Lock({ shop, data, license, shops, switchShop }) {
-  const value = roi(data, '2000-01-01');
   // الموظفون يتوقفون مع صاحب الصالون، لكن لا نعرض لهم الأسعار ولا التصدير.
-  const owner = (shop.role || 'owner') === 'owner';
+  const owner = (shop.role || 'owner') === 'owner' && license.status !== 'member_suspended';
+  if (license.status === 'member_suspended') return <div className="auth lock">
+    <div className="auth-card">
+      <div className="auth-brand">
+        <span className="brand-mark brand-mark-lg lock-mark"><LockIcon size={28} /></span>
+        <h1>تم إيقاف حسابك</h1>
+        <p>أوقف صاحب «{shop.name}» حسابك في الصالون. إذا كان ذلك خطأ تواصل معه لإعادة التفعيل.</p>
+      </div>
+      <div className="row-buttons center">
+        {shops.length > 1 && shops.filter(s => s.id !== shop.id).map(s => <Button key={s.id} variant="ghost" icon={Store} onClick={() => switchShop(s.id)}>{s.name}</Button>)}
+        {cloudEnabled && <Button variant="ghost" icon={LogOut} onClick={() => auth.signOut()}>خروج</Button>}
+      </div>
+    </div>
+  </div>;
+  const value = roi(data, '2000-01-01');
   return <div className="auth lock">
     <div className="auth-card auth-card-wide">
       <div className="auth-brand">

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Award, CalendarPlus, Camera, Check, FileUp, FlaskConical, Image, MessageCircle, Package, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound,
+  Award, CalendarPlus, Camera, Check, Contact, FileUp, FlaskConical, Image, MessageCircle, Package, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound,
 } from 'lucide-react';
 import { appointmentTotal, dateLabel, importClients, localISO, money, num, phoneDigits, samePhone, serviceNames, statusText, uid, whatsappLink } from '../data.js';
 import { clientStats, loyaltyPoints, noShowRisk } from '../smart.js';
-import { Alert, Avatar, Badge, Button, Confirm, Empty, Field, Row, SearchBox, Segmented, Sheet, Stat, Toggle, compressImage, openExternal, useApp } from '../ui.jsx';
+import { Alert, Avatar, Badge, Button, Confirm, Empty, Field, Row, SearchBox, Section, Segmented, Sheet, Stat, Toggle, compressImage, openExternal, useApp } from '../ui.jsx';
+import { contactsSupported, pickContacts, readClientsFile } from '../lib/importers.js';
 import { BookingWizard } from './Appointments.jsx';
 
 export default function Clients() {
@@ -24,7 +25,7 @@ export default function Clients() {
   const stats = useMemo(() => Object.fromEntries(data.clients.map(c => [c.id, clientStats(c.id, data.appointments)])), [data.clients, data.appointments]);
   const q = query.trim();
   // الحلاق يرى عملاءه فقط (من خدمهم أو لديهم موعد معه).
-  const mine = role === 'staff' && staffMember ? new Set(data.appointments.filter(a => a.staffId === staffMember.id || (a.items || []).some(i => i.staffId === staffMember.id)).map(a => a.clientId)) : null;
+  const mine = role === 'staff' && staffMember ? new Set(data.clients.filter(c => c.staffId === staffMember.id).map(c => c.id).concat(data.appointments.filter(a => a.staffId === staffMember.id || (a.items || []).some(i => i.staffId === staffMember.id)).map(a => a.clientId))) : null;
   const list = data.clients
     .filter(c => !mine || mine.has(c.id))
     .filter(c => !q || c.name.includes(q) || phoneDigits(c.phone).includes(phoneDigits(q) || '@'))
@@ -35,7 +36,7 @@ export default function Clients() {
     <div className="page-head">
       <small className="muted">{num(data.clients.length)} مسجّل</small>
       <div className="row-buttons">
-        {role !== 'staff' && <Button variant="ghost" icon={FileUp} onClick={() => setImporting(true)}>استيراد</Button>}
+        <Button variant="ghost" icon={FileUp} onClick={() => setImporting(true)}>استيراد</Button>
         <Button icon={UserPlus} onClick={() => setForm({})}>إضافة</Button>
       </div>
     </div>
@@ -55,7 +56,7 @@ export default function Clients() {
 }
 
 export function ClientForm({ client, onClose, onSaved }) {
-  const { data, upsert, remove, toast, vocab, isManager } = useApp();
+  const { data, upsert, remove, toast, vocab, isManager, staffMember } = useApp();
   const women = data.settings.kind !== 'men';
   const [v, setV] = useState({ name: '', phone: '', birthday: '', notes: '', allergies: '', formula: '', address: '', photoConsent: false, tags: [], ...client });
   const [error, setError] = useState('');
@@ -66,7 +67,7 @@ export function ClientForm({ client, onClose, onSaved }) {
     if (!v.name.trim() || phoneDigits(v.phone).length < 7) { setError('الاسم ورقم الهاتف مطلوبان'); return; }
     if (data.clients.some(c => c.id !== client?.id && samePhone(c.phone, v.phone))) { setError('الرقم مسجّل لعميل آخر'); return; }
     const id = client?.id || uid();
-    upsert('clients', { ...v, id, name: v.name.trim(), phone: v.phone.trim(), createdAt: client?.createdAt || localISO() });
+    upsert('clients', { ...v, id, name: v.name.trim(), phone: v.phone.trim(), createdAt: client?.createdAt || localISO(), ...(!client && staffMember ? { staffId: staffMember.id } : {}) });
     toast(client ? 'تم الحفظ' : 'تمت الإضافة');
     onSaved(id);
   };
@@ -172,20 +173,61 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
 }
 
 function ImportClients({ onClose }) {
-  const { data, setData, toast } = useApp();
+  const { data, setData, toast, staffMember } = useApp();
   const [text, setText] = useState('');
-  const result = text.trim() ? importClients(text, data.clients) : null;
-  return <Sheet title="استيراد العملاء" subtitle="من Excel (CSV) أو نص منسوخ" onClose={onClose}
+  const [contacts, setContacts] = useState(null);
+  const [picked, setPicked] = useState(new Set());
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  // جهات الاتصال المختارة تتحول لنفس صيغة النص «الاسم، الرقم».
+  const source = contacts ? contacts.filter((_, i) => picked.has(i)).map(c => `"${c.name.replaceAll('"', '')}",${c.phone}`).join('\n') : text;
+  const result = source.trim() ? importClients(source, data.clients) : null;
+  const owned = list => (staffMember ? list.map(c => ({ ...c, staffId: staffMember.id })) : list);
+  const fromContacts = async () => {
+    setError(''); setBusy(true);
+    try {
+      const list = (await pickContacts()).filter(c => phoneDigits(c.phone).length >= 7);
+      const fresh = list.map((c, i) => (data.clients.some(x => samePhone(x.phone, c.phone)) ? null : i)).filter(i => i !== null);
+      setContacts(list); setPicked(new Set(fresh));
+      if (!list.length) setError('لا توجد جهات اتصال بأرقام هواتف');
+    } catch (e) { setError(e?.message || 'تعذر فتح جهات الاتصال'); }
+    setBusy(false);
+  };
+  const fromFile = async file => {
+    setError(''); setContacts(null);
+    try { setText(await readClientsFile(file)); } catch (e) { setError(e?.message || 'تعذرت قراءة الملف'); }
+  };
+  const shownContacts = (contacts || []).map((c, i) => ({ ...c, i })).filter(c => !search || c.name.includes(search) || phoneDigits(c.phone).includes(phoneDigits(search) || '@'));
+  return <Sheet title="استيراد العملاء" subtitle="من جهات الاتصال، Excel، Word، أو نص منسوخ" onClose={onClose} size="lg"
     footer={<Button block size="lg" icon={Check} disabled={!result?.added.length} onClick={() => {
-      setData(prev => ({ ...prev, clients: [...prev.clients, ...result.added] }));
-      toast(`تم استيراد ${result.added.length} عميل`); onClose();
+      setData(prev => ({ ...prev, clients: [...prev.clients, ...owned(result.added)] }));
+      toast(`تم استيراد ${num(result.added.length)} عميل`); onClose();
     }}>{result?.added.length ? `استيراد ${num(result.added.length)}` : 'استيراد'}</Button>}>
     <div className="stack">
-      <label className="drop">
-        <FileUp size={28} /><strong>اختر ملف CSV</strong><small>احفظ ملف Excel بصيغة CSV — عمود للاسم وعمود للهاتف</small>
-        <input hidden type="file" accept=".csv,.txt,text/csv,text/plain" onChange={async e => { const f = e.target.files?.[0]; if (f) setText(await f.text()); }} />
-      </label>
-      <Field label="أو الصق القائمة هنا" hint="كل سطر: الاسم، الرقم"><textarea rows="6" dir="auto" value={text} onChange={e => setText(e.target.value)} placeholder={'أحمد محمد، 55512345\nسارة علي، 66698765'} /></Field>
+      <div className="import-sources">
+        {contactsSupported && <button type="button" className="import-source" onClick={fromContacts} disabled={busy}><Contact size={26} /><strong>جهات الاتصال</strong><small>اختر من هاتفك</small></button>}
+        <label className="import-source"><FileUp size={26} /><strong>ملف</strong><small>Excel · Word · vCard · CSV</small>
+          <input hidden type="file" accept=".xlsx,.docx,.vcf,.csv,.txt,.xls,.doc,text/csv,text/plain,text/vcard" onChange={e => { const f = e.target.files?.[0]; if (f) fromFile(f); e.target.value = ''; }} />
+        </label>
+      </div>
+      <Alert>{error}</Alert>
+      {contacts ? <Section title={`جهات الاتصال (${num(picked.size)} مختار)`} action={<Button size="sm" variant="ghost" onClick={() => { setContacts(null); setPicked(new Set()); }}>رجوع</Button>}>
+        <SearchBox value={search} onChange={setSearch} placeholder="ابحث بالاسم أو الرقم" />
+        <div className="row-buttons">
+          <Button size="sm" variant="ghost" onClick={() => setPicked(new Set(shownContacts.map(c => c.i)))}>تحديد الكل</Button>
+          <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>إلغاء التحديد</Button>
+        </div>
+        <div className="list contact-list">{shownContacts.slice(0, 300).map(c => {
+          const exists = data.clients.some(x => samePhone(x.phone, c.phone));
+          return <label key={c.i} className={`contact-row ${exists ? 'muted' : ''}`}>
+            <input type="checkbox" checked={picked.has(c.i)} disabled={exists} onChange={e => { const next = new Set(picked); if (e.target.checked) next.add(c.i); else next.delete(c.i); setPicked(next); }} />
+            <span><strong>{c.name}</strong><small dir="ltr">{c.phone}</small></span>
+            {exists && <Badge tone="muted">مسجّل</Badge>}
+          </label>;
+        })}</div>
+      </Section>
+        : <Field label="أو الصق القائمة هنا" hint="كل سطر عميل: الاسم والرقم (بفاصلة أو مسافة، بأي ترتيب)"><textarea rows="6" dir="auto" value={text} onChange={e => setText(e.target.value)} placeholder={'أحمد محمد 55512345\nسارة علي، 66698765\n+974 3334 4556 خالد'} /></Field>}
       {result && <Alert tone={result.added.length ? 'green' : 'orange'} icon={Check}>{num(result.added.length)} جديد{result.skipped ? ` · ${num(result.skipped)} مكرر أو ناقص` : ''}</Alert>}
     </div>
   </Sheet>;

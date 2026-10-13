@@ -131,3 +131,9 @@ test('أدوات الرسائل', () => {
   assert.equal(whatsappNumber('+974 5555 1234'), '97455551234');
   assert.equal(buildItems([{ id: 's1', name: 'قص', price: 50, duration: 30 }], ['s1', 'missing'], 't1')[0].staffId, 't1');
 });
+
+test('استيراد العملاء من نص ملصوق بدون فواصل', () => {
+  const { added, skipped } = importClients('أحمد محمد 55512345\n+974 6669 8765 سارة علي\nمحمد - ٣٣٣٤٤٥٥٦\nبدون رقم', []);
+  assert.deepEqual(added.map(c => [c.name, c.phone]), [['أحمد محمد', '55512345'], ['سارة علي', '+974 6669 8765'], ['محمد', '33344556']]);
+  assert.equal(skipped, 1);
+});

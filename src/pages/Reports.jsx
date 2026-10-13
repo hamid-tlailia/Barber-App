@@ -4,7 +4,7 @@ import { addDays, appointmentTotal, dateLabel, localISO, money, num, paymentText
 import { dailyReport, inRange, incomeIn, roi, utilization } from '../smart.js';
 import { Bars, Button, Meter, Row, Section, Segmented, Stat, download, openExternal, useApp } from '../ui.jsx';
 
-const ranges = [{ id: 'today', label: 'اليوم' }, { id: 'week', label: '٧ أيام' }, { id: 'month', label: 'الشهر' }, { id: 'lastMonth', label: 'السابق' }, { id: 'year', label: 'السنة' }];
+const ranges = () => [{ id: 'today', label: 'اليوم' }, { id: 'week', label: `${num(7)} أيام` }, { id: 'month', label: 'الشهر' }, { id: 'lastMonth', label: 'السابق' }, { id: 'year', label: 'السنة' }];
 
 export default function Reports() {
   const { data, license } = useApp();
@@ -39,7 +39,7 @@ export default function Reports() {
   };
 
   return <div className="stack">
-    <Segmented size="sm" items={ranges} value={range} onChange={setRange} />
+    <Segmented size="sm" items={ranges()} value={range} onChange={setRange} />
     <div className="stats">
       <Stat icon={CircleDollarSign} tone="green" label="الدخل" value={money(revenue)} />
       <Stat icon={CalendarCheck2} label="مواعيد مكتملة" value={num(done.length)} />
@@ -51,7 +51,7 @@ export default function Reports() {
 
     {value.total > 0 && <div className="roi-card">
       <Sparkles size={22} />
-      <div><small>قيمة حققها التطبيق آخر {license?.status === 'trial' ? '٧' : '٣٠'} يوماً</small><strong>{money(value.total)}</strong></div>
+      <div><small>قيمة حققها التطبيق آخر {num(license?.status === 'trial' ? 7 : 30)} يوماً</small><strong>{money(value.total)}</strong></div>
       <div className="roi-lines">{value.lines.filter(l => l.count).map(l => <span key={l.key}>{l.label}: <b>{num(l.count)}</b></span>)}{value.reminders > 0 && <span>تذكيرات أُرسلت: <b>{num(value.reminders)}</b></span>}</div>
     </div>}
 

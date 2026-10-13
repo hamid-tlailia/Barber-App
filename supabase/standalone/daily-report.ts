@@ -17,7 +17,7 @@ export const samePhone = (a: string, b: string) => digits(a).length >= 7 && digi
 export const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 export const fromMin = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 export const timeAr = (t: string) => { const h = Number(t.slice(0, 2)); return `${h % 12 || 12}:${t.slice(3, 5)} ${h < 12 ? 'ص' : 'م'}`; };
-export const dateAr = (d: string) => new Intl.DateTimeFormat('ar-QA', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${d}T12:00:00Z`));
+export const dateAr = (d: string) => new Intl.DateTimeFormat('ar-QA-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${d}T12:00:00Z`));
 export const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 // يُشترط لاستدعاء دوال الجدولة: مفتاح سري يعرفه pg_cron فقط.
@@ -132,7 +132,7 @@ export const fill = (template: string, values: Record<string, string>) => String
 // تقرير نهاية اليوم لصاحب الصالون عبر واتساب. يُستدعى يومياً (مثلاً 23:00 بتوقيت قطر) من pg_cron.
 
 const TEMPLATE = Deno.env.get('WA_TEMPLATE_REPORT') ?? 'daily_report';
-const money = (v: number) => `${Math.round(v).toLocaleString('ar-QA')} ر.ق`;
+const money = (v: number) => `${Math.round(v).toLocaleString('en-US')} ر.ق`;
 
 Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);

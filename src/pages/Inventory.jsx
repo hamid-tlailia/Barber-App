@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowDownToLine, ArrowUpFromLine, Boxes, Check, Download, PackagePlus, Send, Trash2, TriangleAlert } from 'lucide-react';
 import { localISO, money, num, toCSV, uid } from '../data.js';
 import { stockForecast } from '../smart.js';
-import { Alert, Badge, Button, Confirm, Empty, Field, Meter, Row, SearchBox, Section, Segmented, Sheet, Stat, download, openExternal, useApp } from '../ui.jsx';
+import { Alert, Badge, Button, Confirm, Empty, Field, Meter, Row, SearchBox, Section, Segmented, Sheet, Stat, download, openExternal, useApp, NumInput } from '../ui.jsx';
 
 export default function Inventory() {
   const { data, isManager } = useApp();
@@ -82,7 +82,7 @@ function StockSheet({ product, onClose, onEdit }) {
       </div>
       <div className="stepper">
         <button type="button" onClick={() => setQuantity(Math.max(1, Number(quantity) - 1))}>−</button>
-        <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)} />
+        <NumInput min="1" value={quantity} onChange={e => setQuantity(e.target.value)} />
         <button type="button" onClick={() => setQuantity(Number(quantity) + 1)}>+</button>
       </div>
       <Field label="ملاحظة (اختياري)"><input value={note} onChange={e => setNote(e.target.value)} /></Field>
@@ -107,10 +107,10 @@ function ProductForm({ product, onClose }) {
       <div className="grid-2">
         <Field label="الفئة"><input value={v.category} onChange={set('category')} /></Field>
         <Field label="الوحدة"><input value={v.unit} onChange={set('unit')} /></Field>
-        <Field label="الكمية الحالية"><input type="number" min="0" value={v.quantity} onChange={set('quantity', true)} /></Field>
-        <Field label="نبّهني عند"><input type="number" min="0" value={v.minStock} onChange={set('minStock', true)} /></Field>
-        <Field label="التكلفة"><input type="number" min="0" value={v.cost} onChange={set('cost', true)} /></Field>
-        <Field label="سعر البيع" hint="0 = للاستخدام الداخلي"><input type="number" min="0" value={v.price} onChange={set('price', true)} /></Field>
+        <Field label="الكمية الحالية"><NumInput min="0" value={v.quantity} onChange={set('quantity', true)} /></Field>
+        <Field label="نبّهني عند"><NumInput min="0" value={v.minStock} onChange={set('minStock', true)} /></Field>
+        <Field label="التكلفة"><NumInput min="0" value={v.cost} onChange={set('cost', true)} /></Field>
+        <Field label="سعر البيع" hint="0 = للاستخدام الداخلي"><NumInput min="0" value={v.price} onChange={set('price', true)} /></Field>
       </div>
     </div>
     {confirm && <Confirm title="حذف المنتج؟" danger confirmLabel="حذف" onClose={() => setConfirm(false)} onConfirm={() => { remove('products', product.id); toast('تم الحذف'); onClose(); }} />}

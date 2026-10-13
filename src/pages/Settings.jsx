@@ -3,22 +3,23 @@ import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
-import { dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, uid, LOCALE } from '../data.js';
+import { dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, plans } from '../lib/license.js';
-import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp } from '../ui.jsx';
+import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { notifyNow, pushState, pushSupported } from '../lib/native.js';
 
 const weekdays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 export default function Settings() {
-  const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh, enablePush, toast } = useApp();
+  const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh, enablePush, toast, isManager } = useApp();
   const [push, setPush] = useState(pushState);
   const [open, setOpen] = useState(null);
   useEffect(() => { if (intent?.open) setOpen(intent.open); if (intent) setIntent(null); }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
   const owner = role === 'owner';
-  const groups = [
+  // الموظف والاستقبال يرون إعداداتهم الشخصية فقط (الإشعارات، المظهر، الحساب).
+  const groups = !isManager ? [] : [
     { title: 'الصالون', items: [
       { id: 'shop', icon: Store, label: 'بيانات الصالون' },
       { id: 'services', icon: Scissors, label: 'الخدمات والأسعار' },
@@ -29,21 +30,20 @@ export default function Settings() {
     { title: 'العملاء والرسائل', items: [
       cloudEnabled && { id: 'booking', icon: Link2, label: 'رابط الحجز الأونلاين' },
       cloudEnabled && owner && { id: 'whatsapp', icon: Bot, label: 'واتساب الذكي' },
-      { id: 'templates', icon: MessageSquareText, label: 'نصوص الرسائل' },
       { id: 'smart', icon: SlidersHorizontal, label: 'القواعد الذكية' },
     ] },
     { title: 'الحساب', items: [
       owner && { id: 'plan', icon: CreditCard, label: 'الاشتراك' },
-      cloudEnabled && { id: 'audit', icon: History, label: 'سجل التعديلات' },
+      cloudEnabled && { id: 'audit', icon: History, label: 'سجل التعديلات', subtitle: 'كل عمليات الموظفين بالتفصيل' },
       { id: 'backup', icon: DatabaseBackup, label: 'النسخ الاحتياطي' },
     ] },
   ];
-  const Sheets = { shop: ShopSettings, services: ServicesSettings, hours: HoursSettings, packages: PackagesSettings, gifts: GiftCards, booking: BookingSettings, smart: SmartSettings, templates: TemplatesSettings, whatsapp: WhatsAppSettings, audit: AuditLog, backup: Backup, plan: Plan };
+  const Sheets = { shop: ShopSettings, services: ServicesSettings, hours: HoursSettings, packages: PackagesSettings, gifts: GiftCards, booking: BookingSettings, smart: SmartSettings, whatsapp: WhatsAppSettings, audit: AuditLog, backup: Backup, plan: Plan };
   const Current = open && Sheets[open];
   const setDigits = value => { if (value === digitStyle) return; setDigitStyle(value); refresh(); };
   return <div className="stack-lg">
     {groups.map(group => <Section key={group.title} title={group.title}>
-      <div className="list">{group.items.filter(Boolean).map(item => <Row key={item.id} leading={<span className="dot-icon tone-accent"><item.icon size={18} /></span>} title={item.label} onClick={() => setOpen(item.id)} />)}</div>
+      <div className="list">{group.items.filter(Boolean).map(item => <Row key={item.id} leading={<span className="dot-icon tone-accent"><item.icon size={18} /></span>} title={item.label} subtitle={item.subtitle} onClick={() => setOpen(item.id)} />)}</div>
     </Section>)}
     {pushSupported && <Section title="الإشعارات">
       <div className="list">
@@ -119,11 +119,11 @@ function ServiceForm({ service, onClose }) {
       <Field label="اسم الخدمة" required><input autoFocus value={v.name} onChange={set('name')} /></Field>
       <div className="grid-2">
         <Field label="الفئة"><input value={v.category} onChange={set('category')} /></Field>
-        <Field label="السعر (ر.ق)"><input type="number" min="0" value={v.price} onChange={set('price', true)} /></Field>
-        <Field label="المدة (دقيقة)"><input type="number" min="5" step="5" value={v.duration} onChange={set('duration', true)} /></Field>
-        <Field label="وقت انتظار" hint="مثل تثبيت الصبغة — الموظف متاح لغيره"><input type="number" min="0" step="5" value={v.processing} onChange={set('processing', true)} /></Field>
+        <Field label="السعر (ر.ق)"><NumInput min="0" value={v.price} onChange={set('price', true)} /></Field>
+        <Field label="المدة (دقيقة)"><NumInput min="5" step="5" value={v.duration} onChange={set('duration', true)} /></Field>
+        <Field label="وقت انتظار" hint="مثل تثبيت الصبغة — الموظف متاح لغيره"><NumInput min="0" step="5" value={v.processing} onChange={set('processing', true)} /></Field>
       </div>
-      <Field label="عربون مطلوب (ر.ق)" hint="للخدمات الطويلة والعرائس — 0 بدون عربون"><input type="number" min="0" value={v.deposit} onChange={set('deposit', true)} /></Field>
+      <Field label="عربون مطلوب (ر.ق)" hint="للخدمات الطويلة والعرائس — 0 بدون عربون"><NumInput min="0" value={v.deposit} onChange={set('deposit', true)} /></Field>
       <Toggle checked={v.online !== false} onChange={on => setV({ ...v, online: on })} label="متاحة في الحجز الأونلاين" />
     </div>
     {confirm && <Confirm title="حذف الخدمة؟" text="المواعيد السابقة لن تتأثر." danger confirmLabel="حذف" onClose={() => setConfirm(false)} onConfirm={() => { remove('services', service.id); toast('تم الحذف'); onClose(); }} />}
@@ -152,13 +152,13 @@ function PackagesSettings({ onClose }) {
   const v = edit || {};
   return <Sheet title="الباقات" subtitle="جلسات مدفوعة مسبقاً — تزيد ولاء العملاء والسيولة" onClose={onClose} footer={!edit && <Button block icon={Plus} onClick={() => setEdit({ name: '', serviceId: data.services[0]?.id, sessions: 5, price: 0, validityDays: 90 })}>باقة جديدة</Button>}>
     {edit ? <div className="stack">
-      <Field label="اسم الباقة"><input autoFocus value={v.name} onChange={e => setEdit({ ...v, name: e.target.value })} placeholder="مثال: ليزر ٦ جلسات" /></Field>
+      <Field label="اسم الباقة"><input autoFocus value={v.name} onChange={e => setEdit({ ...v, name: e.target.value })} placeholder={`مثال: ليزر ${num(6)} جلسات`} /></Field>
       <Field label="الخدمة"><select value={v.serviceId} onChange={e => setEdit({ ...v, serviceId: e.target.value })}>{data.services.map(s => <option key={s.id} value={s.id}>{s.name} — {money(s.price)}</option>)}</select></Field>
       <div className="grid-2">
-        <Field label="عدد الجلسات"><input type="number" min="1" value={v.sessions} onChange={e => setEdit({ ...v, sessions: Number(e.target.value) })} /></Field>
-        <Field label="سعر الباقة"><input type="number" min="0" value={v.price} onChange={e => setEdit({ ...v, price: Number(e.target.value) })} /></Field>
+        <Field label="عدد الجلسات"><NumInput min="1" value={v.sessions} onChange={e => setEdit({ ...v, sessions: Number(e.target.value) })} /></Field>
+        <Field label="سعر الباقة"><NumInput min="0" value={v.price} onChange={e => setEdit({ ...v, price: Number(e.target.value) })} /></Field>
       </div>
-      <Field label="صالحة لمدة (يوم)"><input type="number" min="0" value={v.validityDays} onChange={e => setEdit({ ...v, validityDays: Number(e.target.value) })} /></Field>
+      <Field label="صالحة لمدة (يوم)"><NumInput min="0" value={v.validityDays} onChange={e => setEdit({ ...v, validityDays: Number(e.target.value) })} /></Field>
       {v.serviceId && <small className="muted">السعر المعتاد {money((data.services.find(s => s.id === v.serviceId)?.price || 0) * v.sessions)} — توفير للعميل {money(Math.max(0, (data.services.find(s => s.id === v.serviceId)?.price || 0) * v.sessions - v.price))}</small>}
       <div className="row-buttons">
         {v.id && <Button variant="danger-ghost" icon={Trash2} onClick={() => { remove('packages', v.id); setEdit(null); }}>حذف</Button>}
@@ -166,7 +166,7 @@ function PackagesSettings({ onClose }) {
         <Button icon={Check} disabled={!v.name?.trim()} onClick={() => { upsert('packages', { ...v, id: v.id || uid() }); toast('تم الحفظ'); setEdit(null); }}>حفظ</Button>
       </div>
     </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`} trailing={<strong>{money(p.price)}</strong>} onClick={() => setEdit(p)} />)}</div>
-      : <Empty icon={Package} title="لا باقات بعد" text="مثال: ٥ قصات بسعر ٤ — يدفع العميل مقدماً ويعود باستمرار" />}
+      : <Empty icon={Package} title="لا باقات بعد" text={`مثال: ${num(5)} قصات بسعر ${num(4)} — يدفع العميل مقدماً ويعود باستمرار`} />}
   </Sheet>;
 }
 
@@ -198,7 +198,7 @@ function BookingSettings({ onClose }) {
       <Field label="اسم الرابط" hint="بالإنجليزية — مثال: miqass-doha"><input dir="ltr" value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} /></Field>
       <Alert>{error}</Alert>
       <Button block icon={Check} onClick={save}>{shop.slug ? 'تحديث الرابط' : 'تفعيل الحجز الأونلاين'}</Button>
-      <small className="muted">الحجوزات الأونلاين تصل «بانتظار التأكيد» وتظهر فوراً على كل الأجهزة. حماية تلقائية: ٣ حجوزات كحد أقصى للرقم يومياً.</small>
+      <small className="muted">الحجوزات الأونلاين تصل «بانتظار التأكيد» وتظهر فوراً على كل الأجهزة. حماية تلقائية: {num(3)} حجوزات كحد أقصى للرقم يومياً.</small>
     </div>
   </Sheet>;
 }
@@ -208,21 +208,12 @@ function SmartSettings({ onClose }) {
   const [s, setS] = useState(data.settings);
   return <Sheet title="القواعد الذكية" onClose={onClose} footer={<Button block icon={Check} onClick={() => { setData(prev => ({ ...prev, settings: s })); toast('تم الحفظ'); onClose(); }}>حفظ</Button>}>
     <div className="stack">
-      <Field label="عربون العملاء كثيري الغياب (٪ من الفاتورة)" hint="يُقترح تلقائياً عند الحجز لمن تغيّب مرتين أو أكثر"><input type="number" min="0" max="100" value={s.noShowDepositPercent} onChange={e => setS({ ...s, noShowDepositPercent: Number(e.target.value) })} /></Field>
-      <Field label="اعتبر العميل منقطعاً بعد (يوم)" hint="يُستخدم عندما لا يكون له نمط زيارات واضح"><input type="number" min="7" value={s.recoveryDays} onChange={e => setS({ ...s, recoveryDays: Number(e.target.value) })} /></Field>
-      <Field label="نقطة ولاء لكل (ر.ق)"><input type="number" min="1" value={s.loyaltyPer} onChange={e => setS({ ...s, loyaltyPer: Number(e.target.value) })} /></Field>
+      <Field label="عربون العملاء كثيري الغياب (٪ من الفاتورة)" hint="يُقترح تلقائياً عند الحجز لمن تغيّب مرتين أو أكثر"><NumInput min="0" max="100" value={s.noShowDepositPercent} onChange={e => setS({ ...s, noShowDepositPercent: Number(e.target.value) })} /></Field>
+      <Field label="اعتبر العميل منقطعاً بعد (يوم)" hint="يُستخدم عندما لا يكون له نمط زيارات واضح"><NumInput min="7" value={s.recoveryDays} onChange={e => setS({ ...s, recoveryDays: Number(e.target.value) })} /></Field>
+      <Field label="نقطة ولاء لكل (ر.ق)"><NumInput min="1" value={s.loyaltyPer} onChange={e => setS({ ...s, loyaltyPer: Number(e.target.value) })} /></Field>
       <Field label="إرسال التذكير قبل الموعد بـ (ساعة)" hint="للإرسال التلقائي عبر واتساب للأعمال"><Chips items={[2, 12, 24].map(h => ({ id: h, label: `${h} ساعة` }))} value={Number(s.reminderHours)} onChange={h => setS({ ...s, reminderHours: h })} /></Field>
       <Toggle checked={s.hideClientPhotosFromStaff} onChange={on => setS({ ...s, hideClientPhotosFromStaff: on })} label="إخفاء صور العملاء عن الموظفين" hint="خصوصية مهمة للصالونات النسائية" />
     </div>
-  </Sheet>;
-}
-
-function TemplatesSettings({ onClose }) {
-  const { data, setData, toast } = useApp();
-  const [t, setT] = useState(data.settings.templates);
-  const labels = { reminder: 'تذكير بالموعد', recovery: 'استرجاع عميل منقطع', thanks: 'شكر بعد الزيارة', waitlist: 'عرض من قائمة الانتظار', birthday: 'تهنئة عيد ميلاد' };
-  return <Sheet title="نصوص الرسائل" subtitle="المتغيرات: {name} {shop} {date} {time} {link}" onClose={onClose} footer={<Button block icon={Check} onClick={() => { setData(prev => ({ ...prev, settings: { ...prev.settings, templates: t } })); toast('تم الحفظ'); onClose(); }}>حفظ</Button>}>
-    <div className="stack">{Object.entries(labels).map(([key, label]) => <Field key={key} label={label}><textarea rows="3" value={t[key]} onChange={e => setT({ ...t, [key]: e.target.value })} /></Field>)}</div>
   </Sheet>;
 }
 
@@ -261,6 +252,7 @@ function WhatsAppSettings({ onClose }) {
       <AddonOffer id="wa" shopName={shopName} />
       <AddonOffer id="ai" shopName={shopName} />
     </div> : <div className="stack">
+      <Alert tone="green" icon={Check}>اشتراك إضافي مفعّل لصالونك ✓ — يمكنك تشغيل أو إيقاف كل ميزة حسب حاجتك.</Alert>
       <Toggle checked={v.reminders} onChange={on => setV({ ...v, reminders: on })} label="تذكير تلقائي قبل كل موعد" hint="العميل يرد 1 للتأكيد أو 2 للإلغاء — ويتحدث الجدول تلقائياً" />
       <Toggle checked={v.daily} onChange={on => setV({ ...v, daily: on })} label="تقرير يومي لصاحب المحل" hint="الدخل، المواعيد، الغياب، الأفضل أداءً — كل ليلة" />
       {v.daily && <Field label="رقم واتساب لاستلام التقرير"><input type="tel" dir="ltr" value={v.ownerWhatsapp} onChange={e => setV({ ...v, ownerWhatsapp: e.target.value })} placeholder="974XXXXXXXX" /></Field>}
@@ -271,25 +263,71 @@ function WhatsAppSettings({ onClose }) {
   </Sheet>;
 }
 
+// سجل مفصّل: من قام بالعملية، وما الذي تغيّر بالضبط (القيمة القديمة ← الجديدة).
+const AUDIT_NAMES = { appointments: 'موعد', clients: 'عميل', services: 'خدمة', products: 'منتج', staff: 'موظف', drawers: 'إغلاق صندوق', expenses: 'مصروف', sales: 'بيع', giftCards: 'بطاقة هدية', clientPackages: 'باقة عميل', packages: 'باقة', waitlist: 'قائمة انتظار', notes: 'ملاحظة', meta: 'إعدادات الصالون' };
+const AUDIT_ACTIONS = { create: 'إضافة', update: 'تعديل', delete: 'حذف' };
+const FIELD_LABELS = { name: 'الاسم', phone: 'الهاتف', price: 'السعر', duration: 'المدة', amount: 'المبلغ', quantity: 'الكمية', cost: 'التكلفة', commission: 'العمولة', category: 'الفئة', notes: 'ملاحظات', deposit: 'العربون', discount: 'الخصم', balance: 'الرصيد', minStock: 'حد التنبيه', label: 'البيان', counted: 'المعدود', difference: 'الفرق', keep: 'المتبقي للغد' };
+const MONEY_FIELDS = new Set(['price', 'amount', 'cost', 'deposit', 'discount', 'balance', 'counted', 'difference', 'keep']);
+const paid = a => (a?.payments || []).filter(p => p.kind !== 'tip').reduce((sum, p) => sum + Number(p.amount || 0), 0);
+const show = (key, value) => (value === undefined || value === null || value === '' ? '—' : MONEY_FIELDS.has(key) ? money(value) : typeof value === 'number' ? num(value) : String(value));
+
+function auditDetails(row, data) {
+  const before = row.before || {}; const after = row.after || {};
+  const item = row.action === 'delete' ? before : after;
+  const lines = [];
+  const staffName = id => data.staff.find(m => m.id === id)?.name || 'أي موظف';
+  if (row.collection === 'appointments') {
+    const client = data.clients.find(c => c.id === item.clientId)?.name || 'عميل';
+    const title = `${client} — ${item.date ? dateLabel(item.date) : ''} ${item.time ? timeLabel(item.time) : ''}`.trim();
+    if (row.action === 'update') {
+      if (before.status !== after.status) lines.push(`الحالة: ${statusText[before.status] || before.status || '—'} ← ${statusText[after.status] || after.status}`);
+      if (before.date !== after.date || before.time !== after.time) lines.push(`الموعد: ${dateLabel(before.date)} ${timeLabel(before.time)} ← ${dateLabel(after.date)} ${timeLabel(after.time)}`);
+      if (paid(before) !== paid(after)) lines.push(paid(after) > paid(before) ? `استلام دفعة ${money(paid(after) - paid(before))}` : `⚠️ إلغاء دفعة ${money(paid(before) - paid(after))}`);
+      if (Number(before.price || 0) !== Number(after.price || 0)) lines.push(`المبلغ: ${money(before.price)} ← ${money(after.price)}`);
+      if (Number(before.discount || 0) !== Number(after.discount || 0)) lines.push(`الخصم: ${money(before.discount)} ← ${money(after.discount)}`);
+      if (before.staffId !== after.staffId) lines.push(`الموظف: ${staffName(before.staffId)} ← ${staffName(after.staffId)}`);
+      const names = a => (a.items || []).map(i => i.name).join(' + ');
+      if (names(before) !== names(after)) lines.push(`الخدمات: ${names(before) || '—'} ← ${names(after) || '—'}`);
+    } else lines.push(`${(item.items || []).map(i => i.name).join(' + ')}${item.price ? ` · ${money(item.price)}` : ''}`);
+    return { title, lines };
+  }
+  if (row.collection === 'meta') return { title: 'إعدادات الصالون', lines: [] };
+  const title = item.name || item.label || (item.clientId && data.clients.find(c => c.id === item.clientId)?.name) || (item.date ? dateLabel(item.date) : '');
+  if (row.action === 'update') {
+    for (const key of Object.keys(FIELD_LABELS)) {
+      if (JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)) lines.push(`${FIELD_LABELS[key]}: ${show(key, before[key])} ← ${show(key, after[key])}`);
+    }
+  } else if (item.amount !== undefined) lines.push(money(item.amount));
+  else if (item.price !== undefined) lines.push(money(item.price));
+  return { title, lines };
+}
+
 function AuditLog({ onClose }) {
   const { shop, data } = useApp();
   const [rows, setRows] = useState(null);
+  const [people, setPeople] = useState({});
+  const [who, setWho] = useState('all');
   const [error, setError] = useState('');
-  useEffect(() => { api.audit(shop.id).then(setRows).catch(e => setError(errorText(e))); }, [shop.id]);
-  const names = { appointments: 'موعد', clients: 'عميل', services: 'خدمة', products: 'منتج', staff: 'موظف', drawers: 'صندوق', expenses: 'مصروف', sales: 'بيع', giftCards: 'بطاقة هدية', clientPackages: 'باقة عميل', meta: 'إعدادات' };
-  const actions = { create: 'إضافة', update: 'تعديل', delete: 'حذف' };
-  const describe = row => {
-    const before = row.before || {}; const after = row.after || {};
-    if (row.collection === 'appointments' && (before.payments || []).length > (after.payments || []).length) return 'إلغاء دفعة';
-    if (row.collection === 'appointments' && before.status !== after.status && after.status) return `الحالة ← ${after.status}`;
-    return after.name || before.name || data.clients.find(c => c.id === (after.clientId || before.clientId))?.name || '';
-  };
-  return <Sheet title="سجل التعديلات" subtitle="من غيّر ماذا ومتى — يحميك من التلاعب" onClose={onClose} size="lg">
+  useEffect(() => {
+    api.audit(shop.id, 300).then(setRows).catch(e => setError(errorText(e)));
+    api.people(shop.id).then(list => setPeople(Object.fromEntries(list.map(p => [p.user_id, p])))).catch(() => {});
+  }, [shop.id]);
+  const actor = r => (r.user_id ? people[r.user_id]?.display_name || 'مستخدم' : 'النظام / حجز أونلاين');
+  const list = (rows || []).filter(r => who === 'all' || (who === 'staff' ? r.user_id && people[r.user_id]?.role !== 'owner' : people[r.user_id]?.role === 'owner'));
+  return <Sheet title="سجل التعديلات" subtitle="من فعل ماذا ومتى — يحميك من التلاعب" onClose={onClose} size="lg">
+    <Segmented size="sm" items={[{ id: 'all', label: 'الكل' }, { id: 'staff', label: 'الموظفون' }, { id: 'owner', label: 'أنا' }]} value={who} onChange={setWho} />
     <Alert>{error}</Alert>
-    {rows === null ? <div className="loader" /> : rows.length ? <div className="list">{rows.map(r => <Row key={r.id}
-      leading={<Badge tone={r.action === 'delete' ? 'red' : r.action === 'create' ? 'green' : 'blue'}>{actions[r.action]}</Badge>}
-      title={`${names[r.collection] || r.collection}${describe(r) ? ` · ${describe(r)}` : ''}`}
-      subtitle={new Date(r.at).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short' })} />)}</div>
+    {rows === null ? <div className="loader" /> : list.length ? <div className="list">{list.map(r => {
+      const { title, lines } = auditDetails(r, data);
+      return <div key={r.id} className="audit-row">
+        <div className="audit-head">
+          <Badge tone={r.action === 'delete' ? 'red' : r.action === 'create' ? 'green' : 'blue'}>{AUDIT_ACTIONS[r.action]}</Badge>
+          <strong>{AUDIT_NAMES[r.collection] || r.collection}{title ? ` · ${title}` : ''}</strong>
+        </div>
+        {lines.length > 0 && <ul className="audit-lines">{lines.map((line, i) => <li key={i}>{line}</li>)}</ul>}
+        <small className="muted">{actor(r)} · {new Date(r.at).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short' })}</small>
+      </div>;
+    })}</div>
       : <Empty icon={ShieldCheck} title="لا تعديلات بعد" />}
   </Sheet>;
 }

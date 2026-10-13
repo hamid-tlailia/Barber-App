@@ -8,7 +8,7 @@ import {
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { noShowRisk, waitlistMatches } from '../smart.js';
-import { Alert, Avatar, Badge, Button, Chips, Empty, Field, IconButton, Row, SearchBox, Sheet, Steps, openExternal, useApp } from '../ui.jsx';
+import { Alert, Avatar, Badge, Button, Chips, Empty, Field, IconButton, Row, SearchBox, Sheet, Steps, openExternal, useApp, NumInput } from '../ui.jsx';
 import { CheckoutSheet } from './Checkout.jsx';
 
 const dayStrip = (center, count = 14) => Array.from({ length: count }, (_, i) => addDays(center, i - 2));
@@ -265,7 +265,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
         <b>{money(total)}</b>
       </div>
       {risk?.level === 'high' && <Alert tone="orange" icon={ShieldAlert}>{client.name} لم يحضر {risk.stats.noShows} مرات سابقاً — ننصح بعربون</Alert>}
-      {!walkIn && <Field label="العربون المطلوب" hint={finalDeposit ? 'يُسجَّل عند الاستلام من شاشة الموعد' : 'بدون عربون'}><div className="money-input"><input type="number" min="0" inputMode="decimal" value={finalDeposit} onChange={e => setDeposit(Number(e.target.value))} /><span>ر.ق</span></div></Field>}
+      {!walkIn && <Field label="العربون المطلوب" hint={finalDeposit ? 'يُسجَّل عند الاستلام من شاشة الموعد' : 'بدون عربون'}><div className="money-input"><NumInput min="0" inputMode="decimal" value={finalDeposit} onChange={e => setDeposit(Number(e.target.value))} /><span>ر.ق</span></div></Field>}
       <Field label="ملاحظات (اختياري)"><textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} placeholder="أي تفاصيل للفريق..." /></Field>
       <Alert>{error}</Alert>
     </div>}

@@ -316,8 +316,18 @@ export const parseCSV = text => {
 };
 
 // يستورد الزبائن من CSV أو نص منسوخ (اسم، هاتف في كل سطر) مع تجاهل المكرر.
+// سطر بخلية واحدة مثل «أحمد محمد 55512345» أو «+974 5551 2345 سارة»: نفصل الرقم عن الاسم.
+const splitLine = row => {
+  if (row.length !== 1) return row;
+  const match = row[0].match(/(\+?\d[\d\s-]{6,}\d)/);
+  if (!match) return row;
+  const name = row[0].replace(match[0], ' ').replace(/[-–—:|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return [name, match[0].trim()];
+};
+
 export const importClients = (text, existing) => {
-  const rows = parseCSV(text);
+  const latin = String(text || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+  const rows = parseCSV(latin).map(splitLine);
   if (!rows.length) return { added: [], skipped: 0 };
   const header = rows[0].map(cell => cell.toLowerCase());
   const hasHeader = header.some(cell => /name|اسم|phone|هاتف|جوال|mobile/.test(cell));

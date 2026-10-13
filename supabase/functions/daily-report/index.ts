@@ -2,7 +2,7 @@
 import { addDays, authorizedCron, collection, db, isoDate, json, localNow, sendTemplate, timeAr, waConfigFor } from '../_shared/common.ts';
 
 const TEMPLATE = Deno.env.get('WA_TEMPLATE_REPORT') ?? 'daily_report';
-const money = (v: number) => `${Math.round(v).toLocaleString('ar-QA')} ر.ق`;
+const money = (v: number) => `${Math.round(v).toLocaleString('en-US')} ر.ق`;
 
 Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);

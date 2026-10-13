@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Banknote, Check, CreditCard, Gift, HandCoins, Landmark, Lock, MessageCircle, Package, Printer, Receipt, ShoppingBag,
+  Banknote, Check, CreditCard, Gift, HandCoins, Landmark, Lock, MessageCircle, Package, Pencil, Printer, Receipt, ShoppingBag,
   TicketPercent, Trash2, Vault, WalletCards,
 } from 'lucide-react';
 import {
@@ -8,7 +8,7 @@ import {
   paymentText, serviceNames, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { expectedCash, incomeIn } from '../smart.js';
-import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Stat, Tile, openExternal, useApp } from '../ui.jsx';
+import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Stat, Tile, openExternal, useApp, NumInput } from '../ui.jsx';
 
 const methods = [
   { id: 'cash', label: 'نقداً', icon: Banknote },
@@ -129,13 +129,13 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
       {pkg && !depositMode && <label className="toggle-row"><span><strong>استخدام جلسة من «{pkg.name}»</strong><small>متبقٍ {pkg.total - pkg.used} من {pkg.total}</small></span><input type="checkbox" className="toggle" checked={usePackage} onChange={e => setUsePackage(e.target.checked)} /></label>}
       {!depositMode && <Field label="خصم"><div className="quick-amounts">
         {[0, 10, 20].map(p => <button type="button" key={p} className={`chip ${discount === Math.round(gross * p / 100) ? 'active' : ''}`} onClick={() => setDiscount(Math.round(gross * p / 100))}>{p ? `${p}٪` : 'بدون'}</button>)}
-        <div className="money-input"><input type="number" min="0" value={discount} onChange={e => setDiscount(Math.min(gross, Number(e.target.value)))} /><span>ر.ق</span></div>
+        <div className="money-input"><NumInput min="0" value={discount} onChange={e => setDiscount(Math.min(gross, Number(e.target.value)))} /><span>ر.ق</span></div>
       </div></Field>}
       <div className="due-box"><span>{depositMode ? 'العربون المطلوب' : 'المستحق'}</span><strong>{money(due)}</strong></div>
       <div className="method-grid">{methods.map(m => <button type="button" key={m.id} className={`method ${method === m.id ? 'active' : ''}`} onClick={() => setMethod(m.id)}><m.icon size={24} /><span>{m.label}</span></button>)}</div>
       {method === 'gift' && <Field label="رمز بطاقة الهدية" hint={gift ? `الرصيد: ${money(gift.balance)}` : ''}><input dir="ltr" className="code-input" value={giftCode} onChange={e => setGiftCode(e.target.value.toUpperCase())} placeholder="GIFT-XXXX" /></Field>}
-      <Field label="المبلغ المستلم" hint="يمكنك استلام جزء والباقي لاحقاً"><div className="money-input"><input type="number" min="0" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /><span>ر.ق</span></div></Field>
-      {!depositMode && <Field label="إكرامية للموظف (اختياري)"><div className="money-input"><input type="number" min="0" value={tip} onChange={e => setTip(e.target.value)} /><span>ر.ق</span></div></Field>}
+      <Field label="المبلغ المستلم" hint="يمكنك استلام جزء والباقي لاحقاً"><div className="money-input"><NumInput min="0" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /><span>ر.ق</span></div></Field>
+      {!depositMode && <Field label="إكرامية للموظف (اختياري)"><div className="money-input"><NumInput min="0" value={tip} onChange={e => setTip(e.target.value)} /><span>ر.ق</span></div></Field>}
       <Alert>{error}</Alert>
     </div>
   </Sheet>;
@@ -176,35 +176,44 @@ export function InvoiceSheet({ appointment: a, onClose, canUndo }) {
   </Sheet>;
 }
 
+// الصندوق: رصيد الافتتاح = ما تُرك في الدرج عند آخر إغلاق، والمتبقي للغد = المعدود تلقائياً.
+// المالك والمدير فقط يستطيعان تعديل الأرقام التلقائية.
 function Drawer() {
-  const { data, upsert, toast, shop, staffMember } = useApp();
+  const { data, upsert, toast, shop, staffMember, isManager } = useApp();
   const today = localISO();
   const closedToday = data.drawers.find(d => d.date === today);
-  const last = [...data.drawers].sort((a, b) => b.date.localeCompare(a.date))[0];
-  const [opening, setOpening] = useState(last && last.date !== today ? Number(last.keep ?? 0) : 0);
+  const last = [...data.drawers].filter(d => d.date < today).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const autoOpening = Number(last?.keep ?? last?.counted ?? 0);
+  const [opening, setOpening] = useState(null);
   const [counted, setCounted] = useState('');
-  const [keep, setKeep] = useState(0);
-  const { cashIn, cashOut, expected } = expectedCash(today, data.appointments, data.expenses, opening, data.sales);
+  const [keep, setKeep] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const openingValue = opening ?? autoOpening;
+  const { cashIn, cashOut, expected } = expectedCash(today, data.appointments, data.expenses, openingValue, data.sales);
   const diff = counted === '' ? 0 : Number(counted) - expected;
+  const keepValue = keep ?? (counted === '' ? expected : Number(counted));
   const history = [...data.drawers].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
 
   return <div className="stack">
-    {closedToday ? <Alert tone="green" icon={Lock}>تم إغلاق صندوق اليوم — الفرق {money(closedToday.difference)}</Alert> : <>
+    {closedToday ? <Alert tone="green" icon={Lock}>تم إغلاق صندوق اليوم — الفرق {money(closedToday.difference)} · بقي في الدرج {money(closedToday.keep)}</Alert> : <>
       <div className="list">
-        <Row title="رصيد الافتتاح" trailing={<div className="money-input small"><input type="number" value={opening} onChange={e => setOpening(Number(e.target.value))} /><span>ر.ق</span></div>} />
+        <Row title="رصيد الافتتاح" subtitle={opening === null ? (last ? `ما بقي في الدرج عند إغلاق ${dateLabel(last.date)}` : 'أول إغلاق للصندوق') : 'معدّل يدوياً'}
+          trailing={editing ? <div className="money-input small"><NumInput value={openingValue} onChange={e => setOpening(Number(e.target.value))} /><span>ر.ق</span></div> : <strong>{money(openingValue)}</strong>} />
         <Row title="مقبوضات نقدية" trailing={<strong className="green">+{money(cashIn)}</strong>} />
         <Row title="مصروفات نقدية" trailing={<strong className="red">−{money(cashOut)}</strong>} />
         <Row title="المتوقع في الدرج" trailing={<strong>{money(expected)}</strong>} />
       </div>
-      <Field label="المبلغ الفعلي بعد العد"><div className="money-input"><input type="number" inputMode="decimal" value={counted} onChange={e => setCounted(e.target.value)} placeholder="0" /><span>ر.ق</span></div></Field>
+      <Field label="المبلغ الفعلي بعد العد"><div className="money-input"><NumInput value={counted} onChange={e => setCounted(e.target.value)} placeholder="0" /><span>ر.ق</span></div></Field>
       {counted !== '' && <Alert tone={Math.abs(diff) < 1 ? 'green' : 'red'} icon={Vault}>{Math.abs(diff) < 1 ? 'الصندوق مطابق ✓' : diff > 0 ? `زيادة ${money(diff)}` : `عجز ${money(-diff)}`}</Alert>}
-      <Field label="يبقى في الدرج للغد"><div className="money-input"><input type="number" value={keep} onChange={e => setKeep(Number(e.target.value))} /><span>ر.ق</span></div></Field>
+      <Row title="يبقى في الدرج للغد" subtitle={keep === null ? 'تلقائياً = المبلغ المعدود' : 'معدّل يدوياً (الباقي سُحب من الدرج)'}
+        trailing={editing ? <div className="money-input small"><NumInput value={keepValue} onChange={e => setKeep(Number(e.target.value))} /><span>ر.ق</span></div> : <strong>{money(keepValue)}</strong>} />
+      {isManager && !editing && <Button variant="ghost" size="sm" icon={Pencil} onClick={() => setEditing(true)}>تعديل الأرقام التلقائية</Button>}
       <Button size="lg" block icon={Lock} disabled={counted === ''} onClick={() => {
-        upsert('drawers', { id: uid(), date: today, opening, cashIn, cashOut, expected, counted: Number(counted), difference: diff, keep, closedBy: staffMember?.name || shop.role, closedAt: new Date().toISOString() });
+        upsert('drawers', { id: uid(), date: today, opening: openingValue, cashIn, cashOut, expected, counted: Number(counted), difference: diff, keep: keepValue, closedBy: staffMember?.name || shop.role, closedAt: new Date().toISOString() });
         toast('تم إغلاق الصندوق');
       }}>إغلاق صندوق اليوم</Button>
     </>}
-    {history.length > 0 && <Section title="آخر الإغلاقات"><div className="list">{history.map(d => <Row key={d.id} title={dateLabel(d.date)} subtitle={`متوقع ${money(d.expected)} · فعلي ${money(d.counted)}`} trailing={<strong className={Math.abs(d.difference) < 1 ? 'green' : 'red'}>{Math.abs(d.difference) < 1 ? 'مطابق' : money(d.difference)}</strong>} />)}</div></Section>}
+    {history.length > 0 && <Section title="آخر الإغلاقات"><div className="list">{history.map(d => <Row key={d.id} title={dateLabel(d.date)} subtitle={`متوقع ${money(d.expected)} · فعلي ${money(d.counted)} · بقي ${money(d.keep)}`} trailing={<strong className={Math.abs(d.difference) < 1 ? 'green' : 'red'}>{Math.abs(d.difference) < 1 ? 'مطابق' : money(d.difference)}</strong>} />)}</div></Section>}
   </div>;
 }
 
@@ -258,7 +267,7 @@ function SellGift({ onClose }) {
   }}>إصدار {money(amount)}</Button>}>
     <div className="stack">
       <div className="chips">{[100, 200, 300, 500].map(v => <button type="button" key={v} className={`chip ${Number(amount) === v ? 'active' : ''}`} onClick={() => setAmount(v)}>{money(v)}</button>)}</div>
-      <Field label="مبلغ آخر"><div className="money-input"><input type="number" min="1" value={amount} onChange={e => setAmount(e.target.value)} /><span>ر.ق</span></div></Field>
+      <Field label="مبلغ آخر"><div className="money-input"><NumInput min="1" value={amount} onChange={e => setAmount(e.target.value)} /><span>ر.ق</span></div></Field>
       <Field label="اسم المشتري"><input value={buyer} onChange={e => setBuyer(e.target.value)} /></Field>
       <Field label="اسم المُهدى إليه"><input value={recipient} onChange={e => setRecipient(e.target.value)} /></Field>
       <Field label="طريقة الدفع"><PayMethod value={method} onChange={setMethod} /></Field>
@@ -286,7 +295,7 @@ function SellProduct({ onClose }) {
     <div className="stack">
       {sellable.length ? <div className="list">{sellable.map(p => <Row key={p.id} title={p.name} subtitle={`المتوفر ${num(p.quantity)} ${p.unit}`} trailing={<span className="row-end"><strong>{money(p.price)}</strong>{productId === p.id && <Check className="green" size={18} />}</span>} onClick={() => setProductId(p.id)} />)}</div>
         : <Empty icon={ShoppingBag} title="لا منتجات للبيع" text="أضف سعر بيع للمنتجات من المخزون" />}
-      <Field label="الكمية"><input type="number" min="1" value={quantity} onChange={e => setQuantity(Number(e.target.value))} /></Field>
+      <Field label="الكمية"><NumInput min="1" value={quantity} onChange={e => setQuantity(Number(e.target.value))} /></Field>
       <Field label="طريقة الدفع"><PayMethod value={method} onChange={setMethod} /></Field>
     </div>
   </Sheet>;
@@ -304,7 +313,7 @@ function AddExpense({ onClose }) {
     toast('تم تسجيل المصروف'); onClose();
   }}>حفظ</Button>}>
     <div className="stack">
-      <Field label="المبلغ"><div className="money-input"><input autoFocus type="number" min="0" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /><span>ر.ق</span></div></Field>
+      <Field label="المبلغ"><div className="money-input"><NumInput autoFocus min="0" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} /><span>ر.ق</span></div></Field>
       <Field label="البند"><Chips items={expenseCategories.map(c => ({ id: c, label: c }))} value={category} onChange={setCategory} /></Field>
       <Field label="ملاحظة"><input value={note} onChange={e => setNote(e.target.value)} /></Field>
       <Field label="الدفع من"><PayMethod value={method} onChange={setMethod} /></Field>

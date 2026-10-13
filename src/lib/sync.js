@@ -117,6 +117,8 @@ export const api = {
   team: shop => rpc('shop_team', { p_shop: shop }),
   createInvite: (shop, role, staffId) => rpc('create_invite', { p_shop: shop, p_role: role, p_staff: staffId || '' }),
   acceptInvite: code => rpc('accept_invite', { p_code: code }),
+  setMemberSuspended: (shop, userId, suspended) => rpc('set_member_suspended', { p_shop: shop, p_user: userId, p_suspended: suspended }),
+  people: shop => rpc('shop_people', { p_shop: shop }),
   removeMember: async (shop, userId) => {
     const { error } = await supabase.from('shop_members').delete().eq('shop_id', shop).eq('user_id', userId);
     if (error) throw error;
@@ -148,6 +150,10 @@ export const api = {
     setLicense: (shop, plan, paidUntil, note) => rpc('admin_set_license', { p_shop: shop, p_plan: plan, p_paid_until: paidUntil, p_note: note ?? null }),
     extendTrial: (shop, days) => rpc('admin_extend_trial', { p_shop: shop, p_days: days }),
     integration: shop => rpc('admin_get_integration', { p_shop: shop }),
+    grantGrace: shop => rpc('admin_grant_grace', { p_shop: shop }),
+    overview: shop => rpc('admin_shop_overview', { p_shop: shop }),
+    templates: shop => rpc('admin_get_templates', { p_shop: shop }),
+    setTemplates: (shop, templates) => rpc('admin_set_templates', { p_shop: shop, p_templates: templates }),
     setIntegration: (shop, v) => rpc('admin_set_integration', {
       p_shop: shop, p_wa_addon: Boolean(v.waAddon), p_ai_addon: Boolean(v.aiAddon), p_phone_number_id: v.phoneNumberId || '',
       p_token: v.token || '', p_ai_key: v.aiKey || '', p_clear_token: Boolean(v.clearToken), p_clear_ai_key: Boolean(v.clearAiKey), p_ai_provider: v.aiProvider || 'anthropic',
@@ -166,6 +172,8 @@ export const errorText = error => {
   if (/slot_taken/.test(message)) return 'هذا الوقت حُجز للتو، اختر وقتاً آخر';
   if (/too_many/.test(message)) return 'وصلت للحد الأقصى من الحجوزات اليوم، تواصل مع الصالون';
   if (/shop_unavailable/.test(message)) return 'الحجز الأونلاين غير متاح حالياً لهذا الصالون';
+  if (/grace_already_given/.test(message)) return 'سبق منح مهلة لهذه الفترة — جدّد الاشتراك أو أوقف الصالون';
+  if (/not_subscribed/.test(message)) return 'المهلة للمشتركين فقط — للتجربة استخدم تمديد التجربة';
   if (/duplicate key.*slug/i.test(message)) return 'رابط الحجز مستخدم، اختر اسماً آخر';
   if (/Failed to fetch|NetworkError|network/i.test(message)) return 'لا يوجد اتصال بالإنترنت';
   return message || 'حدث خطأ غير متوقع';

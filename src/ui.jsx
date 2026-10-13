@@ -192,6 +192,21 @@ export function Chips({ items, value, onChange, multiple }) {
   })}</div>;
 }
 
+// حقل رقم يمكن مسحه بالكامل (لا يعود الصفر أثناء الكتابة)، ويقبل الأرقام العربية ويحولها.
+const toLatin = text => String(text).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٫,]/g, '.');
+const shown = value => (value === '' || value === null || value === undefined ? '' : String(value));
+export function NumInput({ value, onChange, ...props }) {
+  const [text, setText] = useState(() => shown(value));
+  // نحدّث النص عند تغيّر القيمة من الخارج فقط (وليس عند المسح أثناء الكتابة).
+  useEffect(() => { if (Number(text || 0) !== Number(value || 0)) setText(shown(value)); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <input {...props} type="text" inputMode="decimal" dir="ltr" value={text} onFocus={event => { event.target.select(); props.onFocus?.(event); }}
+    onChange={event => {
+      const clean = toLatin(event.target.value).replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+      setText(clean);
+      onChange({ target: { value: clean } });
+    }} />;
+}
+
 export function SearchBox({ value, onChange, placeholder = 'بحث...' }) {
   return <label className="search"><Search size={18} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} aria-label={placeholder} />{value && <button type="button" onClick={() => onChange('')} aria-label="مسح"><X size={16} /></button>}</label>;
 }

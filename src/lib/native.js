@@ -1,6 +1,6 @@
 // تكامل تطبيق أندرويد الأصلي (Capacitor): شريط الحالة، زر الرجوع، وتنبيهات المواعيد على الجهاز.
 import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
-import { localISO, serviceNames, timeLabel } from '../data.js';
+import { localISO, num, serviceNames, timeLabel } from '../data.js';
 
 export const isNative = Capacitor.isNativePlatform();
 
@@ -63,7 +63,7 @@ export async function scheduleAppointmentAlerts(data, staffId) {
     await LocalNotifications.schedule({
       notifications: upcoming.map(({ a, at }, index) => ({
         id: index + 1,
-        title: `موعد بعد ١٥ دقيقة — ${timeLabel(a.time)}`,
+        title: `موعد بعد ${num(15)} دقيقة — ${timeLabel(a.time)}`,
         body: `${clients[a.clientId]?.name || 'عميل'} · ${serviceNames(a)}`,
         schedule: { at: new Date(at), allowWhileIdle: true },
       })),

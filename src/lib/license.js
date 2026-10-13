@@ -22,8 +22,12 @@ export function licenseState(shop, anchor) {
   const now = trustedNow(anchor);
   const paidUntil = shop.paid_until ? new Date(shop.paid_until).getTime() : 0;
   const trialEnds = new Date(shop.trial_ends_at).getTime();
+  if (shop.member_suspended) return { status: 'member_suspended', locked: true };
   if (shop.plan === 'suspended') return { status: 'suspended', locked: true };
   if (paidUntil > now) return { status: 'paid', plan: shop.plan, until: paidUntil, daysLeft: Math.ceil((paidUntil - now) / DAY), locked: false };
+  // مهلة السداد: يعمل التطبيق حتى نهايتها ثم يتوقف تماماً.
+  const graceUntil = shop.grace_until ? new Date(shop.grace_until).getTime() : 0;
+  if (graceUntil > now) return { status: 'grace', plan: shop.plan, until: graceUntil, daysLeft: Math.ceil((graceUntil - now) / DAY), locked: false };
   if (trialEnds > now) return { status: 'trial', until: trialEnds, daysLeft: Math.ceil((trialEnds - now) / DAY), hoursLeft: Math.ceil((trialEnds - now) / 3600000), locked: false };
   return { status: paidUntil ? 'expired' : 'trial_ended', locked: true };
 }
