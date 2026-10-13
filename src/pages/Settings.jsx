@@ -354,13 +354,15 @@ function Plan({ onClose }) {
   return <Sheet title="الاشتراك" onClose={onClose} size="lg">
     <div className="stack">
       <Alert tone={license.status === 'paid' ? 'green' : 'orange'} icon={CreditCard}>{license.status === 'paid' ? `مشترك (${plans.find(p => p.id === license.plan)?.name || license.plan}) — ${license.plan === 'lifetime' ? 'مدى الحياة' : `حتى ${new Date(license.until).toLocaleDateString(LOCALE)}`}` : `فترة تجربة — باقٍ ${license.daysLeft} أيام`}</Alert>
-      <div className="plans">{plans.map(plan => <div key={plan.id} className={`plan ${plan.best ? 'plan-best' : ''}`}>
-        {plan.best && <span className="plan-tag">الأوفر</span>}
+      <div className="plans">{plans.map(plan => { const current = license.status === 'paid' && license.plan === plan.id; return <div key={plan.id} className={`plan ${current ? 'plan-current' : plan.best ? 'plan-best' : ''}`}>
+        {(current || plan.best) && <span className="plan-tag">{current ? 'خطتك الحالية' : 'الأوفر'}</span>}
         <strong>{plan.name}</strong>
         <div className="plan-price">{plan.price.toLocaleString(LOCALE)} <small>ر.ق {plan.period}</small></div>
         <p><Check size={14} /> {plan.note}</p>
-        <Button variant={plan.best ? 'primary' : 'secondary'} block onClick={() => openExternal(buyLink(data.shopName || shop.name, plan))}>اشترك</Button>
-      </div>)}</div>
+        {current
+          ? <Button variant="secondary" icon={Check} block disabled>مفعّلة{plan.id === 'lifetime' ? '' : ` حتى ${new Date(license.until).toLocaleDateString(LOCALE)}`}</Button>
+          : <Button variant={plan.best ? 'primary' : 'secondary'} block onClick={() => openExternal(buyLink(data.shopName || shop.name, plan))}>{license.status === 'paid' ? 'تغيير لهذه الخطة' : 'اشترك'}</Button>}
+      </div>; })}</div>
       {cloudEnabled && <Section title="إضافات اختيارية (اشتراك منفصل)">
         <div className="stack">{addons.map(a => <AddonOffer key={a.id} id={a.id} shopName={data.shopName || shop.name} />)}</div>
       </Section>}

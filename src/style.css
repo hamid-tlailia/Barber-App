@@ -332,6 +332,7 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .action-row .btn { flex: 1; min-width: 120px; }
 
 .toast { position: fixed; z-index: 60; inset-inline: 16px; bottom: calc(var(--tab-h) + var(--safe-b) + 14px); margin: 0 auto; max-width: 440px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 16px; background: var(--ink); color: var(--bg); font-weight: 600; box-shadow: var(--shadow-lg); animation: toast-in .42s var(--ease-spring); }
+:root[data-theme='dark'] .toast { background: var(--surface-3); color: var(--ink); border: 1px solid var(--line-strong); }
 .toast-error { background: var(--red); color: #fff; }
 .toast button { color: var(--accent); font-weight: 800; }
 @media (min-width: 900px) { .toast { bottom: 24px; } }
@@ -372,10 +373,10 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 @media (min-width: 700px) { .day-nav .icon-btn { display: grid; } }
 .day-strip { flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px; scroll-snap-type: x proximity; }
 .day-strip::-webkit-scrollbar { display: none; }
-.day { flex: none; width: 58px; display: grid; justify-items: center; gap: 2px; padding: 9px 0 8px; border-radius: 16px; background: var(--surface); border: 1.5px solid var(--line); scroll-snap-align: center; }
+.day { flex: none; width: 54px; display: grid; justify-items: center; gap: 0; padding: 6px 0 6px; border-radius: 16px; background: var(--surface); border: 1.5px solid var(--line); scroll-snap-align: center; }
 .day small { color: var(--muted); font-size: 11.5px; }
-.day strong { font-family: 'Tajawal', sans-serif; font-size: 18px; font-weight: 800; }
-.day i { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-ink); font-style: normal; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.day strong { font-family: 'Tajawal', sans-serif; font-size: 17px; font-weight: 800; line-height: 1.25; }
+.day i { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; margin-top: 1px; background: var(--accent-soft); color: var(--accent-ink); font-style: normal; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
 .day i.empty-dot { background: none; }
 .day.today strong { color: var(--accent-ink); }
 .day.active { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -592,3 +593,10 @@ input.toggle:checked:active::after { inset-inline-start: 17px; }
   .stat-value { font-size: 18px; }
   .stat-label { font-size: 12px; }
 }
+
+/* محاذاة الحقول: يمين دائماً في الواجهة العربية (حتى الأرقام والهواتف)، ويسار في الإنجليزية. */
+[dir='rtl'] input, [dir='rtl'] textarea, [dir='rtl'] select { text-align: right; }
+[dir='ltr'] input, [dir='ltr'] textarea, [dir='ltr'] select { text-align: left; }
+html[dir='rtl'] input[dir='ltr'], html[dir='rtl'] textarea[dir='ltr'] { text-align: right; }
+.plan-current { border-color: var(--green); background: var(--green-soft); }
+.plan-current .plan-tag { background: var(--green); }
