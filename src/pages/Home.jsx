@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
   BellRing, Boxes, CalendarCheck2, CalendarPlus, Cake, CircleDollarSign, Clock3, Lightbulb, ListChecks,
-  MessageCircle, Receipt, UserRoundCheck, WalletCards,
+  ListPlus, MessageCircle, Receipt, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel } from '../data.js';
+import { addDays, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
 import { incomeIn, todayInsights } from '../smart.js';
 import { Avatar, Badge, Button, Empty, Row, Section, Stat, Tile, useApp } from '../ui.jsx';
 import { AppointmentSheet, BookingWizard } from './Appointments.jsx';
@@ -12,7 +12,7 @@ import { L } from '../i18n.js';
 const insightIcons = { reminders: BellRing, lapsed: UserRoundCheck, stock: Boxes, birthday: Cake, unpaid: Receipt, waitlist: ListChecks };
 
 export default function Home() {
-  const { data, go, role, staffMember, can, patch, toast } = useApp();
+  const { data, setData, go, role, staffMember, can, patch, toast } = useApp();
   const today = localISO();
   const mine = a => role !== 'staff' || !staffMember || a.staffId === staffMember.id || (a.items || []).some(i => i.staffId === staffMember.id);
   const todays = data.appointments.filter(a => a.date === today && !['cancelled'].includes(a.status) && mine(a)).sort(sortAppointments);
@@ -23,6 +23,18 @@ export default function Home() {
   const unpaid = data.appointments.filter(a => a.status === 'completed' && !isPaid(a));
   const client = next && data.clients.find(c => c.id === next.clientId);
   const insights = role === 'staff' ? [] : todayInsights(data, today);
+  // مواعيد مرّ عليها 15 دقيقة (اليوم أو أمس) دون تسجيل حضور: يُطلب إجراء.
+  const overdue = data.appointments.filter(a => ['pending', 'confirmed'].includes(a.status) && a.date >= addDays(today, -1) && mine(a)
+    && new Date(`${a.date}T${a.time}:00`).getTime() + 15 * 60000 < now.getTime()).sort(sortAppointments).slice(0, 6);
+  // غياب + إضافة لقائمة الانتظار: عند أول وقت يتفرغ نقترح عليه الموعد.
+  const toWaitlist = a => setData(prev => ({
+    ...prev,
+    appointments: prev.appointments.map(x => (x.id === a.id ? { ...x, status: 'no_show' } : x)),
+    waitlist: prev.waitlist.some(w => w.clientId === a.clientId && w.status === 'waiting') ? prev.waitlist : [...prev.waitlist, {
+      id: uid(), clientId: a.clientId, date: '', serviceId: a.items?.[0]?.serviceId || '', staffId: a.staffId || '', status: 'waiting', createdAt: today,
+      note: L(`لم يحضر موعد ${dateLabel(a.date, { day: 'numeric', month: 'short' })} — يريد موعداً جديداً`, `Missed ${dateLabel(a.date, { day: 'numeric', month: 'short' })} — wants a new slot`),
+    }],
+  }));
   const hour = now.getHours();
   // الحجز وفتح الموعد يتمّان هنا فوق الرئيسية بدون الانتقال لصفحة أخرى.
   const [wizard, setWizard] = useState(null);
@@ -60,6 +72,20 @@ export default function Home() {
       {can('checkout') && <Tile icon={WalletCards} label={L('تحصيل', 'Checkout')} tone="green" count={unpaid.length} onClick={() => go('checkout')} />}
       {can('messages') && <Tile icon={MessageCircle} label={L('رسائل', 'Messages')} tone="purple" count={insights.filter(i => i.action === 'messages').length} onClick={() => go('messages')} />}
     </div>
+
+    {overdue.length > 0 && <Section title={<><UserX size={18} /> {L('مرّ موعدهم ولم يُسجَّل حضورهم', 'Past their time, not checked in')}</>}>
+      <div className="list">{overdue.map(a => {
+        const c = data.clients.find(x => x.id === a.clientId);
+        return <div key={a.id} className="action-row">
+          <Row leading={<span className="time-chip">{timeLabel(a.time)}</span>} title={c?.name || L('عميل', 'Client')} subtitle={`${dateLabel(a.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${serviceNames(a)}`} onClick={() => setOpenId(a.id)} />
+          <div className="row-buttons">
+            <Button size="sm" variant="secondary" icon={UserRoundCheck} onClick={() => { patch('appointments', a.id, { status: 'arrived', arrivedAt: new Date().toISOString() }); toast(L('سُجّل الحضور', 'Marked arrived')); }}>{L('حضر', 'Arrived')}</Button>
+            <Button size="sm" variant="ghost" icon={UserX} onClick={() => { patch('appointments', a.id, { status: 'no_show' }); toast(L('سُجّل غياب', 'Marked no-show')); }}>{L('لم يحضر', 'No-show')}</Button>
+            {c && <Button size="sm" variant="ghost" icon={ListPlus} onClick={() => toWaitlist(a)}>{L('غياب + انتظار', 'No-show + waitlist')}</Button>}
+          </div>
+        </div>;
+      })}</div>
+    </Section>}
 
     {insights.length > 0 && <Section title={<><Lightbulb size={18} /> {L('اقتراحات ذكية', 'Smart suggestions')}</>}>
       <div className="list">{insights.map(insight => {

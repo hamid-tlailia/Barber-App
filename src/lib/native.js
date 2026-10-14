@@ -1,6 +1,6 @@
 // تكامل تطبيق أندرويد الأصلي (Capacitor): شريط الحالة، زر الرجوع، وتنبيهات المواعيد على الجهاز.
 import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
-import { localISO, num, serviceNames, timeLabel } from '../data.js';
+import { addDays, balanceDue, localISO, money, num, serviceNames, timeLabel } from '../data.js';
 import { L } from '../i18n.js';
 
 export const isNative = Capacitor.isNativePlatform();
@@ -38,48 +38,87 @@ export async function deviceId() {
 
 // إشعار فوري على الجهاز (حجز جديد مثلاً).
 let notifyId = 1000;
-export async function notifyNow(title, body) {
+export async function notifyNow(title, body, extra = {}) {
   if (!isNative) {
     try { if (window.Notification?.permission === 'granted') new Notification(title, { body }); } catch { /* ignore */ }
     return;
   }
   try {
-    const { LocalNotifications } = await import('@capacitor/local-notifications');
-    const permission = await LocalNotifications.checkPermissions();
-    if (permission.display !== 'granted' && (await LocalNotifications.requestPermissions()).display !== 'granted') return;
-    await LocalNotifications.schedule({ notifications: [{ id: notifyId++, title, body }] });
+    const api = await alertsApi();
+    if (!api) return;
+    await api.schedule({ notifications: [{ id: notifyId++, title, body, channelId: ALERT_CHANNEL, extra }] });
   } catch { /* الإشعارات اختيارية */ }
 }
 
-// تنبيه قبل كل موعد بـ١٥ دقيقة (لمواعيد اليوم والغد) — يعمل حتى والتطبيق مغلق.
+// قناة تنبيهات بأولوية عالية: تظهر منبثقة أعلى الشاشة مع صوت واهتزاز (أندرويد 8+).
+const ALERT_CHANNEL = 'alerts';
+let channelReady = null;
+async function alertsApi() {
+  const { LocalNotifications } = await import('@capacitor/local-notifications');
+  const permission = await LocalNotifications.checkPermissions();
+  if (permission.display !== 'granted' && (await LocalNotifications.requestPermissions()).display !== 'granted') return null;
+  channelReady ||= LocalNotifications.createChannel({ id: ALERT_CHANNEL, name: L('تنبيهات المواعيد', 'Appointment alerts'), importance: 5, visibility: 1, sound: 'default', vibration: true, lights: true, lightColor: '#D59A4E' }).catch(() => {});
+  await channelReady;
+  return LocalNotifications;
+}
+
+// تنبيهات المواعيد على الجهاز (تعمل والتطبيق مغلق) — وكل تنبيه يفتح الموعد عند الضغط عليه:
+// ١) قبل الموعد بـ15 دقيقة. ٢) بعد بدايته بـ15 دقيقة إن لم يُسجَّل حضوره: «هل حضر؟».
+// ٣) بعد انتهاء خدمة لم تُدفع: «هل دفع؟».
 let lastSignature = '';
-export async function scheduleAppointmentAlerts(data, staffId) {
+export async function scheduleAppointmentAlerts(data, staffId, { payments = true } = {}) {
   if (!isNative) return;
   const today = localISO();
-  const upcoming = data.appointments
-    .filter(a => ['pending', 'confirmed'].includes(a.status) && a.date >= today && (!staffId || a.staffId === staffId))
-    .map(a => ({ a, at: new Date(`${a.date}T${a.time}:00`).getTime() - 15 * 60000 }))
-    .filter(({ at }) => at > Date.now() && at < Date.now() + 2 * 86400000)
-    .slice(0, 40);
-  const signature = upcoming.map(({ a }) => `${a.id}${a.date}${a.time}`).join('|');
+  const now = Date.now();
+  const clients = Object.fromEntries(data.clients.map(c => [c.id, c]));
+  const name = a => clients[a.clientId]?.name || L('عميل', 'Client');
+  const start = a => new Date(`${a.date}T${a.time}:00`).getTime();
+  const mine = a => !staffId || a.staffId === staffId || (a.items || []).some(i => i.staffId === staffId);
+  const recent = data.appointments.filter(a => a.date >= addDays(today, -1) && a.date <= addDays(today, 2) && mine(a));
+  const items = [];
+  for (const a of recent) {
+    const at = start(a);
+    if (['pending', 'confirmed'].includes(a.status)) {
+      items.push({ key: `b${a.id}`, at: at - 15 * 60000, title: L(`موعد بعد ${num(15)} دقيقة — ${timeLabel(a.time)}`, `Appointment in ${num(15)} minutes — ${timeLabel(a.time)}`), body: `${name(a)} · ${serviceNames(a)}`, a });
+      items.push({ key: `n${a.id}`, at: at + 15 * 60000, title: L(`هل حضر ${name(a)}؟`, `Did ${name(a)} arrive?`), body: L(`مرّت ${num(15)} دقيقة على موعده (${timeLabel(a.time)}) — سجّل حضوره، أو غيابه وأضفه لقائمة الانتظار`, `${num(15)} minutes since the appointment (${timeLabel(a.time)}) — mark them arrived, or no-show and add to the waitlist`), a });
+    }
+    if (payments && ['arrived', 'completed'].includes(a.status) && balanceDue(a) > 0) {
+      const end = at + Number(a.duration || 30) * 60000 + 10 * 60000;
+      items.push({ key: `p${a.id}`, at: Math.max(end, now + 60000), title: L(`هل دفع ${name(a)}؟`, `Has ${name(a)} paid?`), body: L(`متبقٍّ ${money(balanceDue(a))} — سجّل الدفع حتى يكتمل الموعد`, `${money(balanceDue(a))} outstanding — record the payment to close the appointment`), a });
+    }
+  }
+  // تذكير الدفع المتأخر يُرسل مرة واحدة فقط لكل موعد.
+  const notified = new Set(JSON.parse(localStorage.getItem('miqass-paid-alerts') || '[]'));
+  const due = items.filter(n => n.at > now && n.at < now + 2 * 86400000 && !(n.key.startsWith('p') && notified.has(n.key))).sort((x, y) => x.at - y.at).slice(0, 60);
+  const signature = due.map(n => `${n.key}${n.at}`).join('|');
   if (signature === lastSignature) return;
   lastSignature = signature;
   try {
-    const { LocalNotifications } = await import('@capacitor/local-notifications');
-    const permission = await LocalNotifications.checkPermissions();
-    if (permission.display !== 'granted' && (await LocalNotifications.requestPermissions()).display !== 'granted') return;
-    const pending = await LocalNotifications.getPending();
-    if (pending.notifications.length) await LocalNotifications.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
-    const clients = Object.fromEntries(data.clients.map(c => [c.id, c]));
-    await LocalNotifications.schedule({
-      notifications: upcoming.map(({ a, at }, index) => ({
-        id: index + 1,
-        title: L(`موعد بعد ${num(15)} دقيقة — ${timeLabel(a.time)}`, `Appointment in ${num(15)} minutes — ${timeLabel(a.time)}`),
-        body: `${clients[a.clientId]?.name || L('عميل', 'Client')} · ${serviceNames(a)}`,
-        schedule: { at: new Date(at), allowWhileIdle: true },
+    const api = await alertsApi();
+    if (!api) return;
+    const pending = await api.getPending();
+    if (pending.notifications.length) await api.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
+    await api.schedule({
+      notifications: due.map((n, index) => ({
+        id: index + 1, title: n.title, body: n.body, channelId: ALERT_CHANNEL,
+        schedule: { at: new Date(n.at), allowWhileIdle: true },
+        extra: { appointmentId: n.a.id, date: n.a.date },
       })),
     });
+    for (const n of due) if (n.key.startsWith('p')) notified.add(n.key);
+    localStorage.setItem('miqass-paid-alerts', JSON.stringify([...notified].slice(-300)));
   } catch { /* التنبيهات اختيارية */ }
+}
+
+// الضغط على أي تنبيه محلي يفتح الموعد (حتى لو كان التطبيق مغلقاً).
+let tapListener = false;
+export async function onAlertTap(handler) {
+  if (!isNative || tapListener) return;
+  tapListener = true;
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    await LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => handler(notification.extra || {}));
+  } catch { /* ignore */ }
 }
 
 // إشعارات Firebase (تصل حتى والتطبيق مغلق). تُفعَّل فقط عند بناء التطبيق مع google-services.json.

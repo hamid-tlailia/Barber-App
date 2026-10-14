@@ -22,7 +22,7 @@ import { prefs } from './lib/store.js';
 import { api, auth, cloudEnabled } from './lib/sync.js';
 import { licenseState, localShop } from './lib/license.js';
 import { useShopData } from './useShopData.js';
-import { deviceId, initNative, notifyNow, registerPush, scheduleAppointmentAlerts, setSystemBarsTheme } from './lib/native.js';
+import { deviceId, initNative, notifyNow, onAlertTap, registerPush, scheduleAppointmentAlerts, setSystemBarsTheme } from './lib/native.js';
 import Home from './pages/Home.jsx';
 import Appointments from './pages/Appointments.jsx';
 import Clients from './pages/Clients.jsx';
@@ -152,7 +152,7 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
     const a = list[0];
     const name = a.clientName || L('عميل جديد', 'New client');
     const text = list.length > 1 ? L(`${list.length} حجوزات جديدة أونلاين`, `${list.length} new online bookings`) : L(`حجز جديد: ${name} — ${dateLabel(a.date, { weekday: 'long' })} ${timeLabel(a.time)}`, `New booking: ${name} — ${dateLabel(a.date, { weekday: 'long' })} ${timeLabel(a.time)}`);
-    if (!(import.meta.env.VITE_PUSH === '1' && document.hidden)) notifyNow(L('📅 حجز جديد', '📅 New booking'), text); // في الخلفية يصل إشعار Firebase بدلاً منه
+    if (!(import.meta.env.VITE_PUSH === '1' && document.hidden)) notifyNow(L('📅 حجز جديد', '📅 New booking'), text, { appointmentId: a.id, date: a.date }); // في الخلفية يصل إشعار Firebase بدلاً منه
     toastRef.current?.(text, 'success', { label: L('فتح', 'Open'), run: () => goRef.current?.('appointments', { open: a.id }) });
   }, []);
   // تغييرات رفضها الخادم (صلاحيات) لا تبقى عالقة: نُبلغ بها مرة واحدة.
@@ -211,12 +211,14 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
   // تسجيل الجهاز لإشعارات Firebase (حجز جديد حتى والتطبيق مغلق).
   const enablePush = useCallback(() => registerPush(
     token => api.saveDeviceToken(shop.id, token).catch(() => {}),
-    payload => { if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId }); },
+    payload => { if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId, date: payload.date }); },
   ), [shop.id]);
   useEffect(() => { if (cloudEnabled && shop.id !== 'local') enablePush(); }, [enablePush]);
   useEffect(() => { if (cloudEnabled && role === 'owner' && shop.id !== 'local') deviceId().then(id => id && api.registerDevice(shop.id, id).catch(() => {})); }, [shop.id, role]);
 
-  useEffect(() => { if (data) scheduleAppointmentAlerts(data, shop.staff_id); }, [data?.appointments]); // eslint-disable-line react-hooks/exhaustive-deps
+  // تنبيهات الدفع لمن يملك صلاحية التحصيل فقط.
+  useEffect(() => { if (data) scheduleAppointmentAlerts(data, role === 'staff' ? shop.staff_id : null, { payments: role !== 'staff' }); }, [data?.appointments]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { onAlertTap(extra => { if (extra.appointmentId) goRef.current?.('appointments', { open: extra.appointmentId, date: extra.date }); }); }, []);
 
   const helpers = useMemo(() => {
     if (!data) return null;

@@ -31,9 +31,16 @@ export default function Appointments() {
   useEffect(() => {
     if (intent?.create) setWizard({});
     if (intent?.walkIn) setWizard({ walkIn: true });
-    if (intent?.open) { const a = data.appointments.find(x => x.id === intent.open); if (a) { setOpen(a.id); setDate(a.date); } }
+    if (intent?.open) { setPendingOpen(intent.open); if (intent.date) setDate(intent.date); }
     if (intent) setIntent(null);
   }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
+  // فتح موعد من إشعار: قد يصل قبل مزامنة الحجز (التطبيق كان مغلقاً) فننتظر ظهوره.
+  const [pendingOpen, setPendingOpen] = useState(null);
+  useEffect(() => {
+    if (!pendingOpen) return;
+    const a = data.appointments.find(x => x.id === pendingOpen);
+    if (a) { setOpen(a.id); setDate(a.date); setPendingOpen(null); }
+  }, [pendingOpen, data.appointments]);
 
   const clients = useMemo(() => Object.fromEntries(data.clients.map(c => [c.id, c])), [data.clients]);
   const list = data.appointments

@@ -35,11 +35,11 @@ export function SubscriptionBanner({ license, shop }) {
   </div>;
 }
 
-export const exportAll = data => {
+export const exportAll = async data => {
   const clients = Object.fromEntries(data.clients.map(c => [c.id, c]));
-  download(`clients-${localISO()}.csv`, toCSV([[L('الاسم', 'Name'), L('الهاتف', 'Phone'), L('ملاحظات', 'Notes')], ...data.clients.map(c => [c.name, c.phone, c.notes])]));
-  download(`appointments-${localISO()}.csv`, toCSV([[L('التاريخ', 'Date'), L('الوقت', 'Time'), L('العميل', 'Client'), L('الخدمات', 'Services'), L('المبلغ', 'Amount'), L('الحالة', 'Status')], ...data.appointments.map(a => [a.date, a.time, clients[a.clientId]?.name, (a.items || []).map(i => i.name).join(' + '), a.price, a.status])]));
-  download(`backup-${localISO()}.json`, JSON.stringify(data), 'application/json');
+  await download(`clients-${localISO()}.csv`, toCSV([[L('الاسم', 'Name'), L('الهاتف', 'Phone'), L('ملاحظات', 'Notes')], ...data.clients.map(c => [c.name, c.phone, c.notes])]));
+  await download(`appointments-${localISO()}.csv`, toCSV([[L('التاريخ', 'Date'), L('الوقت', 'Time'), L('العميل', 'Client'), L('الخدمات', 'Services'), L('المبلغ', 'Amount'), L('الحالة', 'Status')], ...data.appointments.map(a => [a.date, a.time, clients[a.clientId]?.name, (a.items || []).map(i => i.name).join(' + '), a.price, a.status])]));
+  await download(`backup-${localISO()}.json`, JSON.stringify(data), 'application/json');
 };
 
 export default function Lock({ shop, data, license, shops, switchShop }) {

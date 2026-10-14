@@ -2,6 +2,7 @@
 import { zipSync, strToU8 } from 'fflate';
 import { statusText } from '../data.js';
 import { L } from '../i18n.js';
+import { saveFile } from './files.js';
 
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -19,12 +20,7 @@ const hasArabic = s => /[֐-ࣿיִ-﷿ﹰ-﻿]/.test(s);
 
 const zip = files => zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)])), { level: 6 });
 
-export function downloadBlob(filename, bytes, type) {
-  const url = URL.createObjectURL(new Blob([bytes], { type }));
-  const link = Object.assign(document.createElement('a'), { href: url, download: filename });
-  document.body.append(link); link.click(); link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+export const downloadBlob = (filename, bytes, type) => saveFile(filename, bytes, type);
 
 /* ───────────── Excel ───────────── */
 

@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Check, ChevronLeft, ChevronRight, Loader2, Search, TriangleAlert, X } from 'lucide-react';
 import { statusText } from './data.js';
 import { L, isEn } from './i18n.js';
+import { saveFile } from './lib/files.js';
 
 // السهم يشير لاتجاه التقدّم: يسار في العربية ويمين في الإنجليزية.
 const Chevron = isEn ? ChevronRight : ChevronLeft;
@@ -273,12 +274,8 @@ export function Toast({ toast, onClose }) {
   </div>;
 }
 
-export const download = (name, content, type = 'text/csv;charset=utf-8') => {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const link = Object.assign(document.createElement('a'), { href: url, download: name });
-  document.body.append(link); link.click(); link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
+// يعيد وعداً: الأزرار تُظهر مؤشر تحميل حتى يجهز الملف.
+export const download = (name, content, type = 'text/csv;charset=utf-8') => saveFile(name, content, type);
 
 // يفتح واتساب في التطبيق الأصلي على الهاتف أو في تبويب جديد على الكمبيوتر.
 export const openExternal = href => { window.open(href, '_blank', 'noopener'); };
