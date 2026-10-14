@@ -57,7 +57,7 @@ export default function Clients() {
 }
 
 export function ClientForm({ client, onClose, onSaved }) {
-  const { data, upsert, remove, toast, vocab, isManager, staffMember } = useApp();
+  const { data, upsert, toast, vocab, isManager, staffMember } = useApp();
   const women = data.settings.kind !== 'men';
   const [v, setV] = useState({ name: '', phone: '', birthday: '', notes: '', allergies: '', formula: '', address: '', photoConsent: false, tags: [], ...client });
   const [error, setError] = useState('');
@@ -92,13 +92,36 @@ export function ClientForm({ client, onClose, onSaved }) {
       <Toggle checked={v.photoConsent} onChange={on => setV({ ...v, photoConsent: on })} label={L('موافقة على التصوير', 'Photo consent')} hint={L('مطلوبة لحفظ صور قبل/بعد', 'Required to save before/after photos')} />
       <Alert>{error}</Alert>
     </div>
-    {confirm && <Confirm title={L('حذف العميل؟', 'Delete client?')} text={L('ستبقى مواعيده السابقة في التقارير.', 'Their past appointments will remain in reports.')} danger confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirm(false)} onConfirm={() => { remove('clients', client.id); toast(L('تم الحذف', 'Deleted')); onClose(); }} />}
+    {confirm && <DeleteClient client={client} onClose={() => setConfirm(false)} onDeleted={onClose} />}
   </Sheet>;
 }
 
+// حذف عميل: تبقى زياراته السابقة في التقارير، وتُلغى مواعيده القادمة ويُزال من قائمة الانتظار.
+function DeleteClient({ client, onClose, onDeleted }) {
+  const { data, setData, toast } = useApp();
+  const today = localISO();
+  const upcoming = data.appointments.filter(a => a.clientId === client.id && a.date >= today && ['pending', 'confirmed'].includes(a.status));
+  return <Confirm title={L(`حذف ${client.name}؟`, `Delete ${client.name}?`)} danger confirmLabel={L('حذف', 'Delete')}
+    text={upcoming.length
+      ? L(`لديه ${num(upcoming.length)} موعد قادم سيُلغى. زياراته السابقة تبقى في التقارير.`, `They have ${num(upcoming.length)} upcoming ${upcoming.length === 1 ? 'appointment' : 'appointments'}, which will be cancelled. Past visits stay in reports.`)
+      : L('زياراته السابقة تبقى في التقارير. لا يمكن التراجع.', 'Past visits stay in reports. This can’t be undone.')}
+    onClose={onClose}
+    onConfirm={() => {
+      setData(prev => ({
+        ...prev,
+        clients: prev.clients.filter(c => c.id !== client.id),
+        appointments: prev.appointments.map(a => (upcoming.some(u => u.id === a.id) ? { ...a, status: 'cancelled' } : a)),
+        waitlist: prev.waitlist.filter(w => w.clientId !== client.id),
+      }));
+      toast(L('تم حذف العميل', 'Client deleted'));
+      onDeleted?.();
+    }} />;
+}
+
 export function ClientProfile({ clientId, onClose, onEdit }) {
-  const { data, role, upsert, remove, toast } = useApp();
+  const { data, role, upsert, remove, toast, isManager } = useApp();
   const [tab, setTab] = useState('overview');
+  const [deleting, setDeleting] = useState(false);
   const [booking, setBooking] = useState(false);
   const client = data.clients.find(c => c.id === clientId);
   if (!client) return null;
@@ -122,6 +145,7 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
     } catch { toast(L('تعذر قراءة الصورة', 'Couldn’t read the image'), 'error'); }
   };
 
+  if (deleting) return <DeleteClient client={client} onClose={() => setDeleting(false)} onDeleted={onClose} />;
   if (booking) return <BookingWizard initial={{ clientId: client.id }} onClose={() => setBooking(false)} onDone={() => { setBooking(false); toast(L('تم الحجز', 'Booked')); }} />;
 
   return <Sheet title={client.name} subtitle={showPhone ? <span dir="ltr">{client.phone}</span> : null} onClose={onClose} size="lg"
@@ -139,7 +163,10 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
           {risk.level !== 'low' && <Badge tone="red">{risk.label}</Badge>}
           {stats.avgInterval && <Badge tone="blue">{L(`يزور كل ${num(stats.avgInterval)} يوم`, `Visits every ${num(stats.avgInterval)} ${stats.avgInterval === 1 ? 'day' : 'days'}`)}</Badge>}
         </div>
-        <button type="button" className="link" onClick={() => onEdit(client)}>{L('تعديل البيانات', 'Edit details')}</button>
+        <div className="row-buttons center">
+          <button type="button" className="link" onClick={() => onEdit(client)}>{L('تعديل البيانات', 'Edit details')}</button>
+          {isManager && <button type="button" className="link danger-link" onClick={() => setDeleting(true)}><Trash2 size={14} /> {L('حذف العميل', 'Delete client')}</button>}
+        </div>
       </div>
       {client.allergies && <Alert icon={ShieldAlert}>{client.allergies}</Alert>}
       <Segmented size="sm" items={[{ id: 'overview', label: L('نظرة', 'Overview') }, { id: 'history', label: L('السجل', 'History') }, { id: 'photos', label: L('الصور', 'Photos') }]} value={tab} onChange={setTab} />

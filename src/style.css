@@ -622,3 +622,4 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 .action-row { border-bottom: 1px solid var(--line); padding-bottom: 10px; }
 .action-row:last-child { border-bottom: 0; }
 .action-row .row-buttons { padding: 0 16px; flex-wrap: wrap; }
+.danger-link { color: var(--red) !important; display: inline-flex; align-items: center; gap: 4px; }
