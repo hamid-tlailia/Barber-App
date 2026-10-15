@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Copy, KeyRound, MessageCircle, PauseCircle, PlayCircle, Trash2, UserPlus, UsersRound } from 'lucide-react';
-import { PHONE_ERROR, validPhone, dateLabel, findDuplicate, isStaffOff, samePhone, localISO, money, num, roleText, uid, whatsappLink } from '../data.js';
+import { CalendarOff, Check, Copy, KeyRound, MessageCircle, PauseCircle, PlayCircle, Trash2, UserPlus, UserCheck, UsersRound } from 'lucide-react';
+import { PHONE_ERROR, validPhone, dateLabel, findDuplicate, isStaffOff, shortName, staffOnDay, samePhone, localISO, money, num, roleText, uid, whatsappLink } from '../data.js';
 import { commissions } from '../smart.js';
 import { api, cloudEnabled, errorText, publicBase } from '../lib/sync.js';
 import { L, isEn } from '../i18n.js';
 
 const appLink = /localhost|capacitor:/.test(publicBase) ? '' : publicBase;
-import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, openExternal, useApp, NumInput } from '../ui.jsx';
+import { Alert, Avatar, Badge, Button, Stat, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, openExternal, useApp, NumInput } from '../ui.jsx';
 
 const ranges = [{ id: 'today', label: L('اليوم', 'Today') }, { id: 'week', label: L('الأسبوع', 'Week') }, { id: 'month', label: L('الشهر', 'Month') }, { id: 'lastMonth', label: L('الشهر الماضي', 'Last month') }];
 const weekdays = isEn
@@ -31,6 +31,7 @@ export default function Team() {
   const today = localISO();
   const activeStaff = data.staff.filter(s => s.active !== false);
   const availableToday = activeStaff.filter(s => !isStaffOff(s, today));
+  const { off } = staffOnDay(data.staff, today);
   // تبديل سريع لحضور الموظف اليوم: إجازة طارئة، أو حضور في يوم راحته.
   const toggleToday = member => {
     const off = isStaffOff(member, today);
@@ -43,12 +44,16 @@ export default function Team() {
 
   return <div className="stack">
     <div className="page-head">
-      <small className="muted">{L(`متاح اليوم ${num(availableToday.length)} من ${num(activeStaff.length)}`, `${num(availableToday.length)} of ${num(activeStaff.length)} available today`)}</small>
       <div className="row-buttons">
         {cloudEnabled && <Button variant="ghost" icon={KeyRound} onClick={() => setAccounts(true)}>{L('الحسابات', 'Accounts')}</Button>}
         <Button icon={UserPlus} onClick={() => setForm({})}>{L('إضافة', 'Add')}</Button>
       </div>
     </div>
+    <div className="stats">
+      <Stat icon={UsersRound} label={L('إجمالي الفريق', 'Team total')} value={num(activeStaff.length)} />
+      <Stat icon={UserCheck} tone={off.length ? 'orange' : 'green'} label={L('متاح اليوم', 'Available today')} value={L(`${num(availableToday.length)} من ${num(activeStaff.length)}`, `${num(availableToday.length)} of ${num(activeStaff.length)}`)} />
+    </div>
+    {off.length > 0 && <Alert tone="orange" icon={CalendarOff}>{L('غير متاح اليوم: ', 'Off today: ')}{off.map(o => `${shortName(data.staff, o.member)} (${o.reason === 'leave' ? L('إجازة', 'leave') : L('راحة أسبوعية', 'weekly day off')})`).join(L('، ', ', '))}</Alert>}
     <Segmented size="sm" items={ranges} value={range} onChange={setRange} />
     {rows.length ? <div className="team-grid">{rows.map(({ member, revenue, services, commission, tips }) => <div role="button" tabIndex={0} key={member.id} className={`team-card ${member.active === false ? 'inactive' : ''}`} onClick={() => setForm(member)} onKeyDown={e => { if (e.key === 'Enter') setForm(member); }}>
       <Avatar name={member.name} size="xl" color={member.color} />
@@ -113,6 +118,7 @@ function StaffForm({ member, onClose }) {
       <Field label={L('اللون في الجدول', 'Calendar color')}><div className="color-row">{colors.map(c => <button type="button" key={c} style={{ background: c }} className={v.color === c ? 'active' : ''} onClick={() => setV({ ...v, color: c })} aria-label={c} />)}</div></Field>
       <Toggle checked={v.active !== false} onChange={on => setV({ ...v, active: on })} label={L('نشط ويقبل حجوزات', 'Active and accepting bookings')} />
       <Field label={L('أيام الراحة الأسبوعية', 'Weekly days off')}><Chips multiple items={weekdays.map((d, i) => ({ id: i, label: d }))} value={(v.daysOff || []).map(Number)} onChange={daysOff => setV({ ...v, daysOff: [...daysOff].sort() })} /></Field>
+      {(v.daysOff || []).map(Number).includes(new Date(`${today}T12:00:00`).getDay()) && !(v.workDays || []).includes(today) && <Alert tone="blue" icon={CalendarOff}>{L('اليوم يوم راحته الأسبوعية — غير متاح تلقائياً، بدون أي إجراء منك. لتشغيله اليوم استثنائياً استخدم زر «متاح اليوم» على بطاقته.', 'Today is their weekly day off — they are unavailable automatically, no action needed. To have them work today, use the “Available today” button on their card.')}</Alert>}
       <Toggle checked={offToday} onChange={on => setLeaves(on ? [...leaves, today] : leaves.filter(d => d !== today))} label={L('إجازة اليوم', 'Off today')} hint={L('لا تُعرض له مواعيد متاحة اليوم', 'No available times will be offered for them today')} />
       <Field label={L('الإجازات القادمة', 'Upcoming leave')}>
         <div className="stack">

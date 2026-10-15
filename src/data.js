@@ -343,6 +343,13 @@ export const isStaffOff = (member, date) => {
   return (member.daysOff || []).map(Number).includes(weekday) || (member.leaves || []).includes(date);
 };
 
+// حضور الفريق في يوم: العدد الكلي للنشطين، المتاحون، ومن في إجازة مع السبب (راحة أسبوعية أو إجازة).
+export const staffOnDay = (staff, date) => {
+  const active = (staff || []).filter(s => s.active !== false);
+  const off = active.filter(s => isStaffOff(s, date)).map(member => ({ member, reason: (member.leaves || []).includes(date) ? 'leave' : 'weekly' }));
+  return { total: active.length, available: active.length - off.length, off };
+};
+
 export const availableSlots = (appointments, { date, items, staffId = '', settings, now = new Date(), location = 'salon', travel = 30, staff }) => {
   const windows = openWindows(settings?.hours, date);
   if (!windows.length) return [];

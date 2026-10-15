@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
   BellRing, Boxes, CalendarCheck2, CalendarOff, CalendarPlus, Cake, CircleDollarSign, Clock3, Lightbulb, ListChecks,
-  ListPlus, MessageCircle, Receipt, Share2, UserRoundCheck, UserX, WalletCards,
+  ListPlus, MessageCircle, Receipt, Share2, UsersRound, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { clientName, addDays, businessDay, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
+import { clientName, addDays, businessDay, shortName, staffOnDay, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
 import { incomeIn, todayInsights } from '../smart.js';
 import { Avatar, Badge, Button, Empty, Row, Section, Stat, Tile, useApp } from '../ui.jsx';
 import { AppointmentSheet, BookingWizard } from './Appointments.jsx';
-import { L } from '../i18n.js';
+import { L, isEn } from '../i18n.js';
 import { bookingUrl, cloudEnabled } from '../lib/sync.js';
 import { shareLink } from '../lib/files.js';
 
@@ -40,6 +40,7 @@ export default function Home() {
     }],
   }));
   const hour = now.getHours();
+  const team = staffOnDay(data.staff, today);
   // الحجز وفتح الموعد يتمّان هنا فوق الرئيسية بدون الانتقال لصفحة أخرى.
   const [wizard, setWizard] = useState(null);
   const [openId, setOpenId] = useState(null);
@@ -55,8 +56,10 @@ export default function Home() {
       <Stat icon={CalendarCheck2} label={L('مواعيد اليوم', 'Today’s appointments')} value={num(todays.length)} onClick={() => go('appointments')} />
       {role !== 'staff' && <Stat icon={CircleDollarSign} tone="green" label={L('دخل اليوم', 'Today’s income')} value={money(income)} onClick={can('reports') ? () => go('reports') : undefined} />}
       {role !== 'staff' && <Stat icon={WalletCards} tone={unpaid.length ? 'red' : 'blue'} label={L('بانتظار الدفع', 'Awaiting payment')} value={num(unpaid.length)} onClick={() => go('checkout')} />}
+      {can('team') && team.total > 0 && <Stat icon={UsersRound} tone={team.off.length ? 'orange' : 'green'} label={L('الفريق المتاح اليوم', 'Team available today')} value={L(`${num(team.available)} من ${num(team.total)}`, `${num(team.available)} of ${num(team.total)}`)} onClick={() => go('team')} />}
       {role === 'staff' && <Stat icon={Clock3} tone="blue" label={L('المتبقي اليوم', 'Remaining today')} value={num(todays.filter(a => a.status !== 'completed').length)} />}
     </div>
+    {can('team') && team.off.length > 0 && <button type="button" className="team-off-note" onClick={() => go('team')}>{L('غير متاح اليوم: ', 'Off today: ')}{team.off.map(o => `${shortName(data.staff, o.member)} (${o.reason === 'leave' ? L('إجازة', 'leave') : L('راحة', 'day off')})`).join(isEn ? ', ' : '، ')}</button>}
 
     <Section title={L('الموعد التالي', 'Next appointment')}>
       {next ? <div className="next-card">

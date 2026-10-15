@@ -642,3 +642,6 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 .avail-toggle.off .avail-dot { background: var(--orange); }
 /* محتوى النوافذ لا يحتاج حركة دخول لكل صف (قوائم طويلة مثل سجل التعديلات) */
 .audit-list > * { animation: none !important; }
+/* الرئيسية: من غير متاح اليوم */
+.team-off-note { display: block; width: 100%; text-align: start; font: inherit; font-size: 13.5px; color: var(--orange); background: var(--orange-soft); border: 0; border-radius: 12px; padding: 10px 14px; margin-top: -8px; cursor: pointer; }
+.stats:has(> :nth-child(4):last-child) { grid-template-columns: repeat(2, 1fr); }
