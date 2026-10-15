@@ -3,7 +3,7 @@ import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
-import { dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
+import { clientName, dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
@@ -93,7 +93,7 @@ function ShopSettings({ onClose }) {
   return <Sheet title={L('بيانات الصالون', 'Salon details')} onClose={onClose} footer={<Button block icon={Check} onClick={save}>{L('حفظ', 'Save')}</Button>}>
     <div className="stack">
       <Field label={L('اسم الصالون', 'Salon name')}><input value={name} onChange={e => setName(e.target.value)} /></Field>
-      <Field label={L('نوع الصالون', 'Salon type')} hint={L('يغيّر المصطلحات (زبون/عميلة) والميزات المعروضة', 'Adjusts wording and which features are shown')}><Chips items={[{ id: 'men', label: L('رجالي', "Men's") }, { id: 'women', label: L('نسائي', "Women's") }, { id: 'mixed', label: L('مختلط', 'Unisex') }]} value={kind} onChange={setKind} /></Field>
+      <Field label={L('نوع الصالون', 'Salon type')} hint={L('يغيّر المصطلحات (زبون/عميلة) والميزات المعروضة', 'Adjusts wording and which features are shown')}><Chips items={[{ id: 'men', label: L('رجالي', "Men's") }, { id: 'women', label: L('نسائي', "Women's") }, ...(data.settings.kind === 'mixed' ? [{ id: 'mixed', label: L('مختلط', 'Unisex') }] : [])]} value={kind} onChange={setKind} /></Field>
       <Field label={L('رقم واتساب الصالون', 'Salon WhatsApp number')}><input type="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} /></Field>
       <Alert>{error}</Alert>
     </div>
@@ -295,7 +295,7 @@ function auditDetails(row, data) {
   const lines = [];
   const staffName = id => data.staff.find(m => m.id === id)?.name || L('أي موظف', 'Any staff');
   if (row.collection === 'appointments') {
-    const client = data.clients.find(c => c.id === item.clientId)?.name || L('عميل', 'Client');
+    const client = clientName(data.clients, item.clientId);
     const title = `${client} — ${item.date ? dateLabel(item.date) : ''} ${item.time ? timeLabel(item.time) : ''}`.trim();
     if (row.action === 'update') {
       if (before.status !== after.status) lines.push(`${L('الحالة', 'Status')}: ${statusText[before.status] || before.status || '—'} ${ARROW} ${statusText[after.status] || after.status}`);
@@ -325,6 +325,7 @@ function AuditLog({ onClose }) {
   const [rows, setRows] = useState(null);
   const [people, setPeople] = useState({});
   const [who, setWho] = useState('all');
+  const [shown, setShown] = useState(50);
   const [error, setError] = useState('');
   useEffect(() => {
     api.audit(shop.id, 300).then(setRows).catch(e => setError(errorText(e)));
@@ -333,9 +334,9 @@ function AuditLog({ onClose }) {
   const actor = r => (r.user_id ? people[r.user_id]?.display_name || L('مستخدم', 'User') : L('النظام / حجز أونلاين', 'System / online booking'));
   const list = (rows || []).filter(r => who === 'all' || (who === 'staff' ? r.user_id && people[r.user_id]?.role !== 'owner' : people[r.user_id]?.role === 'owner'));
   return <Sheet title={L('سجل التعديلات', 'Activity log')} subtitle={L('من فعل ماذا ومتى — يحميك من التلاعب', 'Who did what and when — protects you from tampering')} onClose={onClose} size="lg">
-    <Segmented size="sm" items={[{ id: 'all', label: L('الكل', 'All') }, { id: 'staff', label: L('الموظفون', 'Staff') }, { id: 'owner', label: L('أنا', 'Me') }]} value={who} onChange={setWho} />
+    <Segmented size="sm" items={[{ id: 'all', label: L('الكل', 'All') }, { id: 'staff', label: L('الموظفون', 'Staff') }, { id: 'owner', label: L('أنا', 'Me') }]} value={who} onChange={v => { setWho(v); setShown(50); }} />
     <Alert>{error}</Alert>
-    {rows === null ? <div className="loader" /> : list.length ? <div className="list">{list.map(r => {
+    {rows === null ? <div className="loader" /> : list.length ? <><div className="list audit-list">{list.slice(0, shown).map(r => {
       const { title, lines } = auditDetails(r, data);
       return <div key={r.id} className="audit-row">
         <div className="audit-head">
@@ -346,6 +347,7 @@ function AuditLog({ onClose }) {
         <div className="audit-meta"><Badge tone={!r.user_id ? 'muted' : people[r.user_id]?.role === 'owner' ? 'orange' : 'purple'}>{actor(r)}</Badge><small className="muted" dir="auto">{new Date(r.at).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short' })}</small></div>
       </div>;
     })}</div>
+      {list.length > shown && <Button variant="ghost" block onClick={() => setShown(shown + 50)}>{L(`عرض المزيد (${num(list.length - shown)})`, `Show more (${num(list.length - shown)})`)}</Button>}</>
       : <Empty icon={ShieldCheck} title={L('لا تعديلات بعد', 'No activity yet')} />}
   </Sheet>;
 }

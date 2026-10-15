@@ -73,7 +73,7 @@ export default function Lock({ shop, data, license, shops, switchShop }) {
         <strong>{plan.name}</strong>
         <div className="plan-price">{plan.price.toLocaleString(LOCALE)} <small>{L('ر.ق', 'QAR')} {plan.period}</small></div>
         <p><Check size={14} /> {plan.note}</p>
-        <Button variant={plan.best ? 'primary' : 'secondary'} icon={MessageCircle} block onClick={() => openExternal(buyLink(data.shopName, plan))}>{L('اشترك عبر واتساب', 'Subscribe via WhatsApp')}</Button>
+        <Button variant={plan.best ? 'primary' : 'secondary'} icon={MessageCircle} block onClick={() => openExternal(buyLink(data.shopName, plan))}>{L('اشترك عبر واتساب', 'Subscribe via Whats')}</Button>
       </div>)}</div>
       <p className="muted center small">{L('بعد الدفع نفعّل حسابك خلال دقائق — يفتح التطبيق تلقائياً.', 'After payment we activate your account within minutes — the app unlocks automatically.')}</p>
       </>}

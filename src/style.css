@@ -80,7 +80,7 @@ input[type='checkbox'] { width: auto; min-height: 0; }
 .small { font-size: 13px; }
 .green { color: var(--green); } .red { color: var(--red); } .orange { color: var(--orange); } .gold { color: var(--accent); fill: var(--accent); }
 .strike { text-decoration: line-through; color: var(--muted); }
-.link { color: var(--accent-ink); font-weight: 600; font-size: 14px; }
+.link { color: var(--accent-ink); font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 4px; }
 .spacer { flex: 1; }
 .stack { display: grid; gap: 14px; }
 .stack-lg { display: grid; gap: 22px; }
@@ -623,3 +623,19 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 .action-row:last-child { border-bottom: 0; }
 .action-row .row-buttons { padding: 0 16px; flex-wrap: wrap; }
 .danger-link { color: var(--red) !important; display: inline-flex; align-items: center; gap: 4px; }
+
+/* تعارض المواعيد: من، متى، ومن المتاح */
+.clash-box { display: grid; gap: 8px; padding: 14px 16px; border-radius: var(--radius); background: color-mix(in srgb, var(--orange, #e08a2e) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--orange, #e08a2e) 35%, transparent); }
+.clash-box ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 2px; font-size: 14px; }
+.clash-box small { color: var(--muted); }
+.clash-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* حضور الموظف اليوم: زر سريع على بطاقة الفريق */
+.team-card { cursor: pointer; }
+.avail-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font: inherit; font-size: 12.5px; font-weight: 700; color: var(--ink-2); cursor: pointer; }
+.avail-toggle .avail-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.avail-toggle.on { color: var(--green); background: var(--green-soft, var(--surface-2)); border-color: transparent; }
+.avail-toggle.off { color: var(--orange); background: var(--orange-soft); border-color: transparent; }
+.avail-toggle.off .avail-dot { background: var(--orange); }
+/* محتوى النوافذ لا يحتاج حركة دخول لكل صف (قوائم طويلة مثل سجل التعديلات) */
+.audit-list > * { animation: none !important; }

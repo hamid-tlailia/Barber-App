@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
-  BellRing, Boxes, CalendarCheck2, CalendarPlus, Cake, CircleDollarSign, Clock3, Lightbulb, ListChecks,
+  BellRing, Boxes, CalendarCheck2, CalendarOff, CalendarPlus, Cake, CircleDollarSign, Clock3, Lightbulb, ListChecks,
   ListPlus, MessageCircle, Receipt, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { addDays, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
+import { clientName, addDays, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
 import { incomeIn, todayInsights } from '../smart.js';
 import { Avatar, Badge, Button, Empty, Row, Section, Stat, Tile, useApp } from '../ui.jsx';
 import { AppointmentSheet, BookingWizard } from './Appointments.jsx';
@@ -57,7 +57,7 @@ export default function Home() {
     <Section title={L('الموعد التالي', 'Next appointment')}>
       {next ? <div className="next-card">
         <div className="next-time"><strong>{timeLabel(next.time)}</strong><small>{num(next.duration)} {L('دقيقة', 'min')}</small></div>
-        <div className="next-person"><Avatar name={client?.name} size="lg" /><div><strong>{client?.name || L('عميل', 'Client')}</strong><small>{serviceNames(next)}</small></div></div>
+        <div className="next-person"><Avatar name={client?.name} size="lg" /><div><strong>{clientName(data.clients, next.clientId)}</strong><small>{serviceNames(next)}</small></div></div>
         <Badge status={next.status} />
         <div className="next-actions">
           {next.status !== 'arrived' && <Button variant="secondary" icon={UserRoundCheck} onClick={() => { patch('appointments', next.id, { status: 'arrived', arrivedAt: new Date().toISOString() }); toast(L('تم تسجيل الوصول', 'Checked in')); }}>{L('وصل', 'Arrived')}</Button>}
@@ -77,7 +77,7 @@ export default function Home() {
       <div className="list">{overdue.map(a => {
         const c = data.clients.find(x => x.id === a.clientId);
         return <div key={a.id} className="action-row">
-          <Row leading={<span className="time-chip">{timeLabel(a.time)}</span>} title={c?.name || L('عميل', 'Client')} subtitle={`${dateLabel(a.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${serviceNames(a)}`} onClick={() => setOpenId(a.id)} />
+          <Row leading={<span className="time-chip">{timeLabel(a.time)}</span>} title={clientName(data.clients, a.clientId)} subtitle={`${dateLabel(a.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${serviceNames(a)}`} onClick={() => setOpenId(a.id)} />
           <div className="row-buttons">
             <Button size="sm" variant="secondary" icon={UserRoundCheck} onClick={() => { patch('appointments', a.id, { status: 'arrived', arrivedAt: new Date().toISOString() }); toast(L('سُجّل الحضور', 'Marked arrived')); }}>{L('حضر', 'Arrived')}</Button>
             <Button size="sm" variant="ghost" icon={UserX} onClick={() => { patch('appointments', a.id, { status: 'no_show' }); toast(L('سُجّل غياب', 'Marked no-show')); }}>{L('لم يحضر', 'No-show')}</Button>
@@ -95,11 +95,12 @@ export default function Home() {
     </Section>}
 
     {role === 'staff' && <Section title={L('مواعيدي اليوم', 'My appointments today')}>
-      <div className="list">{todays.map(a => <Row key={a.id} leading={<span className="time-chip">{timeLabel(a.time)}</span>} title={data.clients.find(c => c.id === a.clientId)?.name} subtitle={serviceNames(a)} trailing={<Badge status={a.status} />} onClick={() => setOpenId(a.id)} />)}</div>
+      {todays.length ? <div className="list">{todays.map(a => <Row key={a.id} leading={<span className="time-chip">{timeLabel(a.time)}</span>} title={clientName(data.clients, a.clientId)} subtitle={serviceNames(a)} trailing={<Badge status={a.status} />} onClick={() => setOpenId(a.id)} />)}</div>
+        : <Empty icon={CalendarOff} title={L('لا توجد مواعيد اليوم', 'No appointments today')} />}
     </Section>}
 
     {role !== 'staff' && unpaid.length > 0 && <Section title={L('مكتملة وغير مدفوعة', 'Completed, unpaid')} action={<button type="button" className="link" onClick={() => go('checkout')}>{L('عرض الكل', 'View all')}</button>}>
-      <div className="list">{unpaid.slice(0, 3).map(a => <Row key={a.id} leading={<Avatar name={data.clients.find(c => c.id === a.clientId)?.name} />} title={data.clients.find(c => c.id === a.clientId)?.name} subtitle={serviceNames(a)} trailing={<strong className="red">{money(balanceDue(a) || amountPaid(a))}</strong>} onClick={() => go('checkout', { open: a.id })} />)}</div>
+      <div className="list">{unpaid.slice(0, 3).map(a => <Row key={a.id} leading={<Avatar name={data.clients.find(c => c.id === a.clientId)?.name} />} title={clientName(data.clients, a.clientId)} subtitle={serviceNames(a)} trailing={<strong className="red">{money(balanceDue(a) || amountPaid(a))}</strong>} onClick={() => go('checkout', { open: a.id })} />)}</div>
     </Section>}
     {wizard && <BookingWizard initial={wizard} onClose={() => setWizard(null)} onDone={() => setWizard(null)} />}
     {opened && <AppointmentSheet appointment={opened} onClose={() => setOpenId(null)} onEdit={() => { setWizard({ edit: opened }); setOpenId(null); }} />}

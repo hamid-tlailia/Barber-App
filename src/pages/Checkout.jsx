@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Banknote, Check, CreditCard, Gift, HandCoins, Landmark, Lock, MessageCircle, Package, Pencil, Printer, Receipt, ShoppingBag,
   TicketPercent, Trash2, Vault, WalletCards,
@@ -10,6 +10,9 @@ import {
 import { expectedCash, incomeIn } from '../smart.js';
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Stat, Tile, openExternal, useApp, NumInput } from '../ui.jsx';
 import { L } from '../i18n.js';
+import { printElement } from '../lib/files.js';
+
+const deletedName = L('عميل محذوف', 'Deleted client');
 
 const methods = [
   { id: 'cash', label: L('نقداً', 'Cash'), icon: Banknote },
@@ -33,8 +36,11 @@ export default function Checkout() {
 
   const clients = Object.fromEntries(data.clients.map(c => [c.id, c]));
   const today = localISO();
+  const settled = a => isPaid(a) && !needsDeposit(a);
+  // مواعيد اليوم المؤكدة تظهر هنا حتى بعد دفعها (بعلامة «مدفوع»)، لكنها لا تُحسب في عدد ما يجب تحصيله.
   const due = data.appointments.filter(a => (a.status === 'completed' && !isPaid(a)) || (a.date === today && ['arrived', 'confirmed'].includes(a.status)) || needsDeposit(a))
-    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    .sort((a, b) => Number(settled(a)) - Number(settled(b)) || a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  const nameOf = a => clients[a.clientId]?.name || (a.clientId ? deletedName : L('عميل', 'Client'));
   const paidToday = data.appointments.filter(a => (a.payments || []).some(p => p.at === today));
   const income = incomeIn(data, 'today').reduce((s, p) => s + Number(p.amount || 0), 0);
   const current = open && data.appointments.find(a => a.id === open);
@@ -42,7 +48,7 @@ export default function Checkout() {
   return <div className="stack">
     <div className="stats">
       <Stat icon={HandCoins} tone="green" label={L('محصّل اليوم', 'Collected today')} value={money(income)} />
-      <Stat icon={WalletCards} tone="red" label={L('للتحصيل', 'To collect')} value={num(due.length)} />
+      <Stat icon={WalletCards} tone="red" label={L('للتحصيل', 'To collect')} value={num(due.filter(a => !settled(a)).length)} />
     </div>
     <div className="tiles tiles-4">
       <Tile icon={Package} label={L('بيع باقة', 'Sell package')} tone="purple" onClick={() => setSheet('package')} />
@@ -54,13 +60,14 @@ export default function Checkout() {
 
     {tab === 'due' && (due.length ? <div className="list">{due.map(a => <Row key={a.id}
       leading={<Avatar name={clients[a.clientId]?.name} />}
-      title={clients[a.clientId]?.name || L('عميل', 'Client')}
+      title={nameOf(a)}
       subtitle={`${a.date === today ? timeLabel(a.time) : dateLabel(a.date, { day: 'numeric', month: 'short' })} · ${serviceNames(a)}`}
-      trailing={<span className="row-end"><strong>{money(needsDeposit(a) && a.status !== 'completed' ? a.deposit - depositPaid(a) : balanceDue(a))}</strong>{needsDeposit(a) && a.status !== 'completed' ? <Badge tone="orange">{L('عربون', 'Deposit')}</Badge> : <Badge status={a.status} />}</span>}
-      onClick={() => setOpen(a.id)} />)}</div> : <Empty icon={Check} title={L('لا شيء للتحصيل', 'Nothing to collect')} text={L('كل المواعيد المكتملة مدفوعة 👌', 'All completed appointments are paid 👌')} />)}
+      trailing={settled(a) ? <span className="row-end"><strong className="green">{money(amountPaid(a))}</strong><Badge tone="green">{L('مدفوع', 'Paid')}</Badge></span>
+        : <span className="row-end"><strong>{money(needsDeposit(a) && a.status !== 'completed' ? a.deposit - depositPaid(a) : balanceDue(a))}</strong>{needsDeposit(a) && a.status !== 'completed' ? <Badge tone="orange">{L('عربون', 'Deposit')}</Badge> : <Badge status={a.status} />}</span>}
+      onClick={() => (settled(a) ? setInvoice(a.id) : setOpen(a.id))} />)}</div> : <Empty icon={Check} title={L('لا شيء للتحصيل', 'Nothing to collect')} text={L('كل المواعيد المكتملة مدفوعة 👌', 'All completed appointments are paid 👌')} />)}
 
     {tab === 'paid' && (paidToday.length ? <div className="list">{paidToday.map(a => <Row key={a.id}
-      leading={<Avatar name={clients[a.clientId]?.name} />} title={clients[a.clientId]?.name}
+      leading={<Avatar name={clients[a.clientId]?.name} />} title={nameOf(a)}
       subtitle={(a.payments || []).filter(p => p.at === today).map(p => paymentText[p.method]).join(' + ')}
       trailing={<strong className="green">{money(amountPaid(a))}</strong>} onClick={() => setInvoice(a.id)} />)}</div>
       : <Empty icon={Receipt} title={L('لا دفعات اليوم بعد', 'No payments yet today')} />)}
@@ -145,6 +152,7 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
 export function InvoiceSheet({ appointment: a, onClose, canUndo }) {
   const { data, setData, toast } = useApp();
   const [confirm, setConfirm] = useState(false);
+  const ref = useRef(null);
   if (!a) return null;
   const client = data.clients.find(c => c.id === a.clientId);
   const number = `INV-${a.date.replaceAll('-', '')}-${a.id.slice(-4).toUpperCase()}`;
@@ -153,12 +161,12 @@ export function InvoiceSheet({ appointment: a, onClose, canUndo }) {
   return <Sheet title={L('الفاتورة', 'Invoice')} onClose={onClose} footer={<>
     {canUndo && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>{L('إلغاء الدفع', 'Void payment')}</Button>}
     <div className="spacer" />
-    <Button variant="secondary" icon={Printer} onClick={() => window.print()}>{L('طباعة', 'Print')}</Button>
-    {client && <Button icon={MessageCircle} onClick={() => openExternal(whatsappLink(client.phone, text))}>{L('إرسال واتساب', 'Send via WhatsApp')}</Button>}
+    <Button variant="secondary" icon={Printer} onClick={() => printElement(ref.current, number).catch(e => toast(e.message || String(e)))}>{L('طباعة', 'Print')}</Button>
+    {client && <Button icon={MessageCircle} onClick={() => openExternal(whatsappLink(client.phone, text))}>{L('إرسال واتساب', 'Send via Whats')}</Button>}
   </>}>
-    <article className="invoice">
+    <article className="invoice" ref={ref}>
       <header><strong>{data.shopName}</strong><small dir="ltr">{number}</small></header>
-      <div className="invoice-meta"><span>{client?.name}</span><span>{dateLabel(a.date)} · {timeLabel(a.time)}</span></div>
+      <div className="invoice-meta"><span>{client?.name || (a.clientId ? deletedName : '')}</span><span>{dateLabel(a.date)} · {timeLabel(a.time)}</span></div>
       {(a.items || []).map((item, i) => <div className="invoice-line" key={i}><span>{item.name}</span><strong>{money(item.price)}</strong></div>)}
       {Number(a.discount) > 0 && <div className="invoice-line"><span>{L('خصم', 'Discount')}</span><strong>−{money(a.discount)}</strong></div>}
       <div className="invoice-line total"><span>{L('الإجمالي', 'Total')}</span><strong>{money(appointmentTotal(a))}</strong></div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Award, CalendarCheck, CalendarPlus, Camera, Check, Contact, FileUp, FlaskConical, Image, MessageCircle, Package, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound, Wallet,
+  Award, CalendarCheck, CalendarPlus, Camera, Check, Contact, FileUp, FlaskConical, Image, MessageCircle, Package, Pencil, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound, Wallet,
 } from 'lucide-react';
 import { appointmentTotal, dateLabel, importClients, localISO, money, num, phoneDigits, samePhone, serviceNames, statusText, uid, whatsappLink } from '../data.js';
 import { clientStats, loyaltyPoints, noShowRisk } from '../smart.js';
@@ -150,8 +150,8 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
 
   return <Sheet title={client.name} subtitle={showPhone ? <span dir="ltr">{client.phone}</span> : null} onClose={onClose} size="lg"
     footer={<>
-      {showPhone && <Button variant="ghost" icon={Phone} onClick={() => openExternal(`tel:${phoneDigits(client.phone)}`)}>{L('اتصال', 'Call')}</Button>}
-      {showPhone && <Button variant="ghost" icon={MessageCircle} onClick={() => openExternal(whatsappLink(client.phone))}>{L('واتساب', 'WhatsApp')}</Button>}
+      <Button variant="secondary" icon={Pencil} onClick={() => onEdit(client)}>{L('تعديل', 'Edit')}</Button>
+      {showPhone && <Button variant="ghost" icon={MessageCircle} onClick={() => openExternal(whatsappLink(client.phone))}>{L('واتساب', 'Whats')}</Button>}
       <div className="spacer" />
       <Button icon={CalendarPlus} onClick={() => setBooking(true)}>{L('حجز', 'Book')}</Button>
     </>}>
@@ -164,7 +164,7 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
           {stats.avgInterval && <Badge tone="blue">{L(`يزور كل ${num(stats.avgInterval)} يوم`, `Visits every ${num(stats.avgInterval)} ${stats.avgInterval === 1 ? 'day' : 'days'}`)}</Badge>}
         </div>
         <div className="row-buttons center">
-          <button type="button" className="link" onClick={() => onEdit(client)}>{L('تعديل البيانات', 'Edit details')}</button>
+          {showPhone && <button type="button" className="link" onClick={() => openExternal(`tel:${phoneDigits(client.phone)}`)}><Phone size={14} /> {L('اتصال', 'Call')}</button>}
           {isManager && <button type="button" className="link danger-link" onClick={() => setDeleting(true)}><Trash2 size={14} /> {L('حذف العميل', 'Delete client')}</button>}
         </div>
       </div>

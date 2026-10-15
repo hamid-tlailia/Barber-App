@@ -214,6 +214,12 @@ export const timeLabel = time => {
 };
 export const sortAppointments = (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
 
+// اسم العميل للعرض: العميل المحذوف يبقى ظاهراً في السجلات القديمة بعبارة «عميل محذوف».
+export const clientName = (clients, id) => {
+  const list = Array.isArray(clients) ? clients : Object.values(clients || {});
+  const found = list.find(c => c.id === id);
+  return typeof found?.name === 'string' && found.name ? found.name : id ? L('عميل محذوف', 'Deleted client') : L('عميل', 'Client');
+};
 export const statusText = { pending: L('بانتظار التأكيد', 'Awaiting confirmation'), confirmed: L('مؤكد', 'Confirmed'), arrived: L('وصل', 'Arrived'), completed: L('مكتمل', 'Completed'), cancelled: L('ملغي', 'Cancelled'), no_show: L('لم يحضر', 'No-show') };
 export const paymentText = { cash: L('نقداً', 'Cash'), card: L('بطاقة', 'Card'), transfer: L('تحويل', 'Transfer'), gift: L('بطاقة هدية', 'Gift card'), package: L('من الباقة', 'From package') };
 export const roleText = { owner: L('المالك', 'Owner'), manager: L('مدير', 'Manager'), reception: L('استقبال', 'Reception'), staff: L('موظف خدمة', 'Service staff') };
@@ -257,6 +263,20 @@ export const conflicts = (appointments, candidate) => {
     }));
   });
 };
+// التعارض مع مراعاة عدد الموظفين: موعد بدون موظف محدد لا يتعارض ما دام هناك موظف متاح في نفس الوقت.
+// يعيد المواعيد المتداخلة زمنياً، والموظفين غير المشغولين فيها، وهل التعارض حقيقي.
+export const appointmentOwner = a => a.staffId || (a.items || []).find(i => i.staffId)?.staffId || '';
+export const bookingClash = (appointments, candidate, staff = []) => {
+  const clash = conflicts(appointments, { ...candidate, staffId: '', items: (candidate.items || []).map(i => ({ ...i, staffId: '' })) });
+  if (!clash.length) return { clash, free: [], blocking: false };
+  const team = staff.filter(s => s.active !== false && !isStaffOff(s, candidate.date));
+  const busy = new Set(clash.map(appointmentOwner).filter(Boolean));
+  const unassigned = clash.filter(a => !appointmentOwner(a)).length;
+  const free = team.filter(s => !busy.has(s.id)).map(s => s.id);
+  const mine = appointmentOwner(candidate);
+  const blocking = mine ? busy.has(mine) || free.filter(id => id !== mine).length < unassigned : free.length <= unassigned;
+  return { clash, free, blocking };
+};
 export const hasAppointmentConflict = (appointments, candidate) => conflicts(appointments, candidate).length > 0;
 
 export const buildItems = (services, serviceIds, staffId = '') => serviceIds
@@ -284,6 +304,8 @@ export const openWindows = (hours, date) => {
 export const isStaffOff = (member, date) => {
   if (!member || !date) return false;
   const weekday = new Date(`${date}T12:00:00`).getDay();
+  // workDays: أيام عمل استثنائية (حضر في يوم راحته الأسبوعية).
+  if ((member.workDays || []).includes(date)) return false;
   return (member.daysOff || []).map(Number).includes(weekday) || (member.leaves || []).includes(date);
 };
 

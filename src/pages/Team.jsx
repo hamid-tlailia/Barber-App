@@ -21,33 +21,48 @@ const nationalities = [
 const colors = ['#b97932', '#557fa0', '#8870aa', '#328566', '#bb5c53', '#3f7f86'];
 
 export default function Team() {
-  const { data, vocab } = useApp();
+  const { data, vocab, upsert, toast } = useApp();
   const [range, setRange] = useState('month');
   const [form, setForm] = useState(null);
   const [accounts, setAccounts] = useState(false);
   const rows = commissions(data.staff, data.appointments, range);
   const totals = rows.reduce((t, r) => ({ revenue: t.revenue + r.revenue, commission: t.commission + r.commission, tips: t.tips + r.tips }), { revenue: 0, commission: 0, tips: 0 });
 
+  const today = localISO();
+  const activeStaff = data.staff.filter(s => s.active !== false);
+  const availableToday = activeStaff.filter(s => !isStaffOff(s, today));
+  // تبديل سريع لحضور الموظف اليوم: إجازة طارئة، أو حضور في يوم راحته.
+  const toggleToday = member => {
+    const off = isStaffOff(member, today);
+    const leaves = (member.leaves || []).filter(d => d >= today && d !== today);
+    const workDays = (member.workDays || []).filter(d => d >= today && d !== today);
+    const weeklyOff = (member.daysOff || []).map(Number).includes(new Date(`${today}T12:00:00`).getDay());
+    upsert('staff', { ...member, leaves: off ? leaves : [...leaves, today].sort(), workDays: off && weeklyOff ? [...workDays, today].sort() : workDays });
+    toast(off ? L(`${member.name.split(' ')[0]} متاح اليوم`, `${member.name.split(' ')[0]} is available today`) : L(`${member.name.split(' ')[0]} غير متاح اليوم`, `${member.name.split(' ')[0]} is off today`));
+  };
+
   return <div className="stack">
     <div className="page-head">
-      <small className="muted">{num(data.staff.filter(s => s.active !== false).length)} {L('نشط', 'active')}</small>
+      <small className="muted">{L(`متاح اليوم ${num(availableToday.length)} من ${num(activeStaff.length)}`, `${num(availableToday.length)} of ${num(activeStaff.length)} available today`)}</small>
       <div className="row-buttons">
         {cloudEnabled && <Button variant="ghost" icon={KeyRound} onClick={() => setAccounts(true)}>{L('الحسابات', 'Accounts')}</Button>}
         <Button icon={UserPlus} onClick={() => setForm({})}>{L('إضافة', 'Add')}</Button>
       </div>
     </div>
     <Segmented size="sm" items={ranges} value={range} onChange={setRange} />
-    {rows.length ? <div className="team-grid">{rows.map(({ member, revenue, services, commission, tips }) => <button type="button" key={member.id} className={`team-card ${member.active === false ? 'inactive' : ''}`} onClick={() => setForm(member)}>
+    {rows.length ? <div className="team-grid">{rows.map(({ member, revenue, services, commission, tips }) => <div role="button" tabIndex={0} key={member.id} className={`team-card ${member.active === false ? 'inactive' : ''}`} onClick={() => setForm(member)} onKeyDown={e => { if (e.key === 'Enter') setForm(member); }}>
       <Avatar name={member.name} size="xl" color={member.color} />
       <strong>{member.name}</strong>
       <small>{member.role}{member.nationality ? ` · ${member.nationality}` : ''}</small>
-      {member.active !== false && isStaffOff(member, localISO()) && <Badge tone="orange">{L('إجازة اليوم', 'Off today')}</Badge>}
+      {member.active !== false && <button type="button" className={`avail-toggle ${isStaffOff(member, today) ? 'off' : 'on'}`} onClick={e => { e.stopPropagation(); toggleToday(member); }}>
+        <span className="avail-dot" />{isStaffOff(member, today) ? L('غير متاح اليوم', 'Off today') : L('متاح اليوم', 'Available today')}
+      </button>}
       <div className="team-figures">
         <span><b>{num(services)}</b><small>{L('خدمة', services === 1 ? 'service' : 'services')}</small></span>
         <span><b>{money(revenue)}</b><small>{L('إيراد', 'revenue')}</small></span>
       </div>
       <Badge tone="green">{L('عمولة', 'Commission')} {money(commission)}{tips ? L(` + إكرامية ${money(tips)}`, ` + tips ${money(tips)}`) : ''}</Badge>
-    </button>)}</div> : <Empty icon={UsersRound} title={L('لا يوجد فريق بعد', 'No team yet')} text={L(`أضف ${vocab.pro} لتوزيع المواعيد وحساب العمولات`, `Add a ${vocab.pro} to assign appointments and track commissions`)} />}
+    </div>)}</div> : <Empty icon={UsersRound} title={L('لا يوجد فريق بعد', 'No team yet')} text={L(`أضف ${vocab.pro} لتوزيع المواعيد وحساب العمولات`, `Add a ${vocab.pro} to assign appointments and track commissions`)} />}
     {rows.length > 0 && <div className="list">
       <Row title={L('إجمالي الإيراد', 'Total revenue')} trailing={<strong>{money(totals.revenue)}</strong>} />
       <Row title={L('إجمالي العمولات المستحقة', 'Total commissions due')} trailing={<strong className="orange">{money(totals.commission)}</strong>} />

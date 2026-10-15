@@ -88,7 +88,7 @@ export default function Admin() {
     {list.length ? <div className="list">{list.map(s => {
       const [label, tone] = labels[statusOf(s)];
       const left = daysLeft(s);
-      const addons = [s.wa_addon && L('واتساب', 'WhatsApp'), s.ai_addon && 'AI'].filter(Boolean).join(' + ');
+      const addons = [s.wa_addon && L('واتساب', 'Whats'), s.ai_addon && 'AI'].filter(Boolean).join(' + ');
       const plan = statusOf(s) === 'paid' ? plans.find(p => p.id === s.plan)?.name : '';
       return <Row key={s.id} title={s.name} subtitle={[s.owner_email, plan, left > 0 && statusOf(s) !== 'suspended' ? L(`باقٍ ${num(left)} يوم`, `${days(num(left))} left`) : '', L(`${num(s.members)} حساب`, `${num(s.members)} ${Number(s.members) === 1 ? 'account' : 'accounts'}`), addons].filter(Boolean).join(' · ')}
         trailing={<span className="row-end">{s.duplicate_of && <Badge tone="red">{L('مكرر؟', 'Duplicate?')}</Badge>}<Badge tone={tone}>{label}</Badge></span>} onClick={() => setOpen(s.id)} />;

@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight,
+  ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
   ListPlus, MapPin, MessageCircle, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
 import {
-  addDays, appointmentTotal, availableSlots, balanceDue, buildItems, conflicts, dateLabel, dateFor, depositPaid, fillTemplate, isPaid, messageFor, timeFor,
+  addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, isPaid, isStaffOff, messageFor, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { noShowRisk, waitlistMatches } from '../smart.js';
@@ -145,7 +145,7 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
   </Sheet>;
 
   const total = appointmentTotal(a);
-  return <Sheet title={client?.name || L('موعد', 'Appointment')} subtitle={`${dateLabel(a.date)} · ${timeLabel(a.time)}`} onClose={onClose}
+  return <Sheet title={a.clientId ? clientName(data.clients, a.clientId) : L('موعد', 'Appointment')} subtitle={`${dateLabel(a.date)} · ${timeLabel(a.time)}`} onClose={onClose}
     footer={a.status !== 'cancelled' && a.status !== 'no_show' && <div className="action-grid">
       {a.status === 'pending' && <Button variant="secondary" icon={Check} onClick={() => setStatus('confirmed', L('تم تأكيد الموعد', 'Appointment confirmed'))}>{L('تأكيد', 'Confirm')}</Button>}
       {['pending', 'confirmed'].includes(a.status) && <Button variant="secondary" icon={UserRoundCheck} onClick={() => setStatus('arrived', L('تم تسجيل الوصول', 'Checked in'))}>{L('وصل', 'Arrived')}</Button>}
@@ -168,7 +168,7 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
         {client?.allergies && <Row tone="red" leading={<ShieldAlert size={18} />} title={L('تنبيه حساسية', 'Allergy alert')} subtitle={client.allergies} />}
       </div>
       {client && <div className="action-row">
-        <Button variant="ghost" icon={BellRing} onClick={remind}>{L('تذكير واتساب', 'WhatsApp reminder')}</Button>
+        <Button variant="ghost" icon={BellRing} onClick={remind}>{L('تذكير واتساب', 'Whats reminder')}</Button>
         <Button variant="ghost" icon={Phone} onClick={() => openExternal(`tel:${phoneDigits(client.phone)}`)}>{L('اتصال', 'Call')}</Button>
         {needsDeposit(a) && <Button variant="ghost" icon={WalletCards} onClick={() => setCheckout(true)}>{L('استلام العربون', 'Take deposit')}</Button>}
       </div>}
@@ -201,6 +201,10 @@ export function BookingWizard({ initial, onClose, onDone }) {
   const [notes, setNotes] = useState(edit?.notes || '');
   const [category, setCategory] = useState('all');
   const [error, setError] = useState('');
+  const [clash, setClash] = useState(null);
+  const [editTime, setEditTime] = useState(false);
+  const clashRef = useRef(null);
+  useEffect(() => { if (clash) clashRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, [clash]);
   const client = data.clients.find(c => c.id === clientId);
   const items = buildItems(data.services, serviceIds, staffId);
   const total = items.reduce((s, i) => s + i.price, 0);
@@ -220,10 +224,12 @@ export function BookingWizard({ initial, onClose, onDone }) {
       .find(d => availableSlots(others, { date: d, items, staffId, settings: data.settings, location, staff: data.staff }).length);
     if (next) { setMovedFrom(date); setDate(next); setTime(''); }
   }, [slots.length, date, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setClash(null), [staffId, time, date]);
+  const staffName = id => data.staff.find(m => m.id === id)?.name;
   const categories = [...new Set(data.services.map(s => s.category || L('عام', 'General')))];
   const pkg = client && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && serviceIds.includes(p.serviceId) && (!p.expiresAt || p.expiresAt >= localISO()));
 
-  const save = () => {
+  const save = (force = false) => {
     if (!time) { setError(L('اختر وقت الموعد', 'Choose an appointment time')); return; }
     const record = {
       ...(edit || {}), id: edit?.id || uid(), clientId, items, staffId, date, time, duration, price: total, location,
@@ -231,8 +237,9 @@ export function BookingWizard({ initial, onClose, onDone }) {
       status: edit?.status || (walkIn ? 'arrived' : 'confirmed'), payments: edit?.payments || [], discount: edit?.discount || 0, source: edit?.source || (walkIn ? 'walkin' : 'app'), createdAt: edit?.createdAt || localISO(),
       ...(walkIn ? { arrivedAt: new Date().toISOString() } : {}),
     };
-    const clash = conflicts(others, record);
-    if (clash.length) { setError(L(`يتعارض مع موعد ${data.clients.find(c => c.id === clash[0].clientId)?.name || ''} الساعة ${timeLabel(clash[0].time)}`, `Conflicts with ${data.clients.find(c => c.id === clash[0].clientId)?.name || 'another'} appointment at ${timeLabel(clash[0].time)}`)); return; }
+    // الصالون فيه أكثر من موظف: التعارض يُعرض فقط إذا لم يبق أحد متاح، مع خيار التعديل أو التجاهل.
+    const check = bookingClash(others, record, data.staff);
+    if (check.blocking && !force) { setClash(check); setError(''); return; }
     setData(prev => ({ ...prev, appointments: edit ? prev.appointments.map(a => a.id === edit.id ? record : a) : [...prev.appointments, record] }));
     toast(edit ? L('تم تحديث الموعد', 'Appointment updated') : walkIn ? L('تم تسجيل الزبون الحاضر ✓', 'Walk-in checked in ✓') : L('تم الحجز ✓', 'Booked ✓'));
     onDone(record);
@@ -248,7 +255,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
     footer={<>
       {step > 0 && <Button variant="ghost" icon={BackArrow} onClick={() => setStep(step - 1)}>{L('رجوع', 'Back')}</Button>}
       <div className="spacer" />
-      {!last ? <Button disabled={!canNext} icon={NextArrow} onClick={() => setStep(step + 1)}>{L('التالي', 'Next')}</Button> : <Button icon={Check} onClick={save}>{edit ? L('حفظ', 'Save') : walkIn ? L('ابدأ الخدمة', 'Start service') : L('تأكيد الحجز', 'Confirm booking')}</Button>}
+      {!last ? <Button disabled={!canNext} icon={NextArrow} onClick={() => setStep(step + 1)}>{L('التالي', 'Next')}</Button> : <Button icon={Check} onClick={() => save()}>{edit ? L('حفظ', 'Save') : walkIn ? L('ابدأ الخدمة', 'Start service') : L('تأكيد الحجز', 'Confirm booking')}</Button>}
     </>}>
     <Steps steps={steps} current={step} />
 
@@ -268,7 +275,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
     </div>}
 
     {key === 'time' && <div className="stack">
-      {data.staff.length > 0 && role !== 'staff' && <Field label={L(`${vocab.pro} (اختياري)`, `${vocab.pro} (optional)`)}><Chips items={[{ id: '', label: L('أي شخص متاح', 'Anyone available') }, ...data.staff.filter(s => s.active !== false && (s.id === staffId || !((s.daysOff || []).map(Number).includes(new Date(`${date}T12:00:00`).getDay()) || (s.leaves || []).includes(date)))).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} /></Field>}
+      {data.staff.length > 0 && role !== 'staff' && <Field label={L(`${vocab.pro} (اختياري)`, `${vocab.pro} (optional)`)}><Chips items={[{ id: '', label: L('أي شخص متاح', 'Anyone available') }, ...data.staff.filter(s => s.active !== false && (s.id === staffId || !isStaffOff(s, date))).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} /></Field>}
       {data.settings.kind !== 'men' || location === 'home' ? <Field label={L('مكان الخدمة', 'Service location')}><Chips items={[{ id: 'salon', label: L('في الصالون', 'In salon') }, { id: 'home', label: L('منزلية', 'At home') }]} value={location} onChange={v => { setLocation(v); setTime(''); }} /></Field> : null}
       {location === 'home' && <Field label={L('العنوان', 'Address')}><input value={address} onChange={e => setAddress(e.target.value)} placeholder={L('المنطقة، الشارع، رقم المبنى', 'Area, street, building no.')} /></Field>}
       {movedFrom && date !== movedFrom && <Alert tone="blue" icon={CalendarPlus}>{L('لا أوقات متبقية اليوم — عرضنا أقرب يوم متاح', 'No times left today — showing the next available day')}</Alert>}
@@ -281,7 +288,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
     </div>}
 
     {key === 'confirm' && <div className="stack">
-      {walkIn && data.staff.length > 0 && role !== 'staff' && <Field label={L(`من سيخدمه؟`, 'Who will serve them?')}><Chips items={[{ id: '', label: L('بدون تحديد', 'Unassigned') }, ...data.staff.filter(s => s.active !== false).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={setStaffId} /></Field>}
+      {walkIn && data.staff.length > 0 && role !== 'staff' && <Field label={L(`من سيخدمه؟`, 'Who will serve them?')}><Chips items={[{ id: '', label: L('بدون تحديد', 'Unassigned') }, ...data.staff.filter(s => s.active !== false && (s.id === staffId || !isStaffOff(s, date))).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={setStaffId} /></Field>}
       <div className="confirm-card">
         <Avatar name={client?.name} size="lg" />
         <strong>{client?.name}</strong>
@@ -292,6 +299,19 @@ export function BookingWizard({ initial, onClose, onDone }) {
       {risk?.level === 'high' && <Alert tone="orange" icon={ShieldAlert}>{L(<>{client.name} لم يحضر {risk.stats.noShows} مرات سابقاً — ننصح بعربون</>, <>{client.name} has missed {risk.stats.noShows} {risk.stats.noShows === 1 ? 'appointment' : 'appointments'} before — a deposit is recommended</>)}</Alert>}
       {!walkIn && <Field label={L('العربون المطلوب', 'Deposit required')} hint={finalDeposit ? L('يُسجَّل عند الاستلام من شاشة الموعد', 'Record it from the appointment screen once received') : L('بدون عربون', 'No deposit')}><div className="money-input"><NumInput min="0" inputMode="decimal" value={finalDeposit} onChange={e => setDeposit(Number(e.target.value))} /><span>{L('ر.ق', 'QAR')}</span></div></Field>}
       <Field label={L('ملاحظات (اختياري)', 'Notes (optional)')}><textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} placeholder={L('أي تفاصيل للفريق...', 'Any details for the team...')} /></Field>
+      {editTime && <Field label={L('وقت البدء', 'Start time')}><input type="time" dir="ltr" value={time} onChange={e => setTime(e.target.value)} /></Field>}
+      {clash && <div className="clash-box" ref={clashRef}>
+        <strong>{L('يتعارض مع:', 'Overlaps with:')}</strong>
+        <ul>{clash.clash.map(c => <li key={c.id}>{clientName(data.clients, c.clientId)} · {timeLabel(c.time)}{staffName(appointmentOwner(c)) ? ` · ${L('مع', 'with')} ${staffName(appointmentOwner(c)).split(' ')[0]}` : ''}</li>)}</ul>
+        {clash.free.filter(id => id !== staffId).length > 0 && data.staff.length > 0 && <>
+          <small>{L('متاح في هذا الوقت — اختر من سيخدمه:', 'Free at this time — choose who will serve them:')}</small>
+          <Chips items={clash.free.filter(id => id !== staffId).map(id => ({ id, label: staffName(id)?.split(' ')[0] }))} value={staffId} onChange={setStaffId} />
+        </>}
+        <div className="clash-actions">
+          <Button size="sm" variant="secondary" icon={Clock3} onClick={() => (walkIn ? setEditTime(true) : setStep(keys.indexOf('time')))}>{L('تعديل الوقت', 'Change time')}</Button>
+          <Button size="sm" variant="ghost" onClick={() => save(true)}>{L('تجاهل التعارض والمتابعة', 'Ignore and continue')}</Button>
+        </div>
+      </div>}
       <Alert>{error}</Alert>
     </div>}
   </Sheet>;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, buildItems, defaultData, defaultSettings, hasAppointmentConflict,
+  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, defaultData, defaultSettings, hasAppointmentConflict,
   importClients, isPaid, localISO, migrateAppointment, normalizeData, parseCSV, fillTemplate, whatsappNumber,
 } from './data.js';
 import { clientStats, commissions, dailyReport, expectedCash, incomeIn, lapsedClients, noShowRisk, roi, stockForecast, waitlistMatches } from './smart.js';
@@ -18,6 +18,27 @@ test('سيناريو التعارض: نفس الموظف يتعارض، وموظ
   assert.equal(hasAppointmentConflict(existing, appt({ id: 'y', time: '10:15', staffId: 't2', items: [{ ...appt().items[0], staffId: 't2' }] })), false);
   assert.equal(hasAppointmentConflict(existing, appt({ id: 'y', time: '10:30' })), false);
   assert.equal(hasAppointmentConflict([appt({ status: 'cancelled' })], appt({ id: 'y' })), false);
+});
+
+test('التعارض يراعي عدد الموظفين المتاحين', () => {
+  const staff = [{ id: 't1', name: 'أحمد' }, { id: 't2', name: 'سالم' }];
+  const walk = appt({ id: 'w', time: '10:10', staffId: '', items: [{ ...appt().items[0], staffId: '' }] });
+  // موظف ثانٍ متاح: لا تعارض حقيقي، ويُقترح الموظف الحر.
+  assert.deepEqual(bookingClash([appt()], walk, staff), { clash: [appt()], free: ['t2'], blocking: false });
+  // الموظف الثاني في إجازة اليوم: تعارض.
+  assert.equal(bookingClash([appt()], walk, [staff[0], { ...staff[1], leaves: ['2026-05-10'] }]).blocking, true);
+  // حضور استثنائي في يوم الإجازة الأسبوعية يلغي الراحة.
+  const sunday = new Date('2026-05-10T12:00:00').getDay();
+  assert.equal(bookingClash([appt()], walk, [staff[0], { ...staff[1], daysOff: [sunday], workDays: ['2026-05-10'] }]).blocking, false);
+  // نفس الموظف المحدد مشغول: تعارض حتى لو غيره متاح.
+  assert.equal(bookingClash([appt()], appt({ id: 'y', time: '10:15' }), staff).blocking, true);
+  // بدون فريق مسجل: أي تداخل تعارض.
+  assert.equal(bookingClash([appt()], walk, []).blocking, true);
+});
+
+test('العميل المحذوف يظهر بعبارة واضحة', () => {
+  assert.equal(clientName([{ id: 'c1', name: 'مريم' }], 'c1'), 'مريم');
+  assert.equal(clientName([], 'c9'), 'عميل محذوف');
 });
 
 test('وقت الانتظار في الصبغة يحرر الموظفة لعميلة أخرى', () => {

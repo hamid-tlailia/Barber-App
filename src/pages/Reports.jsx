@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Ban, CalendarCheck2, CircleDollarSign, Download, FileSpreadsheet, FileText, Gauge, HandCoins, Receipt, Send, ShoppingBag, Sparkles, UserCheck, UserPlus, UserX, Wallet,
 } from 'lucide-react';
-import { addDays, amountPaid, appointmentTotal, dateLabel, daysBetween, localISO, money, num, paymentText, serviceNames, sortAppointments, statusText, timeLabel, toCSV } from '../data.js';
+import { clientName as nameOfClient, addDays, amountPaid, appointmentTotal, dateLabel, daysBetween, localISO, money, num, paymentText, serviceNames, sortAppointments, statusText, timeLabel, toCSV } from '../data.js';
 import { commissions, dailyReport, incomeIn, roi, utilization } from '../smart.js';
 import { Bars, Button, Field, Meter, Row, Section, Segmented, Stat, download, openExternal, useApp } from '../ui.jsx';
 import { exportDocx, exportXlsx } from '../lib/exporters.js';
@@ -214,12 +214,12 @@ export default function Reports() {
     {Object.keys(r.expensesByCategory).length > 0 && <Section title={L('المصروفات حسب الفئة', 'Expenses by category')}><div className="list">{Object.entries(r.expensesByCategory).sort((a, b) => b[1] - a[1]).map(([k, v]) => <Row key={k} title={k} trailing={<strong className="red">{money(v)}</strong>} />)}</div></Section>}
 
     {r.appts.length > 0 && <Section title={L(`المواعيد (${num(r.appts.length)})`, `Appointments (${num(r.appts.length)})`)}><div className="list">
-      {shownAppts.map(a => <Row key={a.id} title={clientName[a.clientId] || L('عميل', 'Client')} subtitle={`${period.from === period.to ? '' : `${shortDate(a.date)} · `}${timeLabel(a.time)} · ${serviceNames(a)}`} trailing={<span className="row-end"><strong>{money(appointmentTotal(a))}</strong><small>{statusText[a.status] || a.status}</small></span>} />)}
+      {shownAppts.map(a => <Row key={a.id} title={nameOfClient(data.clients, a.clientId)} subtitle={`${period.from === period.to ? '' : `${shortDate(a.date)} · `}${timeLabel(a.time)} · ${serviceNames(a)}`} trailing={<span className="row-end"><strong>{money(appointmentTotal(a))}</strong><small>{statusText[a.status] || a.status}</small></span>} />)}
       {r.appts.length > shownAppts.length && <Row title={L(`و${num(r.appts.length - shownAppts.length)} موعداً آخر — كاملة في ملف التصدير`, `And ${num(r.appts.length - shownAppts.length)} more — all included in the export`)} />}
     </div></Section>}
 
     <div className="row-buttons">
-      <Button variant="secondary" icon={Send} onClick={() => openExternal(`https://wa.me/?text=${encodeURIComponent(dailyReport(data, period.from === period.to ? period.from : today))}`)}>{period.from === period.to && period.from !== today ? L('تقرير اليوم المحدد واتساب', 'Selected day report via WhatsApp') : L('تقرير اليوم واتساب', "Today's report via WhatsApp")}</Button>
+      <Button variant="secondary" icon={Send} onClick={() => openExternal(`https://wa.me/?text=${encodeURIComponent(dailyReport(data, period.from === period.to ? period.from : today))}`)}>{period.from === period.to && period.from !== today ? L('تقرير اليوم المحدد واتساب', 'Selected day report via Whats') : L('تقرير اليوم واتساب', "Today's report via Whats")}</Button>
       <Button variant="ghost" icon={FileSpreadsheet} onClick={exportExcel}>{L('تصدير Excel', 'Export Excel')}</Button>
       <Button variant="ghost" icon={FileText} onClick={exportWord}>{L('تصدير Word', 'Export Word')}</Button>
       <Button variant="ghost" icon={Download} onClick={exportCSV}>{L('تصدير CSV', 'Export CSV')}</Button>

@@ -1,6 +1,6 @@
 // الدخول، إنشاء الصالون لأول مرة، واختيار الفرع.
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Building2, Check, KeyRound, Mail, Scissors, Sparkles, Store, UserRound, UsersRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Check, KeyRound, Mail, Scissors, Sparkles, Store, UserRound } from 'lucide-react';
 import { serviceTemplates } from '../data.js';
 import { api, auth, errorText } from '../lib/sync.js';
 import { prefs } from '../lib/store.js';
@@ -79,7 +79,6 @@ export function AuthScreen() {
 const kinds = [
   { id: 'men', label: L('صالون رجالي', "Men's barbershop"), hint: L('حلاقة وعناية', 'Cuts & grooming'), icon: Scissors, tone: 'accent' },
   { id: 'women', label: L('صالون نسائي', "Women's salon"), hint: L('شعر، مكياج، أظافر', 'Hair, makeup, nails'), icon: Sparkles, tone: 'purple' },
-  { id: 'mixed', label: L('صالون مختلط', 'Unisex salon'), hint: L('رجال وسيدات', 'Men & women'), icon: UsersRound, tone: 'blue' },
 ];
 
 export function Onboarding({ onCreated, onJoined, onCancel, local = false }) {
@@ -134,7 +133,7 @@ export function Onboarding({ onCreated, onJoined, onCancel, local = false }) {
   return <AuthLayout title={onCancel ? L('فرع جديد', 'New branch') : L('لنجهّز صالونك', "Let's set up your salon")} subtitle={L('ثلاث خطوات بسيطة — أقل من دقيقة', 'Three simple steps — under a minute')}>
     <Steps steps={[L('النوع', 'Type'), L('البيانات', 'Details'), L('الخدمات', 'Services')]} current={step} />
     {step === 0 && <div className="stack">
-      <div className="tiles tiles-3">{kinds.map(k => <Tile key={k.id} icon={k.icon} label={k.label} hint={k.hint} tone={k.tone} onClick={() => pickKind(k.id)} />)}</div>
+      <div className="tiles tiles-2">{kinds.map(k => <Tile key={k.id} icon={k.icon} label={k.label} hint={k.hint} tone={k.tone} onClick={() => pickKind(k.id)} />)}</div>
       {!local && !onCancel && <Button variant="ghost" icon={Building2} block onClick={() => setJoining(true)}>{L('أنا موظف ولدي رمز دعوة', "I'm staff and have an invite code")}</Button>}
       {onCancel && <Button variant="ghost" icon={BackIcon} block onClick={onCancel}>{L('رجوع', 'Back')}</Button>}
     </div>}

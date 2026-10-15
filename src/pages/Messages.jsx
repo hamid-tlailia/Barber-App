@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BellRing, Bot, Cake, Check, ListChecks, MessageCircle, Send, Sparkles, Trash2, UserRoundCheck } from 'lucide-react';
-import { addDays, clientLang, dateFor, dateLabel, daysBetween, fillTemplate, localISO, messageFor, num, serviceNames, timeFor, timeLabel, whatsappLink } from '../data.js';
+import { clientName, addDays, clientLang, dateFor, dateLabel, daysBetween, fillTemplate, localISO, messageFor, num, serviceNames, timeFor, timeLabel, whatsappLink } from '../data.js';
 import { birthdaysToday, dueSoon, lapsedClients } from '../smart.js';
 import { api, bookingUrl, cloudEnabled } from '../lib/sync.js';
 import { WhatsAppSettings } from './Settings.jsx';
@@ -76,7 +76,7 @@ export default function Messages() {
 
     {tab === 'waitlist' && (waiting.length ? <div className="list">{waiting.map(w => {
       const c = clients[w.clientId];
-      return <Row key={w.id} leading={<Avatar name={c?.name} />} title={c?.name || L('عميل', 'Client')} subtitle={`${w.date ? dateLabel(w.date) : L('أي يوم', 'Any day')}${w.serviceId ? ` · ${data.services.find(s => s.id === w.serviceId)?.name || ''}` : ''}`}
+      return <Row key={w.id} leading={<Avatar name={c?.name} />} title={clientName(data.clients, w.clientId)} subtitle={`${w.date ? dateLabel(w.date) : L('أي يوم', 'Any day')}${w.serviceId ? ` · ${data.services.find(s => s.id === w.serviceId)?.name || ''}` : ''}`}
         trailing={<span className="row-end">
           {c && <Button size="sm" variant="secondary" icon={MessageCircle} onClick={() => send(c, 'waitlistContact', { date: w.date ? (clientLang(c) === 'en' ? ` for ${dateFor(c, w.date)}` : ` ليوم ${dateFor(c, w.date)}`) : '' }, 'waitlist')}>{L('تواصل', 'Contact')}</Button>}
           <button type="button" className="icon-btn" aria-label={L('حذف', 'Delete')} onClick={() => { remove('waitlist', w.id); toast(L('أُزيل من القائمة', 'Removed from list')); }}><Trash2 size={16} /></button>

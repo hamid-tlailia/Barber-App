@@ -1,5 +1,6 @@
 // مكونات الواجهة المشتركة: بسيطة، كبيرة، وواضحة للمس.
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronLeft, ChevronRight, Loader2, Search, TriangleAlert, X } from 'lucide-react';
 import { statusText } from './data.js';
 import { L, isEn } from './i18n.js';
@@ -11,7 +12,8 @@ const Chevron = isEn ? ChevronRight : ChevronLeft;
 export const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
-const initials = name => (name || L('؟', '?')).trim().split(/\s+/).slice(0, 2).map(word => word[0]).join('');
+// الحرف الأول فقط: جمع حرفين (مثل «مي») قد يُقرأ كاسم.
+const initials = name => [...(name || L('؟', '?')).trim()][0] || L('؟', '?');
 const hue = text => [...String(text || '')].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 6;
 
 export function Avatar({ name, size = 'md', color }) {
@@ -174,7 +176,8 @@ export function Sheet({ title, subtitle, onClose, children, footer, size = 'md' 
     } else panel.current.style.transform = '';
   };
 
-  return <div ref={backdrop} className={`sheet-backdrop ${closing ? `closing closing-${closing}` : ''}`} onMouseDown={event => { if (event.target === event.currentTarget) requestClose(); }}>
+  // تُعرض النافذة في جذر الصفحة حتى لا تقيّدها حركة أو تمرير الصفحة التي فُتحت منها.
+  return createPortal(<div ref={backdrop} className={`sheet-backdrop ${closing ? `closing closing-${closing}` : ''}`} onMouseDown={event => { if (event.target === event.currentTarget) requestClose(); }}>
     <div ref={panel} className={`sheet sheet-${size}`} role="dialog" aria-modal="true" aria-label={title}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
       <div className="sheet-grip" aria-hidden="true"><span /></div>
@@ -185,7 +188,7 @@ export function Sheet({ title, subtitle, onClose, children, footer, size = 'md' 
       <div className="sheet-body">{children}</div>
       {footer && <footer className="sheet-foot">{footer}</footer>}
     </div>
-  </div>;
+  </div>, document.body);
 }
 
 export function Steps({ steps, current }) {

@@ -129,6 +129,7 @@ export function openWindows(hours: Record<string, any> | undefined, date: string
 export function isStaffOff(member: Record<string, any> | undefined, date: string) {
   if (!member) return false;
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  if ((member.workDays ?? []).includes(date)) return false;
   return (member.daysOff ?? []).map(Number).includes(weekday) || (member.leaves ?? []).includes(date);
 }
 
