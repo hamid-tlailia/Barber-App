@@ -4,7 +4,7 @@ import {
   TicketPercent, Trash2, Vault, WalletCards,
 } from 'lucide-react';
 import {
-  amountPaid, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
+  addDays, amountPaid, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
   paymentText, serviceNames, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { expectedCash, incomeIn } from '../smart.js';
@@ -87,7 +87,9 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
   const { data, setData, toast, vocab } = useApp();
   const client = data.clients.find(c => c.id === a.clientId);
   const depositMode = needsDeposit(a) && a.status !== 'completed';
-  const pkg = client && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && (a.items || []).some(i => i.serviceId === p.serviceId) && (!p.expiresAt || p.expiresAt >= localISO()));
+  // الباقة تُخصم مرة واحدة فقط لكل موعد (حتى لو دُفع الباقي على دفعات).
+  const packageUsed = (a.payments || []).some(p => p.method === 'package');
+  const pkg = client && !packageUsed && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && (a.items || []).some(i => i.serviceId === p.serviceId) && (!p.expiresAt || p.expiresAt >= localISO()));
   const [usePackage, setUsePackage] = useState(Boolean(pkg) && !depositMode);
   const [discount, setDiscount] = useState(Number(a.discount || 0));
   const [method, setMethod] = useState('cash');
@@ -99,7 +101,7 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
   const total = Math.max(0, gross - discount);
   const already = amountPaid(a);
   const packageValue = packageItem ? Number(packageItem.price) : 0;
-  const due = depositMode ? Math.max(0, a.deposit - depositPaid(a)) : Math.max(0, total - already - packageValue);
+  const due = depositMode ? Math.max(0, Math.min(Number(a.deposit), total) - depositPaid(a)) : Math.max(0, total - already - packageValue);
   const [amount, setAmount] = useState(due);
   useEffect(() => setAmount(due), [due]);
   const gift = method === 'gift' ? data.giftCards.find(g => g.code.toUpperCase() === giftCode.trim().toUpperCase()) : null;
@@ -110,18 +112,18 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
     if (method === 'gift') {
       if (!gift) { setError(L('رمز بطاقة الهدية غير صحيح', 'Invalid gift card code')); return; }
       if (gift.expiresAt && gift.expiresAt < localISO()) { setError(L('بطاقة الهدية منتهية', 'Gift card has expired')); return; }
-      if (gift.balance < value) { setError(L(`رصيد البطاقة ${money(gift.balance)} فقط`, `Card balance is only ${money(gift.balance)}`)); return; }
+      if (gift.balance < value + Number(tip || 0)) { setError(L(`رصيد البطاقة ${money(gift.balance)} فقط`, `Card balance is only ${money(gift.balance)}`)); return; }
     }
     const today = localISO();
     const payments = [...(a.payments || [])];
-    if (packageItem && !(a.payments || []).some(p => p.method === 'package')) payments.push({ id: uid(), amount: packageValue, method: 'package', at: today, kind: 'payment', packageId: pkg.id });
+    if (packageItem) payments.push({ id: uid(), amount: packageValue, method: 'package', at: today, kind: 'payment', packageId: pkg.id });
     if (value > 0) payments.push({ id: uid(), amount: value, method, at: today, kind: depositMode ? 'deposit' : 'payment', ...(gift ? { giftId: gift.id } : {}) });
-    if (Number(tip) > 0) payments.push({ id: uid(), amount: Number(tip), method, at: today, kind: 'tip', staffId: a.staffId });
+    if (Number(tip) > 0) payments.push({ id: uid(), amount: Number(tip), method, at: today, kind: 'tip', staffId: a.staffId, ...(gift ? { giftId: gift.id } : {}) });
     setData(prev => ({
       ...prev,
       appointments: prev.appointments.map(x => x.id === a.id ? { ...x, payments, discount: depositMode ? x.discount : discount } : x),
       clientPackages: packageItem ? prev.clientPackages.map(p => p.id === pkg.id ? { ...p, used: p.used + 1 } : p) : prev.clientPackages,
-      giftCards: gift ? prev.giftCards.map(g => g.id === gift.id ? { ...g, balance: g.balance - value } : g) : prev.giftCards,
+      giftCards: gift ? prev.giftCards.map(g => g.id === gift.id ? { ...g, balance: g.balance - value - Number(tip || 0) } : g) : prev.giftCards,
     }));
     toast(depositMode ? L('تم استلام العربون', 'Deposit received') : value + packageValue >= due ? L('تم الدفع بالكامل ✓', 'Paid in full ✓') : L(`تم استلام ${money(value)} — المتبقي ${money(due - value)}`, `Received ${money(value)} — ${money(due - value)} remaining`));
     (onPaid || onClose)();
@@ -247,7 +249,7 @@ function SellPackage({ onClose }) {
     const id = uid();
     setData(prev => ({
       ...prev,
-      clientPackages: [...prev.clientPackages, { id, clientId, packageId: pkg.id, name: pkg.name, serviceId: pkg.serviceId, total: pkg.sessions, used: 0, purchasedAt: today, expiresAt: pkg.validityDays ? new Date(Date.now() + pkg.validityDays * 86400000).toISOString().slice(0, 10) : '' }],
+      clientPackages: [...prev.clientPackages, { id, clientId, packageId: pkg.id, name: pkg.name, serviceId: pkg.serviceId, total: pkg.sessions, used: 0, purchasedAt: today, expiresAt: pkg.validityDays ? addDays(today, Number(pkg.validityDays)) : '' }],
       sales: [...prev.sales, { id: uid(), kind: 'package', refId: id, label: pkg.name, clientId, amount: pkg.price, method, at: today }],
     }));
     toast(L('تم بيع الباقة', 'Package sold')); onClose();
@@ -261,7 +263,7 @@ function SellPackage({ onClose }) {
 }
 
 function SellGift({ onClose }) {
-  const { setData, toast } = useApp();
+  const { data, setData, toast } = useApp();
   const [amount, setAmount] = useState(200);
   const [buyer, setBuyer] = useState('');
   const [recipient, setRecipient] = useState('');
@@ -269,8 +271,11 @@ function SellGift({ onClose }) {
   const [done, setDone] = useState(null);
   if (done) return <Sheet title={L('بطاقة الهدية جاهزة', 'Gift card ready')} onClose={onClose}><div className="gift-card"><Gift size={28} /><strong dir="ltr">{done.code}</strong><span>{money(done.amount)}</span>{done.recipientName && <small>{L('إلى:', 'To:')} {done.recipientName}</small>}</div><p className="muted center">{L('أعطِ الرمز للعميل — يُستخدم عند الدفع باختيار «هدية»', 'Give this code to the client — it is redeemed at checkout by choosing “Gift card”')}</p></Sheet>;
   return <Sheet title={L('بطاقة هدية جديدة', 'New gift card')} onClose={onClose} footer={<Button block size="lg" icon={TicketPercent} disabled={!(amount > 0)} onClick={() => {
-    const code = `GIFT-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-    const card = { id: uid(), code, amount: Number(amount), balance: Number(amount), buyerName: buyer, recipientName: recipient, createdAt: localISO(), expiresAt: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10) };
+    // رمز من 6 أحرف بدون أحرف ملتبسة، ولا يتكرر مع بطاقة موجودة.
+    const make = () => `GIFT-${Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('')}`;
+    let code = make();
+    while (data.giftCards.some(g => g.code === code)) code = make();
+    const card = { id: uid(), code, amount: Number(amount), balance: Number(amount), buyerName: buyer, recipientName: recipient, createdAt: localISO(), expiresAt: addDays(localISO(), 365) };
     setData(prev => ({ ...prev, giftCards: [...prev.giftCards, card], sales: [...prev.sales, { id: uid(), kind: 'gift', refId: card.id, label: `${L('بطاقة هدية', 'Gift card')} ${code}`, amount: card.amount, method, at: localISO() }] }));
     toast(L('تم إصدار البطاقة', 'Gift card issued')); setDone(card);
   }}>{L('إصدار', 'Issue')} {money(amount)}</Button>}>
@@ -296,7 +301,7 @@ function SellProduct({ onClose }) {
     setData(prev => ({
       ...prev,
       products: prev.products.map(p => p.id === product.id ? { ...p, quantity: p.quantity - quantity, updatedAt: today } : p),
-      stockMovements: [...prev.stockMovements, { id: uid(), productId: product.id, direction: 'out', quantity: Number(quantity), note: 'بيع', date: today }],
+      stockMovements: [...prev.stockMovements, { id: uid(), productId: product.id, direction: 'out', quantity: Number(quantity), note: L('بيع', 'Sale'), date: today }],
       sales: [...prev.sales, { id: uid(), kind: 'product', refId: product.id, label: `${product.name} ×${quantity}`, amount: product.price * quantity, cost: product.cost * quantity, method, at: today }],
     }));
     toast(L('تم البيع', 'Sale recorded')); onClose();

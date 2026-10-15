@@ -224,7 +224,8 @@ export function NumInput({ value, onChange, ...props }) {
     onChange={event => {
       const clean = toLatin(event.target.value).replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
       setText(clean);
-      onChange({ target: { value: clean } });
+      // «.» وحدها ليست رقماً بعد: نرسل 0 حتى لا تظهر NaN في الحسابات.
+      onChange({ target: { value: clean === '.' ? '0' : clean } });
     }} />;
 }
 

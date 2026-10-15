@@ -27,7 +27,9 @@ export const uid = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : 
 export const toMinutes = time => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 export const fromMinutes = minutes => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
-export const phoneDigits = phone => String(phone || '').replace(/\D/g, '');
+// الأرقام العربية (٠-٩ و۰-۹) تُحوَّل للاتينية قبل الحذف حتى لا يضيع رقم مكتوب بها.
+export const latinDigits = text => String(text || '').replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
+export const phoneDigits = phone => latinDigits(phone).replace(/\D/g, '');
 // مقارنة الأسماء بدون فروق الكتابة (المسافات، الهمزات، التاء المربوطة، حالة الأحرف).
 export const normalName = name => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ')
   .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[\u064B-\u0652\u0640]/g, '');
@@ -291,9 +293,12 @@ export const bookingClash = (appointments, candidate, staff = []) => {
 };
 export const hasAppointmentConflict = (appointments, candidate) => conflicts(appointments, candidate).length > 0;
 
-export const buildItems = (services, serviceIds, staffId = '') => serviceIds
-  .map(id => services.find(service => service.id === id)).filter(Boolean)
-  .map(service => ({ serviceId: service.id, name: service.name, price: Number(service.price || 0), duration: Number(service.duration || 30), processing: Number(service.processing || 0), staffId }));
+// existing: بنود الموعد الحالية عند التعديل — تبقى الخدمة المحذوفة من القائمة بسعرها ومدتها القديمين.
+export const buildItems = (services, serviceIds, staffId = '', existing = []) => serviceIds
+  .map(id => services.find(service => service.id === id) || existing.find(item => item.serviceId === id)).filter(Boolean)
+  .map(service => (service.serviceId
+    ? { ...service, staffId }
+    : { serviceId: service.id, name: service.name, price: Number(service.price || 0), duration: Number(service.duration || 30), processing: Number(service.processing || 0), staffId }));
 
 // فترات العمل لتاريخ معيّن بالدقائق [بداية، نهاية]. تدعم «مفتوح 24 ساعة» والإغلاق بعد منتصف الليل
 // (مثلاً 18:00–02:00: من 00:00 حتى 02:00 امتداداً لليلة السابقة، ومن 18:00 حتى 24:00).

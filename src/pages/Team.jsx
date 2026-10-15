@@ -74,12 +74,14 @@ export default function Team() {
 }
 
 function StaffForm({ member, onClose }) {
-  const { upsert, remove, toast, vocab, data } = useApp();
+  const { upsert, remove, toast, vocab, data, setData } = useApp();
   const [v, setV] = useState({ name: '', phone: '', role: vocab.pro, specialty: '', commission: 30, color: colors[data.staff.length % colors.length], active: true, ...member });
   const [confirm, setConfirm] = useState(false);
   const [leaveDate, setLeaveDate] = useState('');
   const [error, setError] = useState('');
+  const upcoming = member ? data.appointments.filter(a => a.date >= localISO() && ['pending', 'confirmed', 'arrived'].includes(a.status) && (a.staffId === member.id || (a.items || []).some(i => i.staffId === member.id))) : [];
   const save = () => {
+    if (!(Number(v.commission) >= 0 && Number(v.commission) <= 100)) { setError(L('نسبة العمولة بين 0 و 100', 'Commission must be between 0 and 100')); return; }
     const dup = findDuplicate(data.staff, { ...v, id: member?.id, name: v.name.trim() }, { phone: true });
     if (dup) { setError(samePhone(dup.phone, v.phone) ? L(`الرقم مسجّل للموظف ${dup.name}`, `This number belongs to ${dup.name}`) : L(`يوجد موظف بنفس الاسم «${dup.name}» — أضف ما يميّزه (اسم العائلة مثلاً)`, `A staff member named “${dup.name}” already exists — add something to tell them apart (e.g. a family name)`)); return; }
     upsert('staff', { ...v, id: member?.id || uid(), name: v.name.trim() }); toast(L('تم الحفظ', 'Saved')); onClose();
@@ -122,7 +124,11 @@ function StaffForm({ member, onClose }) {
       </Field>
       {member && cloudEnabled && <LinkedAccount staffId={member.id} />}
     </div>
-    {confirm && <Confirm title={L('حذف من الفريق؟', 'Remove from team?')} text={L('الأفضل إيقافه (غير نشط) للحفاظ على التقارير.', 'Better to deactivate them to keep your reports intact.')} danger confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirm(false)} onConfirm={() => { remove('staff', member.id); toast(L('تم الحذف', 'Deleted')); onClose(); }} />}
+    {confirm && <Confirm title={L('حذف من الفريق؟', 'Remove from team?')} text={<>{L('الأفضل إيقافه (غير نشط) للحفاظ على التقارير.', 'Better to deactivate them to keep your reports intact.')}{upcoming.length > 0 && <><br />{L(`لديه ${num(upcoming.length)} مواعيد قادمة — ستصبح «بدون تحديد» لتوزّعها على غيره.`, `They have ${num(upcoming.length)} upcoming appointments — they will become unassigned so you can give them to someone else.`)}</>}</>} danger confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirm(false)} onConfirm={() => {
+      // المواعيد القادمة لا تبقى مرتبطة بموظف محذوف (كانت تختفي من الفلاتر ولا تمنع الحجز المزدوج).
+      setData(prev => ({ ...prev, appointments: prev.appointments.map(a => upcoming.some(u => u.id === a.id) ? { ...a, staffId: '', items: (a.items || []).map(i => ({ ...i, staffId: '' })) } : a) }));
+      remove('staff', member.id); toast(L('تم الحذف', 'Deleted')); onClose();
+    }} />}
   </Sheet>;
 }
 

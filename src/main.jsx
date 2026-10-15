@@ -237,7 +237,9 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
   if (license.locked && !admin) return <Lock shop={shop} data={data} license={license} theme={theme} shops={shops} switchShop={switchShop} />;
 
   const vocab = vocabulary(data.settings.kind);
-  const staffMember = shop.staff_id ? data.staff.find(member => member.id === shop.staff_id) : null;
+  // حساب موظف حُذف ملفه أو لم يُربط: يبقى مقيّداً (لا يرى مواعيد أو عملاء غيره) بدل أن يرى كل شيء.
+  const staffMember = (shop.staff_id && data.staff.find(member => member.id === shop.staff_id))
+    || (shop.role === 'staff' ? { id: shop.staff_id || 'unlinked-staff', name: '', unlinked: true } : null);
   const context = {
     data, setData, ...helpers, shop, role, license, vocab, go, intent, setIntent, toast: showToast, theme, sync, syncNow,
     reloadShops, switchShop, addBranch, shops, admin, enablePush, refresh: () => setTick(t => t + 1), staffMember, can: name => allowed.includes(name),

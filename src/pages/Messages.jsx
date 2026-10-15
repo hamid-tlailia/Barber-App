@@ -30,7 +30,7 @@ export default function Messages() {
   const lapsed = lapsedClients(data.clients, data.appointments, data.settings, today);
   const due = dueSoon(data.clients, data.appointments, today);
   const birthdays = birthdaysToday(data.clients, today);
-  const waiting = data.waitlist.filter(w => w.status === 'waiting');
+  const waiting = data.waitlist.filter(w => w.status === 'waiting' && (!w.date || w.date >= today)); // طلب ليوم مضى لم يعد صالحاً
 
   // النص بلغة العميل (عربي/إنجليزي) كما هو محدد في ملفه.
   const send = (client, key, extra, kind, appointmentId) => {

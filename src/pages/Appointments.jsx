@@ -125,6 +125,14 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
   };
 
   if (checkout) return <CheckoutSheet appointment={a} onClose={() => { setCheckout(false); onClose(); }} />;
+  // موعد جديد لعميل قائمة الانتظار في نفس الوقت: بالخدمة التي طلبها (إن حددها)، بدون خصم أو عربون أو ملاحظات الموعد الملغى.
+  const offerFor = (w, id) => {
+    const asked = w.serviceId && data.services.find(s => s.id === w.serviceId);
+    const items = asked ? buildItems(data.services, [asked.id], a.staffId) : a.items;
+    return { id, clientId: w.clientId, date: a.date, time: a.time, staffId: a.staffId, location: 'salon', address: '', travel: 0, items,
+      duration: items.reduce((s, i) => s + Number(i.duration || 0), 0), price: items.reduce((s, i) => s + Number(i.price || 0), 0),
+      deposit: 0, discount: 0, notes: '', status: 'pending', payments: [], source: 'waitlist', createdAt: localISO() };
+  };
   if (suggest) return <Sheet title={L('وقت متاح الآن!', 'A slot just opened up!')} subtitle={L(`${suggest.length} في قائمة الانتظار يناسبهم هذا الموعد`, `${suggest.length} on the waitlist ${suggest.length === 1 ? 'fits' : 'fit'} this slot`)} onClose={onClose}>
     <div className="list">{suggest.map(w => {
       const c = data.clients.find(x => x.id === w.clientId);
@@ -136,7 +144,7 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
         setData(prev => ({
           ...prev,
           waitlist: prev.waitlist.map(x => x.id === w.id ? { ...x, status: 'booked', appointmentId: id } : x),
-          appointments: [...prev.appointments, { ...a, id, clientId: w.clientId, status: 'pending', payments: [], source: 'waitlist', createdAt: localISO(), reminderSentAt: '' }],
+          appointments: [...prev.appointments, offerFor(w, id)],
         }));
         toast(L('تم حجز الموعد لعميل قائمة الانتظار', 'Appointment booked for the waitlisted client'));
         onClose();
@@ -177,7 +185,7 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
         <Button variant="ghost" icon={UserX} onClick={() => setStatus('no_show', L(`تم تسجيل عدم الحضور`, 'Marked as no-show'))}>{L('لم يحضر', 'No-show')}</Button>
         <Button variant="danger-ghost" icon={Ban} onClick={() => setStatus('cancelled', L('تم إلغاء الموعد', 'Appointment cancelled'))}>{L('إلغاء', 'Cancel')}</Button>
       </div>}
-      {(a.status === 'cancelled' || a.status === 'no_show') && isManager && <Button variant="ghost" onClick={() => { patch('appointments', a.id, { status: 'pending' }); toast(L('تمت إعادة الموعد', 'Appointment restored')); }}>{L('إعادة تفعيل الموعد', 'Reactivate appointment')}</Button>}
+      {(a.status === 'cancelled' || a.status === 'no_show') && isManager && <Button variant="ghost" onClick={() => { const check = bookingClash(data.appointments, { ...a, status: 'pending' }, data.staff); if (check.blocking) { toast(L(`لا يمكن الإعادة: الوقت محجوز لـ ${clientName(data.clients, check.clash[0].clientId)}`, `Can't restore: the slot is taken by ${clientName(data.clients, check.clash[0].clientId)}`)); return; } patch('appointments', a.id, { status: 'pending' }); toast(L('تمت إعادة الموعد', 'Appointment restored')); }}>{L('إعادة تفعيل الموعد', 'Reactivate appointment')}</Button>}
       <small className="muted center">{statusText[a.status]} · {a.source === 'online' ? L('حجز أونلاين', 'Online booking') : a.source === 'whatsapp' ? L('حجز عبر واتساب', 'Booked via WhatsApp') : a.source === 'waitlist' ? L('من قائمة الانتظار', 'From waitlist') : L('من التطبيق', 'From the app')}{a.reminderSentAt ? L(' · أُرسل تذكير', ' · Reminder sent') : ''}</small>
     </div>
   </Sheet>;
@@ -194,7 +202,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
   const [clientId, setClientId] = useState(edit?.clientId || initial.clientId || '');
   const [serviceIds, setServiceIds] = useState(edit ? (edit.items || []).map(i => i.serviceId) : []);
   const [staffId, setStaffId] = useState(edit?.staffId || (role === 'staff' ? staffMember?.id || '' : ''));
-  const [date, setDate] = useState(edit?.date || initial.date || localISO());
+  const [date, setDate] = useState(edit?.date || (initial.date && initial.date > localISO() ? initial.date : localISO()));
   const [time, setTime] = useState(edit?.time || (walkIn ? nowTime() : ''));
   const [location, setLocation] = useState(edit?.location || 'salon');
   const [address, setAddress] = useState(edit?.address || '');
@@ -206,14 +214,14 @@ export function BookingWizard({ initial, onClose, onDone }) {
   const clashRef = useRef(null);
   useEffect(() => { if (clash) clashRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, [clash]);
   const client = data.clients.find(c => c.id === clientId);
-  const items = buildItems(data.services, serviceIds, staffId);
+  const items = buildItems(data.services, serviceIds, staffId, edit?.items);
   const total = items.reduce((s, i) => s + i.price, 0);
   const duration = items.reduce((s, i) => s + i.duration, 0);
   const risk = client ? noShowRisk(client.id, data.appointments) : null;
   const serviceDeposit = buildItems(data.services, serviceIds).reduce((s, i) => s + Number(data.services.find(x => x.id === i.serviceId)?.deposit || 0), 0);
   const riskDeposit = risk?.level === 'high' ? Math.round(total * Number(data.settings.noShowDepositPercent || 30) / 100) : 0;
   const [deposit, setDeposit] = useState(edit?.deposit ?? null);
-  const finalDeposit = deposit ?? Math.max(serviceDeposit, riskDeposit);
+  const finalDeposit = Math.min(total, Number(deposit ?? Math.max(serviceDeposit, riskDeposit)) || 0);
   const others = data.appointments.filter(a => a.id !== edit?.id);
   const slots = useMemo(() => items.length ? availableSlots(others, { date, items, staffId, settings: data.settings, location, staff: data.staff }) : [], [date, serviceIds.join(), staffId, location, data.appointments, data.staff]); // eslint-disable-line react-hooks/exhaustive-deps
   // انتهى دوام اليوم (أو امتلأ): ننتقل تلقائياً لأقرب يوم فيه أوقات متاحة.

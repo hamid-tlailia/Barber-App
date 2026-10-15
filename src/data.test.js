@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, findDuplicate, shortName, defaultData, defaultSettings, hasAppointmentConflict,
+  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, findDuplicate, phoneDigits, shortName, defaultData, defaultSettings, hasAppointmentConflict,
   importClients, isPaid, localISO, migrateAppointment, normalizeData, parseCSV, fillTemplate, whatsappNumber,
 } from './data.js';
 import { clientStats, commissions, dailyReport, expectedCash, incomeIn, lapsedClients, noShowRisk, roi, stockForecast, waitlistMatches } from './smart.js';
@@ -48,6 +48,14 @@ test('منع التكرار: نفس الاسم بفروق الكتابة أو ن
   const two = [{ id: 'x', name: 'عمار سعيد' }, { id: 'y', name: 'عمار خالد' }, { id: 'z', name: 'سالم' }];
   assert.equal(shortName(two, two[0]), 'عمار سعيد');
   assert.equal(shortName(two, two[2]), 'سالم');
+});
+
+test('تعديل موعد خدمته محذوفة لا يُسقطها من الفاتورة، والأرقام العربية في الهاتف', () => {
+  const kept = buildItems([], ['gone'], 't1', [{ serviceId: 'gone', name: 'تنظيف بشرة', price: 90, duration: 60, processing: 0, staffId: '' }]);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].price, 90);
+  assert.equal(kept[0].staffId, 't1');
+  assert.equal(phoneDigits('٥٥٥١ ٢٣٤٥'), '55512345');
 });
 
 test('العميل المحذوف يظهر بعبارة واضحة', () => {

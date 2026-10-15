@@ -196,7 +196,7 @@ export function todayInsights(data, today = localISO()) {
   if (birthdays.length) insights.push({ id: 'birthday', tone: 'purple', title: L(`عيد ميلاد ${birthdays[0].name}${birthdays.length > 1 ? ` و${birthdays.length - 1} آخرين` : ''}`, `${birthdays[0].name}'s birthday${birthdays.length > 1 ? ` and ${birthdays.length - 1} ${birthdays.length === 2 ? 'other' : 'others'}` : ''}`), action: 'messages' });
   const unpaid = data.appointments.filter(a => a.status === 'completed' && !isPaid(a));
   if (unpaid.length) insights.push({ id: 'unpaid', tone: 'red', title: L(`${unpaid.length} مواعيد مكتملة غير مدفوعة`, `${unpaid.length} completed ${unpaid.length === 1 ? 'appointment' : 'appointments'} unpaid`), action: 'checkout' });
-  const waiting = data.waitlist.filter(w => w.status === 'waiting');
+  const waiting = data.waitlist.filter(w => w.status === 'waiting' && (!w.date || w.date >= today));
   if (waiting.length) insights.push({ id: 'waitlist', tone: 'green', title: L(`${waiting.length} في قائمة الانتظار`, `${waiting.length} on the waitlist`), action: 'messages' });
   return insights;
 }

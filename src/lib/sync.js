@@ -195,6 +195,9 @@ export const errorText = error => {
   if (/row-level security|violates/i.test(message)) return L('لا تملك صلاحية هذا الإجراء أو انتهت فترة التجربة', 'You don\'t have permission for this action, or your trial has ended');
   if (/invalid_invite/.test(message)) return L('رمز الدعوة غير صحيح أو منتهي', 'The invite code is invalid or has expired');
   if (/slot_taken/.test(message)) return L('هذا الوقت حُجز للتو، اختر وقتاً آخر', 'This time was just booked — please choose another');
+  if (/invalid_contact/.test(message)) return L('أدخل اسمك ورقم جوال صحيحاً (8 أرقام على الأقل)', 'Enter your name and a valid mobile number (at least 8 digits)');
+  if (/invalid_time/.test(message)) return L('هذا الوقت لم يعد متاحاً، اختر وقتاً آخر', 'This time is no longer available — please choose another');
+  if (/no_services/.test(message)) return L('اختر خدمة واحدة على الأقل', 'Choose at least one service');
   if (/too_many/.test(message)) return L('وصلت للحد الأقصى من الحجوزات اليوم، تواصل مع الصالون', 'You\'ve reached today\'s booking limit — please contact the salon');
   if (/shop_unavailable/.test(message)) return L('الحجز الأونلاين غير متاح حالياً لهذا الصالون', 'Online booking is currently unavailable for this salon');
   if (/grace_already_given/.test(message)) return L('سبق منح مهلة لهذه الفترة — جدّد الاشتراك أو أوقف الصالون', 'A grace period was already granted for this term — renew the subscription or suspend the salon');
