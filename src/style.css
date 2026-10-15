@@ -185,7 +185,7 @@ button.stat:active { transform: scale(.98); }
 .hello span { font-family: 'Tajawal', 'IBM Plex Sans Arabic', sans-serif; font-size: 20px; font-weight: 700; }
 .hello small { color: var(--muted); }
 
-.list { display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.list { display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; overflow: clip; box-shadow: var(--shadow); }
 .row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 62px; padding: 11px 16px; text-align: start; }
 .row + .row { border-top: 1px solid var(--line); }
 button.row:hover { background: var(--surface-2); }
@@ -302,7 +302,7 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 4px 20px 8px; touch-action: none; }
 .sheet-head h2 { font-size: 20px; }
 .sheet-head p { color: var(--muted); font-size: 14px; margin-top: 2px; }
-.sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 20px 20px; display: grid; gap: 14px; align-content: start; }
+.sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 20px 20px; display: grid; gap: 14px; align-content: start; grid-auto-rows: max-content; }
 .sheet-body > * { animation: rise .38s var(--ease-out) both; }
 .sheet-body > :nth-child(2) { animation-delay: .04s; } .sheet-body > :nth-child(3) { animation-delay: .08s; }
 .sheet-body > :nth-child(4) { animation-delay: .12s; } .sheet-body > :nth-child(n+5) { animation-delay: .16s; }
