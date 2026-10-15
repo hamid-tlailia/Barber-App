@@ -645,3 +645,6 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 /* الرئيسية: من غير متاح اليوم */
 .team-off-note { display: block; width: 100%; text-align: start; font: inherit; font-size: 13.5px; color: var(--orange); background: var(--orange-soft); border: 0; border-radius: 12px; padding: 10px 14px; margin-top: -8px; cursor: pointer; }
 .stats:has(> :nth-child(4):last-child) { grid-template-columns: repeat(2, 1fr); }
+.plain-list { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; font-size: 14.5px; }
+.more-page { display: flex; flex-direction: column; gap: 18px; min-height: calc(100dvh - 260px); }
+.more-page > .btn { margin-top: auto; }

@@ -54,4 +54,5 @@ export const addons = [
 
 export const addonLink = (shopName, addon) => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(L(`مرحباً، أرغب في إضافة «${addon.name}» (${addon.monthly} ر.ق شهرياً أو ${addon.yearly} ر.ق سنوياً) لصالون «${shopName || ''}» في تطبيق مِقص.`, `Hello, I would like to add "${addon.name}" (QAR ${addon.monthly}/month or QAR ${addon.yearly}/year) for "${shopName || ''}" in the Miqass app.`))}`;
 
+export const deletionLink = (shopName, reason) => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(L(`مرحباً، أطلب حذف صالون «${shopName || ''}» وحسابي وكل بياناته من تطبيق مِقص.\nالسبب: ${reason}`, `Hello, I am requesting deletion of the salon "${shopName || ''}", my account and all its data from the Miqass app.\nReason: ${reason}`))}`;
 export const buyLink = (shopName, plan) => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(L(`مرحباً، أرغب في تفعيل اشتراك ${plan?.name || ''} لصالون «${shopName || ''}» في تطبيق مِقص.`, `Hello, I would like to activate the ${plan?.name || ''} plan for "${shopName || ''}" in the Miqass app.`))}`;

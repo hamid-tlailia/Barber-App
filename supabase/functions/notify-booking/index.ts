@@ -175,6 +175,19 @@ async function newShop(sa: ServiceAccount | null, shopId: string) {
   return notifyAdmins(sa, `🎉 صالون جديد: ${info.name}`, lines, { kind: 'new_shop', shopId: String(shopId) });
 }
 
+async function deletionRequest(sa: ServiceAccount | null, shopId: string) {
+  const info = await rest('rpc/deletion_request_info', { method: 'POST', body: JSON.stringify({ p_shop: shopId }) });
+  if (!info) return { pushed: 0, emailed: false };
+  const lines = [
+    `طلب حذف صالون «${info.name}» وحساب صاحبه`,
+    `السبب: ${info.reason || '—'}`,
+    `البريد: ${info.email ?? '—'} · الهاتف: ${info.phone || '—'} · الحسابات: ${info.members}`,
+    ...(info.paid_until && info.paid_until > new Date().toISOString() ? [`⚠️ لديه اشتراك مدفوع حتى ${String(info.paid_until).slice(0, 10)}`] : []),
+    'للموافقة: لوحة المالك ← الصالون ← حذف نهائي',
+  ];
+  return notifyAdmins(sa, `🗑️ طلب حذف: ${info.name}`, lines, { kind: 'deletion_request', shopId: String(shopId) });
+}
+
 async function expiring(sa: ServiceAccount | null) {
   // يومياً: ما ينتهي خلال يومين، ما في المهلة، وما انتهى خلال آخر 24 ساعة (تجربة أو اشتراك).
   const now = new Date().toISOString();
@@ -203,6 +216,7 @@ Deno.serve(async req => {
   // إشعارات مالك التطبيق تعمل بالبريد حتى بدون Firebase.
   if (payload.kind === 'new_shop') return json(await newShop(sa, payload.shop_id));
   if (payload.kind === 'expiring') return json(await expiring(sa));
+  if (payload.kind === 'deletion_request') return json(await deletionRequest(sa, payload.shop_id));
   if (!sa) return json({ skipped: 'FCM_SERVICE_ACCOUNT not set' });
   if (payload.kind === 'activity') return json({ sent: await activity(sa, payload) });
   return json({ sent: await booking(sa, payload.shop_id, payload.appointment) });

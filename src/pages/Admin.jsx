@@ -1,7 +1,7 @@
 // لوحة المالك (أنت): متابعة الصالونات، تفعيل الاشتراكات والمهلة، الإضافات المدفوعة ونصوص الرسائل لكل صالون.
 import React, { useEffect, useState } from 'react';
 import {
-  Ban, Bot, CalendarClock, CalendarPlus, Check, Copy, Crown, ExternalLink, Eye, EyeOff, MessageCircle, MessageSquareText, RefreshCw, Store, Timer, UsersRound,
+  Ban, Bot, CalendarClock, CalendarPlus, Check, Copy, Crown, ExternalLink, Eye, EyeOff, MessageCircle, MessageSquareText, RefreshCw, Store, Timer, Trash2, UsersRound,
 } from 'lucide-react';
 import { defaultSettings, num, roleText, whatsappLink, LOCALE } from '../data.js';
 import { api, bookingUrl, errorText } from '../lib/sync.js';
@@ -77,6 +77,10 @@ export default function Admin() {
       <Stat icon={Timer} tone="blue" label={L('في التجربة', 'On trial')} value={num(counts.trial || 0)} onClick={() => setFilter('trial')} />
       <Stat icon={Ban} tone="red" label={L('منتهي', 'Expired')} value={num((counts.expired || 0) + (counts.grace || 0))} onClick={() => setFilter('expired')} />
     </div>
+    {shops.some(s => s.deletion_requested_at) && <Section title={L('طلبات حذف', 'Deletion requests')}>
+      <div className="list">{shops.filter(s => s.deletion_requested_at).map(s => <Row key={s.id} leading={<span className="dot-icon tone-red"><Trash2 size={18} /></span>} title={s.name}
+        subtitle={`${dateText(s.deletion_requested_at)} · ${s.deletion_reason || ''}`} onClick={() => setOpen(s.id)} />)}</div>
+    </Section>}
     {followUp.length > 0 && <Section title={L(`تحتاج متابعة (${num(followUp.length)})`, `Needs follow-up (${num(followUp.length)})`)}>
       <div className="list">{followUp.map(s => <Row key={s.id} leading={<span className="dot-icon tone-orange"><Timer size={18} /></span>} title={s.name}
         subtitle={`${labels[statusOf(s)][0]}${statusOf(s) !== 'expired' ? L(` · باقٍ ${num(Math.max(0, daysLeft(s)))} يوم`, ` · ${days(num(Math.max(0, daysLeft(s))))} left`) : L(' · لم يجدد', ' · Not renewed')}`}
@@ -91,7 +95,7 @@ export default function Admin() {
       const addons = [s.wa_addon && L('واتساب', 'Whats'), s.ai_addon && 'AI'].filter(Boolean).join(' + ');
       const plan = statusOf(s) === 'paid' ? plans.find(p => p.id === s.plan)?.name : '';
       return <Row key={s.id} title={s.name} subtitle={[s.owner_email, plan, left > 0 && statusOf(s) !== 'suspended' ? L(`باقٍ ${num(left)} يوم`, `${days(num(left))} left`) : '', L(`${num(s.members)} حساب`, `${num(s.members)} ${Number(s.members) === 1 ? 'account' : 'accounts'}`), addons].filter(Boolean).join(' · ')}
-        trailing={<span className="row-end">{s.duplicate_of && <Badge tone="red">{L('مكرر؟', 'Duplicate?')}</Badge>}<Badge tone={tone}>{label}</Badge></span>} onClick={() => setOpen(s.id)} />;
+        trailing={<span className="row-end">{s.deletion_requested_at && <Badge tone="red">{L('طلب حذف', 'Deletion')}</Badge>}{s.duplicate_of && <Badge tone="red">{L('مكرر؟', 'Duplicate?')}</Badge>}<Badge tone={tone}>{label}</Badge></span>} onClick={() => setOpen(s.id)} />;
     })}</div> : <Empty icon={Store} title={L('لا نتائج', 'No results')} />}
 
     {current && <ShopSheet shop={current} act={act} onClose={() => setOpen(null)} />}
@@ -100,6 +104,7 @@ export default function Admin() {
 
 function ShopSheet({ shop, act, onClose }) {
   const [confirm, setConfirm] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const status = statusOf(shop);
   const paid = status === 'paid';
   // تجديد بنفس الخطة يُضاف من نهاية الاشتراك الحالي، والتغيير يبدأ من اليوم.
@@ -135,6 +140,7 @@ function ShopSheet({ shop, act, onClose }) {
         {status === 'grace' && <Row title={L('المهلة حتى', 'Grace until')} trailing={<strong className="red">{dateText(shop.grace_until)}</strong>} />}
         <Row title={L('آخر نشاط', 'Last activity')} trailing={shop.last_activity ? dateText(shop.last_activity) : '—'} />
       </div>
+      {shop.deletion_requested_at && <Alert tone="red" icon={Trash2}>{L(`طلب صاحب الصالون الحذف في ${dateText(shop.deletion_requested_at)} — السبب: ${shop.deletion_reason || '—'}`, `The owner requested deletion on ${dateText(shop.deletion_requested_at)} — reason: ${shop.deletion_reason || '—'}`)}</Alert>}
       {shop.duplicate_of && <Alert tone="red">{L(`قد يكون نفس صاحب صالون «${shop.duplicate_of}» بحساب جديد (نفس الهاتف أو الجهاز) — لا تُمنح له تجربة جديدة تلقائياً.`, `May be the same owner as “${shop.duplicate_of}” with a new account (same phone or device) — no new free trial was granted automatically.`)}</Alert>}
       {shop.phone && <Button variant="secondary" icon={MessageCircle} block onClick={() => openExternal(whatsappLink(shop.phone, needsFollowUp(shop) ? reminderText(shop) : L(`مرحباً ${shop.name} 👋 كيف وجدتم تطبيق مِقص؟`, `Hello ${shop.name} 👋 How are you finding the Miqass app?`)))}>{L('تواصل مع الصالون', 'Contact salon')}</Button>}
 
@@ -162,8 +168,30 @@ function ShopSheet({ shop, act, onClose }) {
       <Overview shopId={shop.id} />
       <Addons shopId={shop.id} onSaved={() => act(async () => {}, L('تم حفظ الإضافات', 'Add-ons saved'))} />
       <Templates shopId={shop.id} />
+      <Button variant="danger-ghost" icon={Trash2} block onClick={() => setDeleting(true)}>{L('حذف الصالون وحساب صاحبه نهائياً', 'Delete salon and owner account permanently')}</Button>
     </div>
+    {deleting && <DeleteShopSheet shop={shop} onClose={() => setDeleting(false)} onDeleted={result => act(async () => {}, L(`تم حذف «${result.deleted}» و${num(result.accounts)} حساب`, `Deleted “${result.deleted}” and ${num(result.accounts)} account(s)`), true)} />}
     {confirm && <Confirm title={confirm.title} text={confirm.text} confirmLabel={confirm.label} danger={confirm.danger} onConfirm={confirm.run} onClose={() => setConfirm(null)} />}
+  </Sheet>;
+}
+
+// الحذف النهائي: يكتب المالك اسم الصالون للتأكيد.
+function DeleteShopSheet({ shop, onClose, onDeleted }) {
+  const [deleteOwner, setDeleteOwner] = useState(true);
+  const [typed, setTyped] = useState('');
+  const [error, setError] = useState('');
+  const run = async () => {
+    try { const result = await api.admin.deleteShop(shop.id, deleteOwner); onClose(); onDeleted(result); } catch (e) { setError(errorText(e)); }
+  };
+  return <Sheet title={L('حذف نهائي', 'Permanent deletion')} subtitle={shop.name} onClose={onClose} size="sm"
+    footer={<Button block variant="danger" icon={Trash2} disabled={typed.trim() !== shop.name.trim()} onClick={run}>{L('حذف نهائياً', 'Delete permanently')}</Button>}>
+    <div className="stack">
+      <Alert tone="red">{L('يُحذف كل شيء ولا يمكن استرجاعه: بيانات الصالون، وحسابات موظفيه التي لا تنتمي لصالون آخر.', 'Everything is deleted and cannot be recovered: salon data, and staff accounts that do not belong to another salon.')}</Alert>
+      {time(shop.paid_until) > Date.now() && <Alert tone="orange">{L(`لديه اشتراك مدفوع حتى ${dateText(shop.paid_until)}.`, `They have a paid subscription until ${dateText(shop.paid_until)}.`)}</Alert>}
+      <Toggle checked={deleteOwner} onChange={setDeleteOwner} label={L('حذف حساب صاحب الصالون أيضاً', 'Also delete the owner account')} hint={L('إلا إذا كان لديه فرع آخر', 'Unless they own another branch')} />
+      <Field label={L(`اكتب «${shop.name}» للتأكيد`, `Type “${shop.name}” to confirm`)}><input value={typed} onChange={e => setTyped(e.target.value)} /></Field>
+      <Alert>{error}</Alert>
+    </div>
   </Sheet>;
 }
 

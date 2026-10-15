@@ -4,8 +4,8 @@ import {
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
 import { PHONE_ERROR, validPhone, clientName, dateLabel, findDuplicate, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
-import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
-import { addonLink, addons, buyLink, plans } from '../lib/license.js';
+import { api, auth, bookingUrl, cloudEnabled, errorText, privacyUrl } from '../lib/sync.js';
+import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { notifyNow, pushState, pushSupported } from '../lib/native.js';
@@ -40,15 +40,16 @@ export default function Settings() {
       owner && { id: 'plan', icon: CreditCard, label: L('الاشتراك', 'Subscription') },
       cloudEnabled && { id: 'audit', icon: History, label: L('سجل التعديلات', 'Activity log'), subtitle: L('كل عمليات الموظفين بالتفصيل', 'Every staff action in detail') },
       { id: 'backup', icon: DatabaseBackup, label: L('النسخ الاحتياطي', 'Backup') },
+      cloudEnabled && owner && { id: 'delete', icon: Trash2, label: L('حذف الصالون والحساب', 'Delete salon and account'), danger: true },
     ] },
   ];
-  const Sheets = { shop: ShopSettings, services: ServicesSettings, hours: HoursSettings, packages: PackagesSettings, gifts: GiftCards, booking: BookingSettings, smart: SmartSettings, whatsapp: WhatsAppSettings, audit: AuditLog, backup: Backup, plan: Plan };
+  const Sheets = { shop: ShopSettings, services: ServicesSettings, hours: HoursSettings, packages: PackagesSettings, gifts: GiftCards, booking: BookingSettings, smart: SmartSettings, whatsapp: WhatsAppSettings, audit: AuditLog, backup: Backup, plan: Plan, delete: DeleteShop };
   const Current = open && Sheets[open];
   const setDigits = value => { if (value === digitStyle) return; setDigitStyle(value); refresh(); };
   const changeLang = value => { if (value !== LANG) setLang(value); };
   return <div className="stack-lg">
     {groups.map(group => <Section key={group.title} title={group.title}>
-      <div className="list">{group.items.filter(Boolean).map(item => <Row key={item.id} leading={<span className="dot-icon tone-accent"><item.icon size={18} /></span>} title={item.label} subtitle={item.subtitle} onClick={() => setOpen(item.id)} />)}</div>
+      <div className="list">{group.items.filter(Boolean).map(item => <Row key={item.id} leading={<span className={`dot-icon tone-${item.danger ? 'red' : 'accent'}`}><item.icon size={18} /></span>} title={item.label} subtitle={item.subtitle} onClick={() => setOpen(item.id)} />)}</div>
     </Section>)}
     {pushSupported && <Section title={L('الإشعارات', 'Notifications')}>
       <div className="list">
@@ -73,6 +74,7 @@ export default function Settings() {
       </div>
     </Section>}
     {cloudEnabled && <Button variant="danger-ghost" icon={LogOut} block onClick={() => auth.signOut()}>{L('تسجيل الخروج', 'Sign out')}</Button>}
+    <Button variant="ghost" icon={ShieldCheck} block onClick={() => openExternal(privacyUrl)}>{L('سياسة الخصوصية', 'Privacy policy')}</Button>
     {Current && <Current onClose={() => setOpen(null)} />}
   </div>;
 }
@@ -378,6 +380,44 @@ function AuditLog({ onClose }) {
     })}</div>
       {list.length > shown && <Button variant="ghost" block onClick={() => setShown(shown + 50)}>{L(`عرض المزيد (${num(list.length - shown)})`, `Show more (${num(list.length - shown)})`)}</Button>}</>
       : <Empty icon={ShieldCheck} title={L('لا تعديلات بعد', 'No activity yet')} />}
+  </Sheet>;
+}
+
+// طلب حذف الصالون والحساب: يصل المالكَ للموافقة (إشعار + واتساب). لا شيء يُحذف قبل موافقته.
+function DeleteShop({ onClose }) {
+  const { shop, data, toast } = useApp();
+  const [status, setStatus] = useState(undefined);
+  const [reason, setReason] = useState('');
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState('');
+  const shopName = data.shopName || shop.name;
+  useEffect(() => { api.deletionStatus(shop.id).then(setStatus).catch(e => { setStatus(null); setError(errorText(e)); }); }, [shop.id]);
+  const requested = status?.requested_at;
+  return <Sheet title={L('حذف الصالون والحساب', 'Delete salon and account')} onClose={onClose} footer={requested ? <>
+    <Button variant="ghost" onClick={async () => { try { await api.cancelDeletion(shop.id); toast(L('تم إلغاء طلب الحذف', 'Deletion request cancelled')); onClose(); } catch (e) { setError(errorText(e)); } }}>{L('إلغاء الطلب', 'Cancel request')}</Button>
+    <div className="spacer" />
+    <Button variant="secondary" icon={MessageSquareText} onClick={() => openExternal(deletionLink(shopName, status.reason || ''))}>{L('تذكير عبر واتساب', 'Remind via WhatsApp')}</Button>
+  </> : <Button block variant="danger" icon={Trash2} disabled={status === undefined || !reason.trim()} onClick={() => setConfirm(true)}>{L('إرسال طلب الحذف', 'Send deletion request')}</Button>}>
+    <div className="stack">
+      <Alert>{error}</Alert>
+      {status === undefined ? <div className="loader" /> : requested ? <Alert tone="orange" icon={History}>{L(`طلبك قيد المراجعة منذ ${dateLabel(String(requested).slice(0, 10))}. سنتواصل معك قبل الحذف. يمكنك إلغاء الطلب في أي وقت قبل ذلك.`, `Your request has been under review since ${dateLabel(String(requested).slice(0, 10))}. We will contact you before deleting. You can cancel it any time before then.`)}</Alert> : <>
+        <p className="muted">{L('بعد موافقة إدارة التطبيق يُحذف نهائياً ولا يمكن استرجاعه:', 'Once approved by the app team, this is deleted permanently and cannot be recovered:')}</p>
+        <ul className="plain-list">
+          <li>{L('كل بيانات الصالون: العملاء، المواعيد، المدفوعات، التقارير، المخزون والصور.', 'All salon data: clients, appointments, payments, reports, inventory and photos.')}</li>
+          <li>{L('حسابك (البريد وكلمة المرور).', 'Your account (email and password).')}</li>
+          <li>{L('حسابات موظفيك — إلا من يعمل أيضاً في صالون آخر على التطبيق، فيبقى حسابه هناك.', 'Your staff accounts — except anyone who also works at another salon on the app; their account stays there.')}</li>
+        </ul>
+        <Button variant="secondary" icon={Download} block onClick={() => download(`miqass-backup-${localISO()}.json`, JSON.stringify(data), 'application/json')}>{L('نزّل نسخة من بياناتك أولاً', 'Download a copy of your data first')}</Button>
+        <Field label={L('سبب الحذف', 'Reason for deletion')} required><textarea rows="3" value={reason} onChange={e => setReason(e.target.value)} placeholder={L('يساعدنا على تحسين التطبيق', 'Helps us improve the app')} /></Field>
+      </>}
+    </div>
+    {confirm && <Confirm danger title={L('إرسال طلب الحذف؟', 'Send the deletion request?')} text={L('سيصل الطلب لإدارة التطبيق، وتُفتح رسالة واتساب لتأكيده. يبقى التطبيق يعمل حتى الموافقة.', 'The request goes to the app team and a WhatsApp message opens to confirm it. The app keeps working until it is approved.')} confirmLabel={L('إرسال', 'Send')} onClose={() => setConfirm(false)} onConfirm={async () => {
+      try {
+        await api.requestDeletion(shop.id, reason.trim());
+        openExternal(deletionLink(shopName, reason.trim()));
+        toast(L('تم إرسال طلب الحذف', 'Deletion request sent')); onClose();
+      } catch (e) { setError(errorText(e)); }
+    }} />}
   </Sheet>;
 }
 
