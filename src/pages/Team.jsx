@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Copy, KeyRound, MessageCircle, PauseCircle, PlayCircle, Trash2, UserPlus, UsersRound } from 'lucide-react';
-import { dateLabel, findDuplicate, isStaffOff, samePhone, localISO, money, num, roleText, uid, whatsappLink } from '../data.js';
+import { PHONE_ERROR, validPhone, dateLabel, findDuplicate, isStaffOff, samePhone, localISO, money, num, roleText, uid, whatsappLink } from '../data.js';
 import { commissions } from '../smart.js';
 import { api, cloudEnabled, errorText, publicBase } from '../lib/sync.js';
 import { L, isEn } from '../i18n.js';
@@ -81,6 +81,7 @@ function StaffForm({ member, onClose }) {
   const [error, setError] = useState('');
   const upcoming = member ? data.appointments.filter(a => a.date >= localISO() && ['pending', 'confirmed', 'arrived'].includes(a.status) && (a.staffId === member.id || (a.items || []).some(i => i.staffId === member.id))) : [];
   const save = () => {
+    if (v.phone && !validPhone(v.phone)) { setError(PHONE_ERROR); return; }
     if (!(Number(v.commission) >= 0 && Number(v.commission) <= 100)) { setError(L('نسبة العمولة بين 0 و 100', 'Commission must be between 0 and 100')); return; }
     const dup = findDuplicate(data.staff, { ...v, id: member?.id, name: v.name.trim() }, { phone: true });
     if (dup) { setError(samePhone(dup.phone, v.phone) ? L(`الرقم مسجّل للموظف ${dup.name}`, `This number belongs to ${dup.name}`) : L(`يوجد موظف بنفس الاسم «${dup.name}» — أضف ما يميّزه (اسم العائلة مثلاً)`, `A staff member named “${dup.name}” already exists — add something to tell them apart (e.g. a family name)`)); return; }

@@ -1,7 +1,7 @@
 // صفحة الحجز العامة للعملاء (بدون حساب): الخدمة ← الوقت ← البيانات ← تم.
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarCheck2, Check, MessageCircle, Scissors, ChevronLeft, ChevronRight } from 'lucide-react';
-import { latinDigits, phoneDigits, shortName, addDays, availableSlots, dateLabel, defaultSettings, localISO, money, num, timeLabel, whatsappLink } from '../data.js';
+import { latinDigits, shortName, validPhone, addDays, availableSlots, dateLabel, defaultSettings, localISO, money, num, timeLabel, whatsappLink } from '../data.js';
 import { api, cloudEnabled, errorText } from '../lib/sync.js';
 import { Alert, Button, Chips, Empty, Field, Steps } from '../ui.jsx';
 import { L, isEn } from '../i18n.js';
@@ -41,7 +41,7 @@ export default function PublicBooking({ slug }) {
   if (!shop || !shop.active) return <div className="auth"><div className="auth-card"><Empty icon={Scissors} title={L('الحجز غير متاح', 'Booking unavailable')} text={L('تأكد من الرابط أو تواصل مع الصالون مباشرة', 'Check the link or contact the salon directly')} /></div></div>;
 
   const book = async () => {
-    if (!name.trim() || phoneDigits(phone).length < 8) { setError(L('أدخل اسمك ورقم جوال صحيحاً (8 أرقام على الأقل)', 'Enter your name and a valid mobile number (at least 8 digits)')); return; }
+    if (!name.trim() || !validPhone(phone)) { setError(L('أدخل اسمك ورقم جوال صحيحاً (8 أرقام على الأقل)', 'Enter your name and a valid mobile number (at least 8 digits)')); return; }
     setBusy(true); setError('');
     try {
       await api.publicBook({ slug, name: name.trim(), phone: latinDigits(phone).trim(), serviceIds, staffId, date, time, note });

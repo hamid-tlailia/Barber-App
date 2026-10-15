@@ -44,6 +44,9 @@ export const fromMinutes = minutes => `${String(Math.floor(minutes / 60)).padSta
 // الأرقام العربية (٠-٩ و۰-۹) تُحوَّل للاتينية قبل الحذف حتى لا يضيع رقم مكتوب بها.
 export const latinDigits = text => String(text || '').replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
 export const phoneDigits = phone => latinDigits(phone).replace(/\D/g, '');
+// رقم جوال كامل: 8 أرقام على الأقل (قطر) و15 كحد أقصى (المعيار الدولي مع رمز الدولة).
+export const validPhone = phone => { const n = phoneDigits(phone).length; return n >= 8 && n <= 15; };
+export const PHONE_ERROR = L('رقم الجوال غير مكتمل — 8 أرقام على الأقل', 'The phone number is incomplete — at least 8 digits');
 // مقارنة الأسماء بدون فروق الكتابة (المسافات، الهمزات، التاء المربوطة، حالة الأحرف).
 export const normalName = name => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ')
   .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[\u064B-\u0652\u0640]/g, '');
@@ -467,10 +470,10 @@ export const importClients = (text, existing) => {
   const notesIndex = hasHeader ? header.findIndex(cell => /note|ملاحظ/.test(cell)) : -1;
   const added = []; let skipped = 0;
   for (const row of rows.slice(hasHeader ? 1 : 0)) {
-    const phoneIndex = phoneIndexFound >= 0 ? phoneIndexFound : row.findIndex(cell => phoneDigits(cell).length >= 7);
+    const phoneIndex = phoneIndexFound >= 0 ? phoneIndexFound : row.findIndex(cell => validPhone(cell));
     const phone = row[phoneIndex] || '';
     const name = (phoneIndex === nameIndex ? row.find((cell, i) => i !== phoneIndex && cell) : row[nameIndex]) || '';
-    if (!name || phoneDigits(phone).length < 7 || [...existing, ...added].some(client => samePhone(client.phone, phone))) { skipped++; continue; }
+    if (!name || !validPhone(phone) || [...existing, ...added].some(client => samePhone(client.phone, phone))) { skipped++; continue; }
     added.push({ id: uid(), name, phone, notes: notesIndex >= 0 ? row[notesIndex] || '' : '', createdAt: localISO(), source: 'import' });
   }
   return { added, skipped };

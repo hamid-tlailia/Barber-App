@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, businessDay, findDuplicate, phoneDigits, shortName, defaultData, defaultSettings, hasAppointmentConflict,
+  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, businessDay, findDuplicate, phoneDigits, validPhone, shortName, defaultData, defaultSettings, hasAppointmentConflict,
   importClients, isPaid, localISO, migrateAppointment, normalizeData, parseCSV, fillTemplate, whatsappNumber,
 } from './data.js';
 import { clientStats, commissions, dailyReport, expectedCash, incomeIn, lapsedClients, noShowRisk, roi, stockForecast, waitlistMatches } from './smart.js';
@@ -56,6 +56,10 @@ test('تعديل موعد خدمته محذوفة لا يُسقطها من ال�
   assert.equal(kept[0].price, 90);
   assert.equal(kept[0].staffId, 't1');
   assert.equal(phoneDigits('٥٥٥١ ٢٣٤٥'), '55512345');
+  assert.equal(validPhone('254439'), false);
+  assert.equal(validPhone('5551 2345'), true);
+  assert.equal(validPhone('+974 5551 2345'), true);
+  assert.equal(validPhone('1234567890123456'), false);
 });
 
 test('يوم العمل يتبع ساعات الصالون (الإغلاق بعد منتصف الليل)', () => {

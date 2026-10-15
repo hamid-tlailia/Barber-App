@@ -3,7 +3,7 @@ import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
-import { clientName, dateLabel, findDuplicate, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
+import { PHONE_ERROR, validPhone, clientName, dateLabel, findDuplicate, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
@@ -85,6 +85,7 @@ function ShopSettings({ onClose }) {
   const [error, setError] = useState('');
   const save = async () => {
     if (!name.trim()) { setError(L('اسم الصالون مطلوب', 'Salon name is required')); return; }
+    if (!validPhone(phone)) { setError(PHONE_ERROR); return; }
     setData(prev => ({ ...prev, shopName: name.trim(), settings: { ...prev.settings, kind, phone } }));
     if (cloudEnabled) {
       try { await api.updateShop(shop.id, { name: name.trim(), kind, phone, slug: shop.slug }); await reloadShops(); } catch (e) { setError(errorText(e)); return; }
@@ -282,6 +283,7 @@ export function WhatsAppSettings({ onClose }) {
     })).catch(e => setError(errorText(e)));
   }, [shop.id, shop.phone]);
   const save = async () => {
+    if (v.daily && !validPhone(v.ownerWhatsapp)) { setError(PHONE_ERROR); return; }
     try { await api.saveIntegration(shop.id, v); toast(L('تم الحفظ', 'Saved')); onClose(); } catch (e) { setError(errorText(e)); }
   };
   const shopName = data.shopName || shop.name;

@@ -3,7 +3,7 @@ import {
   ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
   ListPlus, MapPin, MessageCircle, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import {
+import { PHONE_ERROR, validPhone,
   addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
@@ -364,8 +364,8 @@ export function ClientPicker({ value, onChange, walkIn = false }) {
   };
   const add = () => {
     if (!name.trim()) { setError(L('أدخل الاسم', 'Enter the name')); return; }
-    if (!walkIn && phoneDigits(phone).length < 7) { setError(L('أدخل الاسم ورقماً صحيحاً', 'Enter a name and a valid number')); return; }
-    if (phone && phoneDigits(phone).length < 7) { setError(L('الرقم غير صحيح — أو اتركه فارغاً', 'Invalid number — or leave it blank')); return; }
+    if (!walkIn && !validPhone(phone)) { setError(PHONE_ERROR); return; }
+    if (phone && !validPhone(phone)) { setError(L('الرقم غير صحيح — أو اتركه فارغاً', 'Invalid number — or leave it blank')); return; }
     const existing = phone && data.clients.find(c => samePhone(c.phone, phone));
     if (existing) { onChange(existing.id); return; }
     const id = uid();

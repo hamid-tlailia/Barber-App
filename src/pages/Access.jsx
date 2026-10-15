@@ -1,7 +1,7 @@
 // الدخول، إنشاء الصالون لأول مرة، واختيار الفرع.
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, KeyRound, Mail, Scissors, Sparkles, Store, UserRound } from 'lucide-react';
-import { latinDigits, phoneDigits, serviceTemplates } from '../data.js';
+import { PHONE_ERROR, latinDigits, serviceTemplates, validPhone } from '../data.js';
 import { api, auth, errorText } from '../lib/sync.js';
 import { prefs } from '../lib/store.js';
 import { Alert, Button, Field, Steps, Tile, Toggle } from '../ui.jsx';
@@ -142,7 +142,7 @@ export function Onboarding({ onCreated, onJoined, onCancel, local = false }) {
     {step === 1 && <form className="stack" onSubmit={async e => {
       e.preventDefault(); setError('');
       if (local) { setStep(2); return; }
-      if (phoneDigits(phone).length < 8) { setError(L('أدخل رقم واتساب صحيحاً للصالون (8 أرقام على الأقل)', 'Enter a valid salon WhatsApp number (at least 8 digits)')); return; }
+      if (!validPhone(phone)) { setError(PHONE_ERROR); return; }
       // رقم مسجّل لصالون شخص آخر: نوقفه هنا بدل آخر خطوة.
       try { if (!(await api.phoneAvailable(phone))) { setError(errorText('phone_taken')); return; } } catch { /* يتحقق الخادم عند الإنشاء */ }
       setStep(2);

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Award, CalendarCheck, CalendarPlus, Camera, Check, Contact, FileUp, FlaskConical, Image, MessageCircle, Package, Pencil, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound, Wallet,
 } from 'lucide-react';
-import { appointmentTotal, dateLabel, importClients, localISO, money, num, phoneDigits, samePhone, serviceNames, statusText, uid, whatsappLink } from '../data.js';
+import { PHONE_ERROR, validPhone, appointmentTotal, dateLabel, importClients, localISO, money, num, phoneDigits, samePhone, serviceNames, statusText, uid, whatsappLink } from '../data.js';
 import { clientStats, loyaltyPoints, noShowRisk } from '../smart.js';
 import { Alert, Avatar, Badge, Button, Confirm, Empty, Field, Row, SearchBox, Section, Segmented, Sheet, Stat, Toggle, compressImage, openExternal, useApp } from '../ui.jsx';
 import { contactsSupported, pickContacts, readClientsFile } from '../lib/importers.js';
@@ -65,7 +65,8 @@ export function ClientForm({ client, onClose, onSaved }) {
   const set = key => e => setV({ ...v, [key]: e.target.value });
 
   const save = () => {
-    if (!v.name.trim() || phoneDigits(v.phone).length < 7) { setError(L('الاسم ورقم الهاتف مطلوبان', 'Name and phone number are required')); return; }
+    if (!v.name.trim()) { setError(L('الاسم مطلوب', 'Name is required')); return; }
+    if (!validPhone(v.phone)) { setError(PHONE_ERROR); return; }
     if (data.clients.some(c => c.id !== client?.id && samePhone(c.phone, v.phone))) { setError(L('الرقم مسجّل لعميل آخر', 'This number belongs to another client')); return; }
     const id = client?.id || uid();
     upsert('clients', { ...v, id, name: v.name.trim(), phone: v.phone.trim(), createdAt: client?.createdAt || localISO(), ...(!client && staffMember ? { staffId: staffMember.id } : {}) });
@@ -215,7 +216,7 @@ function ImportClients({ onClose }) {
   const fromContacts = async () => {
     setError(''); setBusy(true);
     try {
-      const list = (await pickContacts()).filter(c => phoneDigits(c.phone).length >= 7);
+      const list = (await pickContacts()).filter(c => validPhone(c.phone));
       const fresh = list.map((c, i) => (data.clients.some(x => samePhone(x.phone, c.phone)) ? null : i)).filter(i => i !== null);
       setContacts(list); setPicked(new Set(fresh));
       if (!list.length) setError(L('لا توجد جهات اتصال بأرقام هواتف', 'No contacts with phone numbers'));
