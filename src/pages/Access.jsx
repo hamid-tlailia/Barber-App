@@ -1,7 +1,7 @@
 // الدخول، إنشاء الصالون لأول مرة، واختيار الفرع.
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Building2, Check, KeyRound, Mail, Scissors, Sparkles, Store, UserRound } from 'lucide-react';
-import { serviceTemplates } from '../data.js';
+import { latinDigits, phoneDigits, serviceTemplates } from '../data.js';
 import { api, auth, errorText } from '../lib/sync.js';
 import { prefs } from '../lib/store.js';
 import { Alert, Button, Field, Steps, Tile, Toggle } from '../ui.jsx';
@@ -46,6 +46,8 @@ export function AuthScreen() {
       } else if (mode === 'signup') {
         const { data, error: e } = await auth.signUp(email.trim(), password, name.trim());
         if (e) throw e;
+        // مع تفعيل تأكيد البريد لا يعيد Supabase خطأً للبريد المسجّل مسبقاً، بل مستخدماً بلا هويات.
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) throw new Error('already registered');
         if (!data.session) setInfo(L('أنشأنا حسابك. افتح بريدك واضغط رابط التأكيد ثم سجّل الدخول.', 'Your account has been created. Open your email, tap the confirmation link, then sign in.'));
       } else {
         const { error: e } = await auth.signIn(email.trim(), password);
@@ -110,7 +112,7 @@ export function Onboarding({ onCreated, onJoined, onCancel, local = false }) {
   const create = async () => {
     setBusy(true); setError('');
     try {
-      const id = local ? 'local' : await api.createShop(name.trim(), kind, phone.trim(), await deviceId());
+      const id = local ? 'local' : await api.createShop(name.trim(), kind, latinDigits(phone).trim(), await deviceId());
       prefs.set(`seed:${id}`, { kind, name: name.trim(), phone: phone.trim(), services, sample });
       if (local) prefs.set('local-setup', true);
       await onCreated(id);
@@ -137,9 +139,17 @@ export function Onboarding({ onCreated, onJoined, onCancel, local = false }) {
       {!local && !onCancel && <Button variant="ghost" icon={Building2} block onClick={() => setJoining(true)}>{L('أنا موظف ولدي رمز دعوة', "I'm staff and have an invite code")}</Button>}
       {onCancel && <Button variant="ghost" icon={BackIcon} block onClick={onCancel}>{L('رجوع', 'Back')}</Button>}
     </div>}
-    {step === 1 && <form className="stack" onSubmit={e => { e.preventDefault(); setStep(2); }}>
+    {step === 1 && <form className="stack" onSubmit={async e => {
+      e.preventDefault(); setError('');
+      if (local) { setStep(2); return; }
+      if (phoneDigits(phone).length < 8) { setError(L('أدخل رقم واتساب صحيحاً للصالون (8 أرقام على الأقل)', 'Enter a valid salon WhatsApp number (at least 8 digits)')); return; }
+      // رقم مسجّل لصالون شخص آخر: نوقفه هنا بدل آخر خطوة.
+      try { if (!(await api.phoneAvailable(phone))) { setError(errorText('phone_taken')); return; } } catch { /* يتحقق الخادم عند الإنشاء */ }
+      setStep(2);
+    }}>
       <Field label={L('اسم الصالون', 'Salon name')} required><div className="input-icon"><Store size={18} /><input required autoFocus value={name} onChange={e => setName(e.target.value)} placeholder={kind === 'women' ? L('مثال: صالون لمسة', 'e.g. Lamsa Salon') : L('مثال: صالون مِقص', 'e.g. Miqass Barbershop')} /></div></Field>
-      <Field label={L('رقم واتساب الصالون', 'Salon WhatsApp number')} hint={L('يظهر للعملاء في رابط الحجز والفواتير', 'Shown to clients on the booking link and receipts')}><input type="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+974 5555 1234" /></Field>
+      <Field label={L('رقم واتساب الصالون', 'Salon WhatsApp number')} required={!local} hint={L('يظهر للعملاء في رابط الحجز والفواتير', 'Shown to clients on the booking link and receipts')}><input type="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+974 5555 1234" /></Field>
+      <Alert>{error}</Alert>
       <div className="row-buttons"><Button variant="ghost" icon={BackIcon} onClick={() => setStep(0)}>{L('رجوع', 'Back')}</Button><Button type="submit" icon={NextIcon}>{L('التالي', 'Next')}</Button></div>
     </form>}
     {step === 2 && <div className="stack">
