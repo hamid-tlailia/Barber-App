@@ -18,6 +18,7 @@ test('سيناريو التعارض: نفس الموظف يتعارض، وموظ
   assert.equal(hasAppointmentConflict(existing, appt({ id: 'y', time: '10:15', staffId: 't2', items: [{ ...appt().items[0], staffId: 't2' }] })), false);
   assert.equal(hasAppointmentConflict(existing, appt({ id: 'y', time: '10:30' })), false);
   assert.equal(hasAppointmentConflict([appt({ status: 'cancelled' })], appt({ id: 'y' })), false);
+  assert.equal(hasAppointmentConflict([appt({ status: 'completed' })], appt({ id: 'y' })), false);
 });
 
 test('التعارض يراعي عدد الموظفين المتاحين', () => {

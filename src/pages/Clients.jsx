@@ -74,7 +74,7 @@ export function ClientForm({ client, onClose, onSaved }) {
   };
 
   return <Sheet title={client ? L('تعديل البيانات', 'Edit details') : vocab.newClient} onClose={onClose} footer={<>
-    {client && isManager && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>{L('حذف', 'Delete')}</Button>}
+    {client && isManager && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>{L('حذف العميل', 'Delete client')}</Button>}
     <div className="spacer" /><Button icon={Check} onClick={save}>{L('حفظ', 'Save')}</Button>
   </>}>
     <div className="stack">
@@ -119,9 +119,8 @@ function DeleteClient({ client, onClose, onDeleted }) {
 }
 
 export function ClientProfile({ clientId, onClose, onEdit }) {
-  const { data, role, upsert, remove, toast, isManager } = useApp();
+  const { data, role, upsert, remove, toast } = useApp();
   const [tab, setTab] = useState('overview');
-  const [deleting, setDeleting] = useState(false);
   const [booking, setBooking] = useState(false);
   const client = data.clients.find(c => c.id === clientId);
   if (!client) return null;
@@ -145,7 +144,6 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
     } catch { toast(L('تعذر قراءة الصورة', 'Couldn’t read the image'), 'error'); }
   };
 
-  if (deleting) return <DeleteClient client={client} onClose={() => setDeleting(false)} onDeleted={onClose} />;
   if (booking) return <BookingWizard initial={{ clientId: client.id }} onClose={() => setBooking(false)} onDone={() => { setBooking(false); toast(L('تم الحجز', 'Booked')); }} />;
 
   return <Sheet title={client.name} subtitle={showPhone ? <span dir="ltr">{client.phone}</span> : null} onClose={onClose} size="lg"
@@ -165,7 +163,6 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
         </div>
         <div className="row-buttons center">
           {showPhone && <button type="button" className="link" onClick={() => openExternal(`tel:${phoneDigits(client.phone)}`)}><Phone size={14} /> {L('اتصال', 'Call')}</button>}
-          {isManager && <button type="button" className="link danger-link" onClick={() => setDeleting(true)}><Trash2 size={14} /> {L('حذف العميل', 'Delete client')}</button>}
         </div>
       </div>
       {client.allergies && <Alert icon={ShieldAlert}>{client.allergies}</Alert>}

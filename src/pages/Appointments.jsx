@@ -226,6 +226,13 @@ export function BookingWizard({ initial, onClose, onDone }) {
   }, [slots.length, date, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setClash(null), [staffId, time, date]);
   const staffName = id => data.staff.find(m => m.id === id)?.name;
+  // الموعد المتعارض انتهى فعلاً ولم يُسجَّل: نعلّمه مكتملاً ونعيد فحص التعارض.
+  const markDone = c => {
+    setData(prev => ({ ...prev, appointments: prev.appointments.map(x => x.id === c.id ? { ...x, status: 'completed' } : x) }));
+    const after = bookingClash(others.map(x => x.id === c.id ? { ...x, status: 'completed' } : x), { ...clash.candidate }, data.staff);
+    setClash(after.blocking ? { ...after, candidate: clash.candidate } : null);
+    toast(L(`تم إنهاء موعد ${clientName(data.clients, c.clientId)}`, `${clientName(data.clients, c.clientId)} marked as done`));
+  };
   const categories = [...new Set(data.services.map(s => s.category || L('عام', 'General')))];
   const pkg = client && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && serviceIds.includes(p.serviceId) && (!p.expiresAt || p.expiresAt >= localISO()));
 
@@ -239,7 +246,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
     };
     // الصالون فيه أكثر من موظف: التعارض يُعرض فقط إذا لم يبق أحد متاح، مع خيار التعديل أو التجاهل.
     const check = bookingClash(others, record, data.staff);
-    if (check.blocking && !force) { setClash(check); setError(''); return; }
+    if (check.blocking && !force) { setClash({ ...check, candidate: record }); setError(''); return; }
     setData(prev => ({ ...prev, appointments: edit ? prev.appointments.map(a => a.id === edit.id ? record : a) : [...prev.appointments, record] }));
     toast(edit ? L('تم تحديث الموعد', 'Appointment updated') : walkIn ? L('تم تسجيل الزبون الحاضر ✓', 'Walk-in checked in ✓') : L('تم الحجز ✓', 'Booked ✓'));
     onDone(record);
@@ -302,7 +309,10 @@ export function BookingWizard({ initial, onClose, onDone }) {
       {editTime && <Field label={L('وقت البدء', 'Start time')}><input type="time" dir="ltr" value={time} onChange={e => setTime(e.target.value)} /></Field>}
       {clash && <div className="clash-box" ref={clashRef}>
         <strong>{L('يتعارض مع:', 'Overlaps with:')}</strong>
-        <ul>{clash.clash.map(c => <li key={c.id}>{clientName(data.clients, c.clientId)} · {timeLabel(c.time)}{staffName(appointmentOwner(c)) ? ` · ${L('مع', 'with')} ${staffName(appointmentOwner(c)).split(' ')[0]}` : ''}</li>)}</ul>
+        <div className="clash-list">{clash.clash.map(c => <div key={c.id} className="clash-item">
+          <span><strong>{clientName(data.clients, c.clientId)}</strong><small>{timeLabel(c.time)} · {statusText[c.status]}{staffName(appointmentOwner(c)) ? ` · ${L('مع', 'with')} ${staffName(appointmentOwner(c)).split(' ')[0]}` : ''}</small></span>
+          <Button size="sm" variant="secondary" icon={Check} onClick={() => markDone(c)}>{L('انتهى', 'Done')}</Button>
+        </div>)}</div>
         {clash.free.filter(id => id !== staffId).length > 0 && data.staff.length > 0 && <>
           <small>{L('متاح في هذا الوقت — اختر من سيخدمه:', 'Free at this time — choose who will serve them:')}</small>
           <Chips items={clash.free.filter(id => id !== staffId).map(id => ({ id, label: staffName(id)?.split(' ')[0] }))} value={staffId} onChange={setStaffId} />

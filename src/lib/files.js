@@ -42,3 +42,15 @@ export async function printElement(element, name = 'Invoice') {
   </style></head><body>${element.outerHTML}</body></html>`;
   await Printer.printHtml({ name, html });
 }
+
+// مشاركة رابط (رابط الحجز): قائمة المشاركة في الهاتف، أو نسخه في المتصفح. يعيد true إذا نُسخ فقط.
+export async function shareLink(url, text = '') {
+  if (isNative) {
+    const { Share } = await import('@capacitor/share');
+    await Share.share({ text, url }).catch(() => {});
+    return false;
+  }
+  if (navigator.share) { await navigator.share({ text, url }).catch(() => {}); return false; }
+  await navigator.clipboard.writeText(url);
+  return true;
+}

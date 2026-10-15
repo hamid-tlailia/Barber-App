@@ -255,7 +255,8 @@ export const conflicts = (appointments, candidate) => {
   if (!isActiveStatus(candidate.status || 'pending')) return [];
   const mine = busyBlocks(candidate);
   return appointments.filter(other => {
-    if (other.id === candidate.id || other.date !== candidate.date || !isActiveStatus(other.status)) return false;
+    // الموعد المكتمل انتهى فعلياً، فلا يشغل الموظف حتى لو كان وقته المقرر لم ينته بعد.
+    if (other.id === candidate.id || other.date !== candidate.date || !isActiveStatus(other.status) || other.status === 'completed') return false;
     return busyBlocks(other).some(b => mine.some(m => {
       // عند تحديد موظف لكلا الجزأين، يتعارض جدول الموظف نفسه فقط.
       if (m.staffId && b.staffId && m.staffId !== b.staffId) return false;

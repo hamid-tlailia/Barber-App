@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
 import {
   BellRing, Boxes, CalendarCheck2, CalendarOff, CalendarPlus, Cake, CircleDollarSign, Clock3, Lightbulb, ListChecks,
-  ListPlus, MessageCircle, Receipt, UserRoundCheck, UserX, WalletCards,
+  ListPlus, MessageCircle, Receipt, Share2, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
 import { clientName, addDays, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
 import { incomeIn, todayInsights } from '../smart.js';
 import { Avatar, Badge, Button, Empty, Row, Section, Stat, Tile, useApp } from '../ui.jsx';
 import { AppointmentSheet, BookingWizard } from './Appointments.jsx';
 import { L } from '../i18n.js';
+import { bookingUrl, cloudEnabled } from '../lib/sync.js';
+import { shareLink } from '../lib/files.js';
 
 const insightIcons = { reminders: BellRing, lapsed: UserRoundCheck, stock: Boxes, birthday: Cake, unpaid: Receipt, waitlist: ListChecks };
 
 export default function Home() {
-  const { data, setData, go, role, staffMember, can, patch, toast } = useApp();
+  const { data, setData, go, role, staffMember, can, patch, toast, shop } = useApp();
+  const link = cloudEnabled && shop?.slug ? bookingUrl(shop.slug) : '';
+  const share = async () => { if (await shareLink(link, L(`احجز موعدك في ${data.shopName || ''}:`, `Book your appointment at ${data.shopName || ''}:`))) toast(L('تم نسخ رابط الحجز', 'Booking link copied')); };
   const today = localISO();
   const mine = a => role !== 'staff' || !staffMember || a.staffId === staffMember.id || (a.items || []).some(i => i.staffId === staffMember.id);
   const todays = data.appointments.filter(a => a.date === today && !['cancelled'].includes(a.status) && mine(a)).sort(sortAppointments);
@@ -63,7 +67,11 @@ export default function Home() {
           {next.status !== 'arrived' && <Button variant="secondary" icon={UserRoundCheck} onClick={() => { patch('appointments', next.id, { status: 'arrived', arrivedAt: new Date().toISOString() }); toast(L('تم تسجيل الوصول', 'Checked in')); }}>{L('وصل', 'Arrived')}</Button>}
           <Button icon={CalendarCheck2} onClick={() => setOpenId(next.id)}>{L('فتح الموعد', 'Open appointment')}</Button>
         </div>
-      </div> : <Empty icon={CalendarCheck2} title={L('لا مواعيد قادمة اليوم', 'No more appointments today')} text={L('الجدول فارغ — شارك رابط الحجز مع عملائك', 'Your schedule is clear — share your booking link with clients')} action={can('appointments') && <Button icon={CalendarPlus} onClick={() => setWizard({})}>{L('حجز جديد', 'New booking')}</Button>} />}
+      </div> : <Empty icon={CalendarCheck2} title={L('لا مواعيد قادمة اليوم', 'No more appointments today')} text={link ? L('الجدول فارغ — شارك رابط الحجز مع عملائك', 'Your schedule is clear — share your booking link with clients') : L('الجدول فارغ حالياً', 'Your schedule is clear for now')}
+        action={<div className="row-buttons center">
+          {can('appointments') && <Button icon={CalendarPlus} onClick={() => setWizard({})}>{L('حجز جديد', 'New booking')}</Button>}
+          {link && <Button variant="secondary" icon={Share2} onClick={share}>{L('مشاركة الرابط', 'Share link')}</Button>}
+        </div>} />}
     </Section>
 
     <div className="tiles tiles-4">
