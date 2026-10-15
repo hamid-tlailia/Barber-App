@@ -3,7 +3,7 @@ import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
-import { clientName, dateLabel, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
+import { clientName, dateLabel, findDuplicate, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
@@ -116,16 +116,23 @@ function ServicesSettings({ onClose }) {
 }
 
 function ServiceForm({ service, onClose }) {
-  const { upsert, remove, toast } = useApp();
+  const { data, upsert, remove, toast } = useApp();
   const [v, setV] = useState({ name: '', category: 'عام', price: 0, duration: 30, processing: 0, deposit: 0, online: true, ...service });
   const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState('');
+  const save = () => {
+    const dup = findDuplicate(data.services, { id: service?.id, name: v.name });
+    if (dup) { setError(L(`توجد خدمة بنفس الاسم «${dup.name}»`, `A service named “${dup.name}” already exists`)); return; }
+    upsert('services', { ...v, id: service?.id || uid(), name: v.name.trim() }); toast(L('تم الحفظ', 'Saved')); onClose();
+  };
   const set = (key, numeric) => e => setV({ ...v, [key]: numeric ? Number(e.target.value) : e.target.value });
   return <Sheet title={service ? L('تعديل الخدمة', 'Edit service') : L('خدمة جديدة', 'New service')} onClose={onClose} footer={<>
     {service && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>{L('حذف', 'Delete')}</Button>}<div className="spacer" />
-    <Button icon={Check} disabled={!v.name.trim() || v.duration < 5} onClick={() => { upsert('services', { ...v, id: service?.id || uid(), name: v.name.trim() }); toast(L('تم الحفظ', 'Saved')); onClose(); }}>{L('حفظ', 'Save')}</Button>
+    <Button icon={Check} disabled={!v.name.trim() || v.duration < 5} onClick={save}>{L('حفظ', 'Save')}</Button>
   </>}>
     <div className="stack">
-      <Field label={L('اسم الخدمة', 'Service name')} required><input autoFocus value={v.name} onChange={set('name')} /></Field>
+      <Field label={L('اسم الخدمة', 'Service name')} required><input autoFocus value={v.name} onChange={e => { setError(''); set('name')(e); }} /></Field>
+      <Alert>{error}</Alert>
       <div className="grid-2">
         <Field label={L('الفئة', 'Category')}><input value={v.category} onChange={set('category')} /></Field>
         <Field label={L('السعر (ر.ق)', 'Price (QAR)')}><NumInput min="0" value={v.price} onChange={set('price', true)} /></Field>
@@ -176,7 +183,7 @@ function PackagesSettings({ onClose }) {
       <div className="row-buttons">
         {v.id && <Button variant="danger-ghost" icon={Trash2} onClick={() => { remove('packages', v.id); setEdit(null); }}>{L('حذف', 'Delete')}</Button>}
         <div className="spacer" /><Button variant="ghost" onClick={() => setEdit(null)}>{L('رجوع', 'Back')}</Button>
-        <Button icon={Check} disabled={!v.name?.trim()} onClick={() => { upsert('packages', { ...v, id: v.id || uid() }); toast(L('تم الحفظ', 'Saved')); setEdit(null); }}>{L('حفظ', 'Save')}</Button>
+        <Button icon={Check} disabled={!v.name?.trim()} onClick={() => { const dup = findDuplicate(data.packages, v); if (dup) { toast(L(`توجد باقة بنفس الاسم «${dup.name}»`, `A package named “${dup.name}” already exists`)); return; } upsert('packages', { ...v, name: v.name.trim(), id: v.id || uid() }); toast(L('تم الحفظ', 'Saved')); setEdit(null); }}>{L('حفظ', 'Save')}</Button>
       </div>
     </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={L(`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`, `${plural(num(p.sessions), 'session', 'sessions')} · ${plural(num(p.validityDays), 'day', 'days')}`)} trailing={<strong>{money(p.price)}</strong>} onClick={() => setEdit(p)} />)}</div>
       : <Empty icon={Package} title={L('لا باقات بعد', 'No packages yet')} text={L(`مثال: ${num(5)} قصات بسعر ${num(4)} — يدفع العميل مقدماً ويعود باستمرار`, `E.g. ${num(5)} haircuts for the price of ${num(4)} — the client pays upfront and keeps coming back`)} />}

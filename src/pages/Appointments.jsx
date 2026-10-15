@@ -4,7 +4,7 @@ import {
   ListPlus, MapPin, MessageCircle, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
 import {
-  addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, isPaid, isStaffOff, messageFor, timeFor,
+  addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { noShowRisk, waitlistMatches } from '../smart.js';
@@ -73,7 +73,7 @@ export default function Appointments() {
       </div>}
     </div>
 
-    {role !== 'staff' && data.staff.length > 1 && <Chips items={[{ id: 'all', label: L('الكل', 'All') }, ...data.staff.filter(s => s.active !== false).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffFilter} onChange={setStaffFilter} />}
+    {role !== 'staff' && data.staff.length > 1 && <Chips items={[{ id: 'all', label: L('الكل', 'All') }, ...data.staff.filter(s => s.active !== false).map(s => ({ id: s.id, label: shortName(data.staff, s) }))]} value={staffFilter} onChange={setStaffFilter} />}
 
     {list.length ? <div className="timeline">{list.map(a => {
       const client = clients[a.clientId];
@@ -282,7 +282,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
     </div>}
 
     {key === 'time' && <div className="stack">
-      {data.staff.length > 0 && role !== 'staff' && <Field label={L(`${vocab.pro} (اختياري)`, `${vocab.pro} (optional)`)}><Chips items={[{ id: '', label: L('أي شخص متاح', 'Anyone available') }, ...data.staff.filter(s => s.active !== false && (s.id === staffId || !isStaffOff(s, date))).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} /></Field>}
+      {data.staff.length > 0 && role !== 'staff' && <Field label={L(`${vocab.pro} (اختياري)`, `${vocab.pro} (optional)`)}><Chips items={[{ id: '', label: L('أي شخص متاح', 'Anyone available') }, ...data.staff.filter(s => s.active !== false && (s.id === staffId || !isStaffOff(s, date))).map(s => ({ id: s.id, label: shortName(data.staff, s) }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} /></Field>}
       {data.settings.kind !== 'men' || location === 'home' ? <Field label={L('مكان الخدمة', 'Service location')}><Chips items={[{ id: 'salon', label: L('في الصالون', 'In salon') }, { id: 'home', label: L('منزلية', 'At home') }]} value={location} onChange={v => { setLocation(v); setTime(''); }} /></Field> : null}
       {location === 'home' && <Field label={L('العنوان', 'Address')}><input value={address} onChange={e => setAddress(e.target.value)} placeholder={L('المنطقة، الشارع، رقم المبنى', 'Area, street, building no.')} /></Field>}
       {movedFrom && date !== movedFrom && <Alert tone="blue" icon={CalendarPlus}>{L('لا أوقات متبقية اليوم — عرضنا أقرب يوم متاح', 'No times left today — showing the next available day')}</Alert>}
@@ -295,7 +295,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
     </div>}
 
     {key === 'confirm' && <div className="stack">
-      {walkIn && data.staff.length > 0 && role !== 'staff' && <Field label={L(`من سيخدمه؟`, 'Who will serve them?')}><Chips items={[{ id: '', label: L('بدون تحديد', 'Unassigned') }, ...data.staff.filter(s => s.active !== false && (s.id === staffId || !isStaffOff(s, date))).map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={setStaffId} /></Field>}
+      {walkIn && data.staff.length > 0 && role !== 'staff' && <Field label={L(`من سيخدمه؟`, 'Who will serve them?')}><Chips items={[{ id: '', label: L('بدون تحديد', 'Unassigned') }, ...data.staff.filter(s => s.active !== false && (s.id === staffId || !isStaffOff(s, date))).map(s => ({ id: s.id, label: shortName(data.staff, s) }))]} value={staffId} onChange={setStaffId} /></Field>}
       <div className="confirm-card">
         <Avatar name={client?.name} size="lg" />
         <strong>{client?.name}</strong>
@@ -310,12 +310,12 @@ export function BookingWizard({ initial, onClose, onDone }) {
       {clash && <div className="clash-box" ref={clashRef}>
         <strong>{L('يتعارض مع:', 'Overlaps with:')}</strong>
         <div className="clash-list">{clash.clash.map(c => <div key={c.id} className="clash-item">
-          <span><strong>{clientName(data.clients, c.clientId)}</strong><small>{timeLabel(c.time)} · {statusText[c.status]}{staffName(appointmentOwner(c)) ? ` · ${L('مع', 'with')} ${staffName(appointmentOwner(c)).split(' ')[0]}` : ''}</small></span>
+          <span><strong>{clientName(data.clients, c.clientId)}</strong><small>{timeLabel(c.time)} · {statusText[c.status]}{staffName(appointmentOwner(c)) ? ` · ${L('مع', 'with')} ${shortName(data.staff, data.staff.find(m => m.id === appointmentOwner(c)))}` : ''}</small></span>
           <Button size="sm" variant="secondary" icon={Check} onClick={() => markDone(c)}>{L('انتهى', 'Done')}</Button>
         </div>)}</div>
         {clash.free.filter(id => id !== staffId).length > 0 && data.staff.length > 0 && <>
           <small>{L('متاح في هذا الوقت — اختر من سيخدمه:', 'Free at this time — choose who will serve them:')}</small>
-          <Chips items={clash.free.filter(id => id !== staffId).map(id => ({ id, label: staffName(id)?.split(' ')[0] }))} value={staffId} onChange={setStaffId} />
+          <Chips items={clash.free.filter(id => id !== staffId).map(id => ({ id, label: shortName(data.staff, data.staff.find(m => m.id === id)) }))} value={staffId} onChange={setStaffId} />
         </>}
         <div className="clash-actions">
           <Button size="sm" variant="secondary" icon={Clock3} onClick={() => (walkIn ? setEditTime(true) : setStep(keys.indexOf('time')))}>{L('تعديل الوقت', 'Change time')}</Button>

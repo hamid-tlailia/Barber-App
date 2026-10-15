@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowDownToLine, ArrowUpFromLine, Boxes, Check, Download, PackagePlus, Send, Trash2, TriangleAlert, Wallet } from 'lucide-react';
-import { localISO, money, num, toCSV, uid } from '../data.js';
+import { findDuplicate, localISO, money, num, toCSV, uid } from '../data.js';
 import { stockForecast } from '../smart.js';
 import { Alert, Badge, Button, Confirm, Empty, Field, Meter, Row, SearchBox, Section, Segmented, Sheet, Stat, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { L } from '../i18n.js';
@@ -95,17 +95,24 @@ function StockSheet({ product, onClose, onEdit }) {
 }
 
 function ProductForm({ product, onClose }) {
-  const { upsert, remove, toast } = useApp();
+  const { data, upsert, remove, toast } = useApp();
   const [v, setV] = useState({ name: '', category: '', quantity: 0, minStock: 3, cost: 0, price: 0, unit: L('قطعة', 'pc'), ...product });
   const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState('');
+  const save = () => {
+    const dup = findDuplicate(data.products, { id: product?.id, name: v.name });
+    if (dup) { setError(L(`المنتج «${dup.name}» موجود — عدّل كميته بدل إضافته مرة ثانية`, `“${dup.name}” already exists — adjust its stock instead of adding it again`)); return; }
+    upsert('products', { ...v, id: product?.id || uid(), name: v.name.trim(), updatedAt: localISO() }); toast(L('تم الحفظ', 'Saved')); onClose();
+  };
   const set = (key, numeric) => e => setV({ ...v, [key]: numeric ? Number(e.target.value) : e.target.value });
   return <Sheet title={product ? L('تعديل المنتج', 'Edit product') : L('منتج جديد', 'New product')} onClose={onClose} footer={<>
     {product && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>{L('حذف', 'Delete')}</Button>}
     <div className="spacer" />
-    <Button icon={Check} disabled={!v.name.trim()} onClick={() => { upsert('products', { ...v, id: product?.id || uid(), name: v.name.trim(), updatedAt: localISO() }); toast(L('تم الحفظ', 'Saved')); onClose(); }}>{L('حفظ', 'Save')}</Button>
+    <Button icon={Check} disabled={!v.name.trim()} onClick={save}>{L('حفظ', 'Save')}</Button>
   </>}>
     <div className="stack">
-      <Field label={L('اسم المنتج', 'Product name')} required><input autoFocus value={v.name} onChange={set('name')} /></Field>
+      <Field label={L('اسم المنتج', 'Product name')} required><input autoFocus value={v.name} onChange={e => { setError(''); set('name')(e); }} /></Field>
+      <Alert>{error}</Alert>
       <div className="grid-2">
         <Field label={L('الفئة', 'Category')}><input value={v.category} onChange={set('category')} /></Field>
         <Field label={L('الوحدة', 'Unit')}><input value={v.unit} onChange={set('unit')} /></Field>

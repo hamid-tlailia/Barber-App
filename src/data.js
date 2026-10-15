@@ -28,6 +28,17 @@ export const toMinutes = time => Number(time.slice(0, 2)) * 60 + Number(time.sli
 export const fromMinutes = minutes => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
 export const phoneDigits = phone => String(phone || '').replace(/\D/g, '');
+// مقارنة الأسماء بدون فروق الكتابة (المسافات، الهمزات، التاء المربوطة، حالة الأحرف).
+export const normalName = name => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[\u064B-\u0652\u0640]/g, '');
+export const sameName = (a, b) => normalName(a) !== '' && normalName(a) === normalName(b);
+// السجل المكرر (نفس الاسم، أو نفس الرقم إن وُجد) مع استثناء السجل نفسه عند التعديل.
+export const findDuplicate = (list, item, { phone = false } = {}) => (list || []).find(x => x.id !== item.id && (sameName(x.name, item.name) || (phone && samePhone(x.phone, item.phone))));
+// الاسم المختصر للموظف في الأزرار: الاسم الأول، أو الاسم الكامل إذا تشابه الاسم الأول مع زميل.
+export const shortName = (staff, member) => {
+  const first = String(member?.name || '').trim().split(/\s+/)[0];
+  return (staff || []).some(s => s.id !== member?.id && normalName(String(s.name).trim().split(/\s+/)[0]) === normalName(first)) ? String(member.name).trim() : first;
+};
 export const samePhone = (a, b) => {
   const x = phoneDigits(a); const y = phoneDigits(b);
   return x.length >= 7 && y.length >= 7 && x.slice(-8) === y.slice(-8);

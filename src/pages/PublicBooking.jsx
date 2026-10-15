@@ -1,7 +1,7 @@
 // صفحة الحجز العامة للعملاء (بدون حساب): الخدمة ← الوقت ← البيانات ← تم.
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarCheck2, Check, MessageCircle, Scissors, ChevronLeft, ChevronRight } from 'lucide-react';
-import { addDays, availableSlots, dateLabel, defaultSettings, localISO, money, num, timeLabel, whatsappLink } from '../data.js';
+import { shortName, addDays, availableSlots, dateLabel, defaultSettings, localISO, money, num, timeLabel, whatsappLink } from '../data.js';
 import { api, cloudEnabled, errorText } from '../lib/sync.js';
 import { Alert, Button, Chips, Empty, Field, Steps } from '../ui.jsx';
 import { L, isEn } from '../i18n.js';
@@ -71,7 +71,7 @@ export default function PublicBooking({ slug }) {
         <Button block size="lg" icon={NextArrow} disabled={!items.length} onClick={() => setStep(1)}>{L('اختر الوقت', 'Choose a time')}</Button>
       </div>}
       {step === 1 && <div className="stack">
-        {shop.staff.length > 1 && <Chips items={[{ id: '', label: L('أي شخص', 'Anyone') }, ...shop.staff.map(s => ({ id: s.id, label: s.name.split(' ')[0] }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} />}
+        {shop.staff.length > 1 && <Chips items={[{ id: '', label: L('أي شخص', 'Anyone') }, ...shop.staff.map(s => ({ id: s.id, label: shortName(shop.staff, s) }))]} value={staffId} onChange={v => { setStaffId(v); setTime(''); }} />}
         <div className="day-strip day-strip-wide">{Array.from({ length: 14 }, (_, i) => addDays(localISO(), i)).map(d => <button type="button" key={d} className={`day ${d === date ? 'active' : ''}`} onClick={() => { setDate(d); setTime(''); }}><small>{dateLabel(d, { weekday: 'short' })}</small><strong>{dateLabel(d, { day: 'numeric' })}</strong></button>)}</div>
         {slots.length ? <div className="slots">{slots.map(t => <button type="button" key={t} className={`time ${t === time ? 'active' : ''}`} onClick={() => setTime(t)}>{timeLabel(t)}</button>)}</div> : <Empty icon={CalendarCheck2} title={L('لا أوقات متاحة', 'No available times')} text={L('جرّب يوماً آخر', 'Try another day')} />}
         <Alert>{error}</Alert>

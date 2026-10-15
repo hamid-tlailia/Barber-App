@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Copy, KeyRound, MessageCircle, PauseCircle, PlayCircle, Trash2, UserPlus, UsersRound } from 'lucide-react';
-import { dateLabel, isStaffOff, localISO, money, num, roleText, uid, whatsappLink } from '../data.js';
+import { dateLabel, findDuplicate, isStaffOff, samePhone, localISO, money, num, roleText, uid, whatsappLink } from '../data.js';
 import { commissions } from '../smart.js';
 import { api, cloudEnabled, errorText, publicBase } from '../lib/sync.js';
 import { L, isEn } from '../i18n.js';
@@ -78,6 +78,12 @@ function StaffForm({ member, onClose }) {
   const [v, setV] = useState({ name: '', phone: '', role: vocab.pro, specialty: '', commission: 30, color: colors[data.staff.length % colors.length], active: true, ...member });
   const [confirm, setConfirm] = useState(false);
   const [leaveDate, setLeaveDate] = useState('');
+  const [error, setError] = useState('');
+  const save = () => {
+    const dup = findDuplicate(data.staff, { ...v, id: member?.id, name: v.name.trim() }, { phone: true });
+    if (dup) { setError(samePhone(dup.phone, v.phone) ? L(`الرقم مسجّل للموظف ${dup.name}`, `This number belongs to ${dup.name}`) : L(`يوجد موظف بنفس الاسم «${dup.name}» — أضف ما يميّزه (اسم العائلة مثلاً)`, `A staff member named “${dup.name}” already exists — add something to tell them apart (e.g. a family name)`)); return; }
+    upsert('staff', { ...v, id: member?.id || uid(), name: v.name.trim() }); toast(L('تم الحفظ', 'Saved')); onClose();
+  };
   const set = (key, numeric) => e => setV({ ...v, [key]: numeric ? Number(e.target.value) : e.target.value });
   const today = localISO();
   const leaves = v.leaves || [];
@@ -86,10 +92,11 @@ function StaffForm({ member, onClose }) {
   return <Sheet title={member ? member.name : L(`إضافة ${vocab.pro}`, `Add ${vocab.pro}`)} onClose={onClose} footer={<>
     {member && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>{L('حذف', 'Delete')}</Button>}
     <div className="spacer" />
-    <Button icon={Check} disabled={!v.name.trim()} onClick={() => { upsert('staff', { ...v, id: member?.id || uid(), name: v.name.trim() }); toast(L('تم الحفظ', 'Saved')); onClose(); }}>{L('حفظ', 'Save')}</Button>
+    <Button icon={Check} disabled={!v.name.trim()} onClick={save}>{L('حفظ', 'Save')}</Button>
   </>}>
     <div className="stack">
-      <Field label={L('الاسم', 'Name')} required><input autoFocus value={v.name} onChange={set('name')} /></Field>
+      <Field label={L('الاسم', 'Name')} required><input autoFocus value={v.name} onChange={e => { setError(''); set('name')(e); }} /></Field>
+      <Alert>{error}</Alert>
       <div className="grid-2">
         <Field label={L('المسمى', 'Title')}><input value={v.role} onChange={set('role')} /></Field>
         <Field label={L('الهاتف', 'Phone')}><input type="tel" dir="ltr" value={v.phone} onChange={set('phone')} /></Field>

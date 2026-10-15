@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, defaultData, defaultSettings, hasAppointmentConflict,
+  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, findDuplicate, shortName, defaultData, defaultSettings, hasAppointmentConflict,
   importClients, isPaid, localISO, migrateAppointment, normalizeData, parseCSV, fillTemplate, whatsappNumber,
 } from './data.js';
 import { clientStats, commissions, dailyReport, expectedCash, incomeIn, lapsedClients, noShowRisk, roi, stockForecast, waitlistMatches } from './smart.js';
@@ -35,6 +35,19 @@ test('التعارض يراعي عدد الموظفين المتاحين', () =>
   assert.equal(bookingClash([appt()], appt({ id: 'y', time: '10:15' }), staff).blocking, true);
   // بدون فريق مسجل: أي تداخل تعارض.
   assert.equal(bookingClash([appt()], walk, []).blocking, true);
+});
+
+test('منع التكرار: نفس الاسم بفروق الكتابة أو نفس الرقم', () => {
+  const staff = [{ id: 'a', name: 'عمار', phone: '55512345' }, { id: 'b', name: 'أحمد علي', phone: '' }];
+  assert.equal(findDuplicate(staff, { name: ' عمار ', phone: '' })?.id, 'a');
+  assert.equal(findDuplicate(staff, { name: 'احمد  علي' })?.id, 'b');
+  assert.equal(findDuplicate(staff, { name: 'سالم', phone: '+974 5551 2345' }, { phone: true })?.id, 'a');
+  assert.equal(findDuplicate(staff, { id: 'a', name: 'عمار', phone: '55512345' }, { phone: true }), undefined);
+  assert.equal(findDuplicate(staff, { name: 'سالم', phone: '' }, { phone: true }), undefined);
+  // الاسم المختصر يصبح كاملاً عند تشابه الاسم الأول.
+  const two = [{ id: 'x', name: 'عمار سعيد' }, { id: 'y', name: 'عمار خالد' }, { id: 'z', name: 'سالم' }];
+  assert.equal(shortName(two, two[0]), 'عمار سعيد');
+  assert.equal(shortName(two, two[2]), 'سالم');
 });
 
 test('العميل المحذوف يظهر بعبارة واضحة', () => {
