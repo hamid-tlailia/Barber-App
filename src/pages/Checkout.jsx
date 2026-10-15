@@ -4,7 +4,7 @@ import {
   TicketPercent, Trash2, Vault, WalletCards,
 } from 'lucide-react';
 import {
-  addDays, amountPaid, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
+  addDays, amountPaid, businessDay, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
   paymentText, serviceNames, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { expectedCash, incomeIn } from '../smart.js';
@@ -36,13 +36,14 @@ export default function Checkout() {
 
   const clients = Object.fromEntries(data.clients.map(c => [c.id, c]));
   const today = localISO();
+  const day = businessDay(data.settings); // يوم الحسابات (قد يمتد بعد منتصف الليل)
   const settled = a => isPaid(a) && !needsDeposit(a);
   // مواعيد اليوم المؤكدة تظهر هنا حتى بعد دفعها (بعلامة «مدفوع»)، لكنها لا تُحسب في عدد ما يجب تحصيله.
   const due = data.appointments.filter(a => (a.status === 'completed' && !isPaid(a)) || (a.date === today && ['arrived', 'confirmed'].includes(a.status)) || needsDeposit(a))
     .sort((a, b) => Number(settled(a)) - Number(settled(b)) || a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
   const nameOf = a => clients[a.clientId]?.name || (a.clientId ? deletedName : L('عميل', 'Client'));
-  const paidToday = data.appointments.filter(a => (a.payments || []).some(p => p.at === today));
-  const income = incomeIn(data, 'today').reduce((s, p) => s + Number(p.amount || 0), 0);
+  const paidToday = data.appointments.filter(a => (a.payments || []).some(p => p.at === day));
+  const income = incomeIn(data, 'today', day).reduce((s, p) => s + Number(p.amount || 0), 0);
   const current = open && data.appointments.find(a => a.id === open);
 
   return <div className="stack">
@@ -68,7 +69,7 @@ export default function Checkout() {
 
     {tab === 'paid' && (paidToday.length ? <div className="list">{paidToday.map(a => <Row key={a.id}
       leading={<Avatar name={clients[a.clientId]?.name} />} title={nameOf(a)}
-      subtitle={(a.payments || []).filter(p => p.at === today).map(p => paymentText[p.method]).join(' + ')}
+      subtitle={(a.payments || []).filter(p => p.at === day).map(p => paymentText[p.method]).join(' + ')}
       trailing={<strong className="green">{money(amountPaid(a))}</strong>} onClick={() => setInvoice(a.id)} />)}</div>
       : <Empty icon={Receipt} title={L('لا دفعات اليوم بعد', 'No payments yet today')} />)}
 
@@ -114,7 +115,7 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
       if (gift.expiresAt && gift.expiresAt < localISO()) { setError(L('بطاقة الهدية منتهية', 'Gift card has expired')); return; }
       if (gift.balance < value + Number(tip || 0)) { setError(L(`رصيد البطاقة ${money(gift.balance)} فقط`, `Card balance is only ${money(gift.balance)}`)); return; }
     }
-    const today = localISO();
+    const today = businessDay(data.settings);
     const payments = [...(a.payments || [])];
     if (packageItem) payments.push({ id: uid(), amount: packageValue, method: 'package', at: today, kind: 'payment', packageId: pkg.id });
     if (value > 0) payments.push({ id: uid(), amount: value, method, at: today, kind: depositMode ? 'deposit' : 'payment', ...(gift ? { giftId: gift.id } : {}) });
@@ -191,7 +192,7 @@ export function InvoiceSheet({ appointment: a, onClose, canUndo }) {
 // المالك والمدير فقط يستطيعان تعديل الأرقام التلقائية.
 function Drawer() {
   const { data, upsert, toast, shop, staffMember, isManager } = useApp();
-  const today = localISO();
+  const today = businessDay(data.settings);
   const closedToday = data.drawers.find(d => d.date === today);
   const last = [...data.drawers].filter(d => d.date < today).sort((a, b) => b.date.localeCompare(a.date))[0];
   const autoOpening = Number(last?.keep ?? last?.counted ?? 0);
@@ -245,7 +246,7 @@ function SellPackage({ onClose }) {
   const pkg = data.packages.find(p => p.id === packageId);
   if (!data.packages.length) return <Sheet title={L('بيع باقة', 'Sell package')} onClose={onClose}><Empty icon={Package} title={L('لا توجد باقات', 'No packages')} text={L('أنشئ باقات من الإعدادات ← الباقات', 'Create packages in Settings → Packages')} /></Sheet>;
   return <Sheet title={L('بيع باقة', 'Sell package')} onClose={onClose} footer={<Button block size="lg" icon={Check} disabled={!clientId || !pkg} onClick={() => {
-    const today = localISO();
+    const today = businessDay(data.settings);
     const id = uid();
     setData(prev => ({
       ...prev,
@@ -276,7 +277,7 @@ function SellGift({ onClose }) {
     let code = make();
     while (data.giftCards.some(g => g.code === code)) code = make();
     const card = { id: uid(), code, amount: Number(amount), balance: Number(amount), buyerName: buyer, recipientName: recipient, createdAt: localISO(), expiresAt: addDays(localISO(), 365) };
-    setData(prev => ({ ...prev, giftCards: [...prev.giftCards, card], sales: [...prev.sales, { id: uid(), kind: 'gift', refId: card.id, label: `${L('بطاقة هدية', 'Gift card')} ${code}`, amount: card.amount, method, at: localISO() }] }));
+    setData(prev => ({ ...prev, giftCards: [...prev.giftCards, card], sales: [...prev.sales, { id: uid(), kind: 'gift', refId: card.id, label: `${L('بطاقة هدية', 'Gift card')} ${code}`, amount: card.amount, method, at: businessDay(data.settings) }] }));
     toast(L('تم إصدار البطاقة', 'Gift card issued')); setDone(card);
   }}>{L('إصدار', 'Issue')} {money(amount)}</Button>}>
     <div className="stack">
@@ -297,7 +298,7 @@ function SellProduct({ onClose }) {
   const product = data.products.find(p => p.id === productId);
   const sellable = data.products.filter(p => Number(p.price) > 0);
   return <Sheet title={L('بيع منتج', 'Sell product')} onClose={onClose} footer={<Button block size="lg" icon={Check} disabled={!product || quantity < 1 || quantity > product.quantity} onClick={() => {
-    const today = localISO();
+    const today = businessDay(data.settings);
     setData(prev => ({
       ...prev,
       products: prev.products.map(p => p.id === product.id ? { ...p, quantity: p.quantity - quantity, updatedAt: today } : p),
@@ -318,13 +319,13 @@ function SellProduct({ onClose }) {
 const expenseCategories = ['إيجار', 'رواتب', 'مشتريات', 'فواتير', 'صيانة', 'تسويق', 'أخرى'];
 const expenseCategoryEn = { 'إيجار': 'Rent', 'رواتب': 'Salaries', 'مشتريات': 'Purchases', 'فواتير': 'Bills', 'صيانة': 'Maintenance', 'تسويق': 'Marketing', 'أخرى': 'Other' };
 function AddExpense({ onClose }) {
-  const { upsert, toast } = useApp();
+  const { data, upsert, toast } = useApp();
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('مشتريات');
   const [note, setNote] = useState('');
   const [method, setMethod] = useState('cash');
   return <Sheet title={L('تسجيل مصروف', 'Record expense')} onClose={onClose} footer={<Button block size="lg" icon={Check} disabled={!(Number(amount) > 0)} onClick={() => {
-    upsert('expenses', { id: uid(), amount: Number(amount), category, note, method, date: localISO() });
+    upsert('expenses', { id: uid(), amount: Number(amount), category, note, method, date: businessDay(data.settings) });
     toast(L('تم تسجيل المصروف', 'Expense recorded')); onClose();
   }}>{L('حفظ', 'Save')}</Button>}>
     <div className="stack">

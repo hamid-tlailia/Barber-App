@@ -6,8 +6,8 @@ select cron.schedule('miqass-reminders', '5 * * * *', $$
     headers := jsonb_build_object('Authorization', 'Bearer CRON_SECRET', 'Content-Type', 'application/json'),
     body := '{}'::jsonb);
 $$);
--- 20:00 UTC = 23:00 بتوقيت قطر
-select cron.schedule('miqass-daily-report', '0 20 * * *', $$
+-- كل ساعة: الدالة ترسل لكل صالون عند ساعة إغلاقه (انظر 0010)
+select cron.schedule('miqass-daily-report', '0 * * * *', $$
   select net.http_post(
     url := 'https://PROJECT_REF.supabase.co/functions/v1/daily-report',
     headers := jsonb_build_object('Authorization', 'Bearer CRON_SECRET', 'Content-Type', 'application/json'),

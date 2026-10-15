@@ -3,7 +3,7 @@ import {
   BellRing, Boxes, CalendarCheck2, CalendarOff, CalendarPlus, Cake, CircleDollarSign, Clock3, Lightbulb, ListChecks,
   ListPlus, MessageCircle, Receipt, Share2, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { clientName, addDays, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
+import { clientName, addDays, businessDay, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
 import { incomeIn, todayInsights } from '../smart.js';
 import { Avatar, Badge, Button, Empty, Row, Section, Stat, Tile, useApp } from '../ui.jsx';
 import { AppointmentSheet, BookingWizard } from './Appointments.jsx';
@@ -23,7 +23,7 @@ export default function Home() {
   const now = new Date();
   const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const next = todays.find(a => ['pending', 'confirmed', 'arrived'].includes(a.status) && a.time >= nowTime.slice(0, 2) + ':00') || todays.find(a => ['pending', 'confirmed', 'arrived'].includes(a.status));
-  const income = incomeIn(data, 'today').reduce((s, p) => s + Number(p.amount || 0), 0);
+  const income = incomeIn(data, 'today', businessDay(data.settings)).reduce((s, p) => s + Number(p.amount || 0), 0);
   const unpaid = data.appointments.filter(a => a.status === 'completed' && !isPaid(a));
   const client = next && data.clients.find(c => c.id === next.clientId);
   const insights = role === 'staff' ? [] : todayInsights(data, today);

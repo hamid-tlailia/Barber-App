@@ -12,6 +12,19 @@ export const localNow = () => new Date(Date.now() + TZ_OFFSET * 60000);
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 export const isoTime = (d: Date) => d.toISOString().slice(11, 16);
 export const addDays = (date: string, days: number) => isoDate(new Date(Date.parse(`${date}T12:00:00Z`) + days * 86400000));
+const hm = (t: unknown) => (typeof t === 'string' && /^\d{1,2}:\d{2}/.test(t) ? Number(t.split(':')[0]) * 60 + Number(t.split(':')[1].slice(0, 2)) : null);
+
+// موعد تقرير نهاية اليوم ويوم الحسابات حسب ساعات الصالون (مثل businessDay في التطبيق).
+// now بتوقيت الصالون (localNow). الصالون الذي يغلق 02:00 يصله التقرير 02:00 عن اليوم الذي بدأ فيه.
+export function reportSchedule(hours: Record<string, any> | undefined, now: Date) {
+  const open = hm(hours?.open); const close = hm(hours?.close);
+  const today = isoDate(now);
+  if (!hours || hours.allDay || open === null || close === null) return { hour: 23, day: today };
+  const hour = Math.ceil(close / 60) % 24;
+  if (close > open) return { hour, day: today };
+  const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  return { hour, day: minutes < (open + close) / 2 ? addDays(today, -1) : today };
+}
 export const digits = (p: string) => String(p || '').replace(/\D/g, '');
 export const samePhone = (a: string, b: string) => digits(a).length >= 7 && digits(a).slice(-8) === digits(b).slice(-8);
 export const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
@@ -163,7 +176,8 @@ export function availableSlots(appointments: Record<string, any>[], date: string
 
 export const fill = (template: string, values: Record<string, string>) => String(template || '').replace(/\{(\w+)\}/g, (_, k) => values[k] ?? '');
 
-// تقرير نهاية اليوم لصاحب الصالون عبر واتساب. يُستدعى يومياً (مثلاً 23:00 بتوقيت قطر) من pg_cron.
+// تقرير نهاية اليوم لصاحب الصالون عبر واتساب. يُستدعى كل ساعة من pg_cron، ويُرسل لكل صالون عند ساعة إغلاقه
+// (23:00 للصالون المفتوح 24 ساعة). استدعاء يدوي بـ {"force": true} يرسل للجميع فوراً للتجربة.
 
 const TEMPLATE = Deno.env.get('WA_TEMPLATE_REPORT') ?? 'daily_report';
 const money = (v: number) => `${Math.round(v).toLocaleString('en-US')} ر.ق`;
@@ -172,11 +186,15 @@ Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);
   const { data: shops, error } = await db.from('shop_integrations').select('shop_id, owner_whatsapp, shops!inner(name)').eq('daily_report_enabled', true).eq('wa_addon', true).not('owner_whatsapp', 'is', null);
   if (error) return json({ error: error.message }, 500);
-  const today = isoDate(localNow());
+  const body = await req.json().catch(() => ({}));
+  const now = localNow();
   let sent = 0; const failures: string[] = [];
 
   for (const shop of shops ?? []) {
     if (!shop.owner_whatsapp) continue;
+    const meta = await collection(shop.shop_id, 'meta');
+    const { hour, day: today } = reportSchedule(meta.find(r => r.id === 'settings')?.data?.settings?.hours, now);
+    if (!body.force && now.getUTCHours() !== hour) continue;
     const { data: activeShop } = await db.rpc('shop_active', { p_shop: shop.shop_id });
     if (!activeShop) continue;
     const config = await waConfigFor(shop.shop_id);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, findDuplicate, phoneDigits, shortName, defaultData, defaultSettings, hasAppointmentConflict,
+  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, businessDay, findDuplicate, phoneDigits, shortName, defaultData, defaultSettings, hasAppointmentConflict,
   importClients, isPaid, localISO, migrateAppointment, normalizeData, parseCSV, fillTemplate, whatsappNumber,
 } from './data.js';
 import { clientStats, commissions, dailyReport, expectedCash, incomeIn, lapsedClients, noShowRisk, roi, stockForecast, waitlistMatches } from './smart.js';
@@ -56,6 +56,16 @@ test('تعديل موعد خدمته محذوفة لا يُسقطها من ال�
   assert.equal(kept[0].price, 90);
   assert.equal(kept[0].staffId, 't1');
   assert.equal(phoneDigits('٥٥٥١ ٢٣٤٥'), '55512345');
+});
+
+test('يوم العمل يتبع ساعات الصالون (الإغلاق بعد منتصف الليل)', () => {
+  const at = h => new Date(2026, 4, 11, h, 30);
+  const night = { hours: { open: '16:00', close: '02:00' } };
+  assert.equal(businessDay(night, at(1)), '2026-05-10'); // 01:30 تابعة لليلة 10
+  assert.equal(businessDay(night, at(8)), '2026-05-10'); // قبل منتصف المسافة (09:00)
+  assert.equal(businessDay(night, at(10)), '2026-05-11');
+  assert.equal(businessDay({ hours: { open: '09:00', close: '22:00' } }, at(1)), '2026-05-11');
+  assert.equal(businessDay({ hours: { open: '09:00', close: '22:00', allDay: true } }, at(1)), '2026-05-11');
 });
 
 test('العميل المحذوف يظهر بعبارة واضحة', () => {

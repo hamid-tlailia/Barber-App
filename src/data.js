@@ -14,6 +14,20 @@ export const localISO = (date = new Date()) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// «يوم العمل» للحسابات (الدفعات، المصروفات، الصندوق) حسب ساعات كل صالون:
+// صالون يغلق بعد منتصف الليل (مثلاً 16:00–02:00) تُحسب دفعات ما بعد 12 على اليوم الذي بدأ فيه،
+// حتى منتصف المسافة بين الإغلاق والفتح (09:00 في المثال). الصالون العادي و«24 ساعة» ينتهي يومه عند منتصف الليل.
+const minutesOf = t => (/^\d{1,2}:\d{2}/.test(t || '') ? Number(t.slice(0, t.indexOf(':'))) * 60 + Number(t.slice(t.indexOf(':') + 1, t.indexOf(':') + 3)) : null);
+export const businessDay = (settings, now = new Date()) => {
+  const hours = settings?.hours;
+  const open = minutesOf(hours?.open); const close = minutesOf(hours?.close);
+  const d = new Date(now);
+  if (!hours || hours.allDay || open === null || close === null || close > open) return localISO(d);
+  const cutoff = (close + open) / 2;
+  if (d.getHours() * 60 + d.getMinutes() < cutoff) d.setDate(d.getDate() - 1);
+  return localISO(d);
+};
+
 export const addDays = (dateString, days) => {
   const d = new Date(`${dateString}T12:00:00`);
   d.setDate(d.getDate() + days);

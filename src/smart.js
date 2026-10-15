@@ -123,7 +123,9 @@ export function expectedCash(date, appointments, expenses, opening = 0, sales = 
 // إشغال الكراسي: نسبة الدقائق المحجوزة من ساعات العمل لكل موظف.
 export function utilization(staff, appointments, settings, range, today = localISO()) {
   const open = Number(settings.hours.open.slice(0, 2)) * 60 + Number(settings.hours.open.slice(3));
-  const close = Number(settings.hours.close.slice(0, 2)) * 60 + Number(settings.hours.close.slice(3));
+  const closeAt = Number(settings.hours.close.slice(0, 2)) * 60 + Number(settings.hours.close.slice(3));
+  // 24 ساعة، أو إغلاق بعد منتصف الليل (02:00 = 26:00).
+  const close = settings.hours.allDay ? open + 1440 : closeAt <= open ? closeAt + 1440 : closeAt;
   const days = new Set(appointments.filter(a => inRange(a.date, range, today) && a.date <= today).map(a => a.date)).size || 1;
   const booked = appointments.filter(a => inRange(a.date, range, today) && a.status === 'completed').reduce((s, a) => s + Number(a.duration || 0), 0);
   return Math.min(1, booked / Math.max(1, (close - open) * days * Math.max(1, staff.filter(m => m.active !== false).length)));

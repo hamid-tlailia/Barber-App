@@ -1,5 +1,6 @@
-// تقرير نهاية اليوم لصاحب الصالون عبر واتساب. يُستدعى يومياً (مثلاً 23:00 بتوقيت قطر) من pg_cron.
-import { addDays, authorizedCron, collection, db, isoDate, json, localNow, sendTemplate, timeAr, waConfigFor } from '../_shared/common.ts';
+// تقرير نهاية اليوم لصاحب الصالون عبر واتساب. يُستدعى كل ساعة من pg_cron، ويُرسل لكل صالون عند ساعة إغلاقه
+// (23:00 للصالون المفتوح 24 ساعة). استدعاء يدوي بـ {"force": true} يرسل للجميع فوراً للتجربة.
+import { addDays, authorizedCron, reportSchedule, collection, db, json, localNow, sendTemplate, timeAr, waConfigFor } from '../_shared/common.ts';
 
 const TEMPLATE = Deno.env.get('WA_TEMPLATE_REPORT') ?? 'daily_report';
 const money = (v: number) => `${Math.round(v).toLocaleString('en-US')} ر.ق`;
@@ -8,11 +9,15 @@ Deno.serve(async req => {
   if (!authorizedCron(req)) return json({ error: 'unauthorized' }, 401);
   const { data: shops, error } = await db.from('shop_integrations').select('shop_id, owner_whatsapp, shops!inner(name)').eq('daily_report_enabled', true).eq('wa_addon', true).not('owner_whatsapp', 'is', null);
   if (error) return json({ error: error.message }, 500);
-  const today = isoDate(localNow());
+  const body = await req.json().catch(() => ({}));
+  const now = localNow();
   let sent = 0; const failures: string[] = [];
 
   for (const shop of shops ?? []) {
     if (!shop.owner_whatsapp) continue;
+    const meta = await collection(shop.shop_id, 'meta');
+    const { hour, day: today } = reportSchedule(meta.find(r => r.id === 'settings')?.data?.settings?.hours, now);
+    if (!body.force && now.getUTCHours() !== hour) continue;
     const { data: activeShop } = await db.rpc('shop_active', { p_shop: shop.shop_id });
     if (!activeShop) continue;
     const config = await waConfigFor(shop.shop_id);
