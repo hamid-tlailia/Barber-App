@@ -4,7 +4,7 @@ import {
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
 import { PHONE_ERROR, validPhone, clientName, dateLabel, findDuplicate, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
-import { api, auth, bookingUrl, cloudEnabled, errorText, privacyUrl } from '../lib/sync.js';
+import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.js';
 import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
@@ -74,7 +74,6 @@ export default function Settings() {
       </div>
     </Section>}
     {cloudEnabled && <Button variant="danger-ghost" icon={LogOut} block onClick={() => auth.signOut()}>{L('تسجيل الخروج', 'Sign out')}</Button>}
-    <Button variant="ghost" icon={ShieldCheck} block onClick={() => openExternal(privacyUrl)}>{L('سياسة الخصوصية', 'Privacy policy')}</Button>
     {Current && <Current onClose={() => setOpen(null)} />}
   </div>;
 }

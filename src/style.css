@@ -647,4 +647,4 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 .stats:has(> :nth-child(4):last-child) { grid-template-columns: repeat(2, 1fr); }
 .plain-list { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; font-size: 14.5px; }
 .more-page { display: flex; flex-direction: column; gap: 18px; min-height: calc(100dvh - 260px); }
-.more-page > .btn { margin-top: auto; }
+.more-page > .btn { margin-top: auto; align-self: center; }

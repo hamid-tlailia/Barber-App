@@ -13,6 +13,6 @@ export default function More() {
   const pages = ['messages', 'reports', 'inventory', 'team'].filter(can);
   return <div className="more-page">
     <div className="tiles tiles-2">{pages.map(id => <Tile key={id} icon={PAGES[id].icon} label={id === 'team' ? vocab.team : PAGES[id].label} tone={tones[id]} onClick={() => go(id)} />)}</div>
-    <Button variant="ghost" icon={ShieldCheck} block onClick={() => openExternal(privacyUrl)}>{L('سياسة الخصوصية', 'Privacy policy')}</Button>
+    <Button variant="ghost" size="sm" icon={ShieldCheck} onClick={() => openExternal(privacyUrl)}>{L('سياسة الخصوصية', 'Privacy policy')}</Button>
   </div>;
 }
