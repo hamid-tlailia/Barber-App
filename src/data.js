@@ -115,6 +115,9 @@ export const defaultSettings = (kind = 'men') => ({
     thanks: L('شكراً لزيارتك {shop} يا {name} 🙏\nرأيك يهمنا: كيف كانت تجربتك اليوم؟', 'Thank you for visiting {shop}, {name} 🙏\nYour opinion matters: how was your experience today?'),
     waitlist: L('خبر سار يا {name}! توفر موعد في {shop} يوم {date} الساعة {time}. هل يناسبك؟ ردّ بنعم لنثبته لك.', 'Good news, {name}! A slot opened up at {shop} on {date} at {time}. Does it suit you? Reply yes and we will book it for you.'),
     birthday: L('كل عام وأنت بخير يا {name} 🎉 هديتك من {shop}: خصم 20٪ على زيارتك القادمة.', 'Happy birthday, {name} 🎉 A gift from {shop}: 20% off your next visit.'),
+    offer: L('مرحباً {name} 👋\n🎁 {title}\n{offer}\nاحجز الآن: {link}', 'Hi {name} 👋\n🎁 {title}\n{offer}\nBook now: {link}'),
+    coupon: L('استخدم الكود {code} عند الدفع واحصل على خصم {discount}.\nالعرض حتى {until}', 'Use code {code} at checkout for {discount} off.\nValid until {until}'),
+    package: L('{services} بسعر {price}.\nبدلاً من {regular}\nعدد الجلسات: {sessions}', '{services} for {price}.\nInstead of {regular}\nSessions: {sessions}'),
   },
 });
 
@@ -426,6 +429,9 @@ export const DEFAULT_TEMPLATES = {
     waitlist: 'خبر سار يا {name}! توفر موعد في {shop} يوم {date} الساعة {time}. هل يناسبك؟ ردّ بنعم لنثبته لك.',
     waitlistContact: 'مرحباً {name} 👋 معك {shop} بخصوص طلبك في قائمة الانتظار{date}. سنخبرك فور توفر موعد مناسب، أو أخبرنا بالوقت الذي يناسبك.',
     birthday: 'كل عام وأنت بخير يا {name} 🎉 هديتك من {shop}: خصم 20٪ على زيارتك القادمة.',
+    offer: 'مرحباً {name} 👋\n🎁 {title}\n{offer}\nاحجز الآن: {link}',
+    coupon: 'استخدم الكود {code} عند الدفع واحصل على خصم {discount}.\nالعرض حتى {until}',
+    package: '{services} بسعر {price}.\nبدلاً من {regular}\nعدد الجلسات: {sessions}',
   },
   en: {
     reminder: 'Hi {name} 👋\nA reminder of your appointment at {shop} on {date} at {time}.\nReply 1 to confirm or 2 to cancel.',
@@ -434,8 +440,16 @@ export const DEFAULT_TEMPLATES = {
     waitlist: 'Good news, {name}! A slot opened up at {shop} on {date} at {time}. Does it suit you? Reply yes and we will book it for you.',
     waitlistContact: 'Hi {name} 👋 This is {shop} about your waitlist request{date}. We will let you know as soon as a suitable slot opens, or tell us what time suits you.',
     birthday: 'Happy birthday, {name} 🎉 A gift from {shop}: 20% off your next visit.',
+    offer: 'Hi {name} 👋\n🎁 {title}\n{offer}\nBook now: {link}',
+    coupon: 'Use code {code} at checkout for {discount} off.\nValid until {until}',
+    package: '{services} for {price}.\nInstead of {regular}\nSessions: {sessions}',
   },
 };
+// نصوص العروض بلغة واجهة الصالون. السطر الذي فيه متغير فارغ يُحذف كاملاً (مثل «العرض حتى» لكود بلا تاريخ انتهاء).
+export const salonTemplate = (settings, key) => settings?.templates?.[key] || DEFAULT_TEMPLATES[isEn ? 'en' : 'ar'][key];
+export const fillLines = (template, values) => String(template || '').split('\n')
+  .filter(line => [...line.matchAll(/\{(\w+)\}/g)].every(([, key]) => String(values[key] ?? '').trim()))
+  .map(line => fillTemplate(line, values)).join('\n').trim();
 export const clientLang = client => (client?.lang === 'en' || client?.lang === 'ar' ? client.lang : 'ar');
 export function messageFor(settings, key, client) {
   const lang = clientLang(client);

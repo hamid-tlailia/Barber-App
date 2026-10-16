@@ -1,7 +1,7 @@
 // نشر عرض (كود خصم، باقة، أو نص حر): لكل العملاء عبر واتساب، أو صورة جاهزة لانستغرام وفيسبوك وحالة واتساب، أو نسخ النص.
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Image as ImageIcon, MessageCircle, Send, SkipForward, Users } from 'lucide-react';
-import { fillTemplate, localISO, num, uid, validPhone, whatsappLink } from '../data.js';
+import { fillLines, localISO, salonTemplate, num, uid, validPhone, whatsappLink } from '../data.js';
 import { api, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { isNative } from '../lib/native.js';
 import { saveFile } from '../lib/files.js';
@@ -29,7 +29,7 @@ export function OfferShare({ offer, onClose }) {
   const link = bookingUrl(shop.slug);
   const recipients = useMemo(() => offerRecipients(data.clients), [data.clients]);
   useEffect(() => { if (cloudEnabled && isManager) api.integration(shop.id).then(row => setWaActive(Boolean(row?.wa_addon))).catch(() => {}); }, [shop.id, isManager]);
-  const full = [title && `🎁 ${title}`, text, link && L(`احجز الآن: ${link}`, `Book now: ${link}`)].filter(Boolean).join('\n');
+  const full = fillLines(salonTemplate(data.settings, 'offer'), { title, offer: text, link });
 
   if (mode === 'queue') return <OfferQueue title={title} text={text} link={link} recipients={recipients} offerKey={offer.key || `offer-${localISO()}`} onClose={() => setMode(null)} />;
 
@@ -78,7 +78,7 @@ function OfferQueue({ title, text, link, recipients, offerKey, onClose }) {
   const queue = pending.filter(c => !skipped.includes(c.id));
   const next = queue[0];
   const done = recipients.length - pending.length;
-  const message = c => fillTemplate([L('مرحباً {name} 👋', 'Hi {name} 👋'), title && `🎁 ${title}`, text, link && L(`احجز الآن: ${link}`, `Book now: ${link}`)].filter(Boolean).join('\n'), { name: String(c.name || '').trim().split(/\s+/)[0] });
+  const message = c => fillLines(salonTemplate(data.settings, 'offer'), { name: String(c.name || '').trim().split(/\s+/)[0], title, offer: text, link });
   const send = c => {
     openExternal(whatsappLink(c.phone, message(c)));
     setData(prev => ({ ...prev, messages: [...prev.messages, { id: uid(), kind: 'offer', clientId: c.id, appointmentId: offerKey, at: localISO(), channel: 'whatsapp-link' }] }));

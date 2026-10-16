@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, businessDay, findDuplicate, normalCode, phoneDigits, validPhone, shortName, defaultData, defaultSettings, hasAppointmentConflict,
-  importClients, isPaid, localISO, migrateAppointment, normalizeData, parseCSV, fillTemplate, whatsappNumber,
+  importClients, isPaid, localISO, migrateAppointment, normalizeData, parseCSV, fillTemplate, fillLines, salonTemplate, whatsappNumber,
 } from './data.js';
 import { clientStats, commissions, dailyReport, expectedCash, incomeIn, lapsedClients, noShowRisk, roi, stockForecast, waitlistMatches } from './smart.js';
 import { diffData, mergeRows } from './lib/sync.js';
@@ -226,4 +226,11 @@ test('استيراد العملاء من نص ملصوق بدون فواصل', (
   const { added, skipped } = importClients('أحمد محمد 55512345\n+974 6669 8765 سارة علي\nمحمد - ٣٣٣٤٤٥٥٦\nبدون رقم', []);
   assert.deepEqual(added.map(c => [c.name, c.phone]), [['أحمد محمد', '55512345'], ['سارة علي', '+974 6669 8765'], ['محمد', '33344556']]);
   assert.equal(skipped, 1);
+});
+
+test('offer templates drop lines whose variable is empty', () => {
+  const t = 'مرحباً {name} 👋\n🎁 {title}\n{offer}\nاحجز الآن: {link}';
+  assert.equal(fillLines(t, { title: 'خصم 20٪', offer: 'استخدم الكود EID20', link: '' }), '🎁 خصم 20٪\nاستخدم الكود EID20');
+  assert.equal(fillLines(salonTemplate({}, 'coupon'), { code: 'EID20', discount: '20٪', until: '' }), 'استخدم الكود EID20 عند الدفع واحصل على خصم 20٪.');
+  assert.equal(fillLines(salonTemplate({ templates: { coupon: 'كود {code}' } }, 'coupon'), { code: 'X' }), 'كود X');
 });

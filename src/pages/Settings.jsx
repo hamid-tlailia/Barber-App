@@ -3,7 +3,7 @@ import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, Share2, ShieldCheck, SlidersHorizontal, Store, TicketPercent, Trash2, Upload,
 } from 'lucide-react';
-import { PHONE_ERROR, validPhone, clientName, dateLabel, findDuplicate, packageServices, amountPaid, normalCode, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
+import { PHONE_ERROR, fillLines, salonTemplate, validPhone, clientName, dateLabel, findDuplicate, packageServices, amountPaid, normalCode, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.js';
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
@@ -202,9 +202,9 @@ function PackagesSettings({ onClose }) {
   const packageOffer = p => {
     const names = packageServices(p).map(id => data.services.find(s => s.id === id)?.name).filter(Boolean);
     const regular = packageServices(p).reduce((sum, id) => sum + Number(data.services.find(s => s.id === id)?.price || 0), 0) * Number(p.sessions || 1);
-    const sessions = Number(p.sessions || 1) > 1 ? L(` (${num(p.sessions)} جلسات)`, ` (${num(p.sessions)} sessions)`) : '';
     return { key: `package-${p.id}`, title: `${p.name} — ${money(p.price)}`,
-      text: L(`${names.join(' + ')}${sessions} بسعر ${money(p.price)}${regular > Number(p.price) ? ` بدلاً من ${money(regular)}` : ''}.`, `${names.join(' + ')}${sessions} for ${money(p.price)}${regular > Number(p.price) ? ` instead of ${money(regular)}` : ''}.`) };
+      text: fillLines(salonTemplate(data.settings, 'package'), { services: names.join(' + '), price: money(p.price),
+        regular: regular > Number(p.price) ? money(regular) : '', sessions: Number(p.sessions || 1) > 1 ? num(p.sessions) : '' }) };
   };
   return <Sheet title={L('الباقات', 'Packages')} subtitle={L('جلسات مدفوعة مسبقاً — تزيد ولاء العملاء والسيولة', 'Prepaid sessions — boost client loyalty and cash flow')} onClose={onClose} footer={!edit && <Button block icon={Plus} onClick={() => setEdit({ name: '', serviceIds: [], sessions: 1, price: 0, validityDays: 90 })}>{L('باقة جديدة', 'New package')}</Button>}>
     {edit ? <div className="stack">
@@ -270,7 +270,7 @@ function Coupons({ onClose }) {
   const offerOf = c => {
     const off = c.type === 'amount' ? money(c.value) : L(`${num(c.value)}٪`, `${num(c.value)}%`);
     return { key: `coupon-${c.id}`, code: c.code, until: c.expiresAt ? L(`العرض حتى ${dateLabel(c.expiresAt)}`, `Valid until ${dateLabel(c.expiresAt)}`) : '',
-      title: L(`خصم ${off}`, `${off} off`), text: L(`استخدم الكود ${c.code} عند الدفع واحصل على خصم ${off}${c.expiresAt ? ` — حتى ${dateLabel(c.expiresAt)}` : ''}.`, `Use code ${c.code} at checkout for ${off} off${c.expiresAt ? ` — until ${dateLabel(c.expiresAt)}` : ''}.`) };
+      title: L(`خصم ${off}`, `${off} off`), text: fillLines(salonTemplate(data.settings, 'coupon'), { code: c.code, discount: off, until: c.expiresAt ? dateLabel(c.expiresAt) : '' }) };
   };
   return <Sheet title={L('أكواد الخصم', 'Discount codes')} subtitle={L('يكتبه العميل أو الكاشير عند الدفع', 'Entered at checkout')} onClose={onClose}
     footer={edit ? <>

@@ -287,13 +287,19 @@ function Templates({ shopId }) {
   const [t, setT] = useState(null);
   const [error, setError] = useState('');
   const defaults = defaultSettings().templates;
-  const fields = { reminder: L('تذكير بالموعد', 'Appointment reminder'), recovery: L('استرجاع عميل منقطع', 'Win back a lapsed client'), thanks: L('شكر بعد الزيارة', 'Thank-you after visit'), waitlist: L('عرض من قائمة الانتظار', 'Waitlist offer'), birthday: L('تهنئة عيد ميلاد', 'Birthday greeting') };
+  const fields = { reminder: L('تذكير بالموعد', 'Appointment reminder'), recovery: L('استرجاع عميل منقطع', 'Win back a lapsed client'), thanks: L('شكر بعد الزيارة', 'Thank-you after visit'), waitlist: L('عرض من قائمة الانتظار', 'Waitlist offer'), birthday: L('تهنئة عيد ميلاد', 'Birthday greeting'),
+    offer: L('رسالة العرض لكل عميل', 'Offer message to each client'), coupon: L('نص عرض كود الخصم', 'Discount code offer text'), package: L('نص عرض الباقة', 'Package offer text') };
+  const hints = {
+    offer: L('{name} اسم العميل · {title} عنوان العرض · {offer} نص العرض (الكود أو الباقة) · {link} رابط الحجز', '{name} client · {title} offer title · {offer} offer text (code or package) · {link} booking link'),
+    coupon: L('{code} الكود · {discount} قيمة الخصم · {until} تاريخ الانتهاء', '{code} code · {discount} discount · {until} expiry date'),
+    package: L('{services} الخدمات · {price} سعر الباقة · {regular} السعر الأصلي · {sessions} عدد الجلسات', '{services} services · {price} package price · {regular} regular price · {sessions} sessions'),
+  };
   useEffect(() => { api.admin.templates(shopId).then(saved => setT({ ...defaults, ...saved })).catch(e => setError(errorText(e))); }, [shopId]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!t) return error ? <Alert>{error}</Alert> : <div className="loader" />;
   return <Section title={L('نصوص الرسائل', 'Message templates')}>
     <div className="stack">
-      <small className="muted">{L('المتغيرات:', 'Variables:')} {'{name} {shop} {date} {time} {link}'} — {L('لا تظهر هذه النصوص لصاحب الصالون.', 'These templates are not visible to the salon owner.')}</small>
-      {Object.entries(fields).map(([key, label]) => <Field key={key} label={label}><textarea rows="3" value={t[key] || ''} onChange={e => setT({ ...t, [key]: e.target.value })} /></Field>)}
+      <small className="muted">{L('المتغيرات:', 'Variables:')} {'{name} {shop} {date} {time} {link}'} — {L('لا تظهر هذه النصوص لصاحب الصالون. في نصوص العروض: السطر الذي متغيره فارغ يُحذف تلقائياً.', 'These templates are not visible to the salon owner. In offer texts, a line whose variable is empty is removed automatically.')}</small>
+      {Object.entries(fields).map(([key, label]) => <Field key={key} label={label} hint={hints[key]}><textarea rows="4" value={t[key] || ''} onChange={e => setT({ ...t, [key]: e.target.value })} /></Field>)}
       <Alert>{error}</Alert>
       <Button variant="secondary" icon={MessageSquareText} block onClick={async () => {
         try { await api.admin.setTemplates(shopId, t); toast(L('تم حفظ نصوص الصالون', 'Salon templates saved')); } catch (e) { setError(errorText(e)); }
