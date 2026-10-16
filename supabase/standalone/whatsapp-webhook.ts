@@ -246,6 +246,13 @@ async function handle(phoneNumberId: string, from: string, text: string, profile
   const config = await waConfigFor(shop.shopId);
   if (!config) return;
 
+  // «إيقاف»: العميل لا يريد رسائل العروض بعد الآن (يبقى التذكير بالمواعيد).
+  if (/^(إيقاف|ايقاف|إيقاف العروض|ايقاف العروض|stop|unsubscribe)$/i.test(text.trim())) {
+    const client = (await collection(shop.shopId, 'clients')).find(c => samePhone(c.data.phone, from));
+    if (client) await saveRecord(shop.shopId, 'clients', client.id, { ...client.data, noOffers: true });
+    await sendText(config, from, client?.data?.lang === 'en' ? 'Done — you will no longer receive offers. Appointment reminders continue as usual.' : 'تم ✓ لن تصلك رسائل العروض بعد الآن، وتبقى تذكيرات مواعيدك كالمعتاد.');
+    return;
+  }
   // ردود سريعة على التذكير.
   const normalized = text.replace(/[١٢]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
   const yes = /^(1|تأكيد|اكيد|أكيد|نعم|yes|y|ok|okay|confirm)$/i; const no = /^(2|إلغاء|الغاء|لا|no|n|cancel)$/i;

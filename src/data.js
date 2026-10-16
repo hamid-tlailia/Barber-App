@@ -6,7 +6,7 @@ export const DATA_VERSION = 2;
 
 export const COLLECTIONS = [
   'clients', 'services', 'staff', 'products', 'stockMovements', 'appointments', 'packages',
-  'clientPackages', 'giftCards', 'waitlist', 'drawers', 'messages', 'photos', 'expenses', 'sales', 'coupons',
+  'clientPackages', 'giftCards', 'waitlist', 'drawers', 'messages', 'photos', 'expenses', 'sales', 'coupons', 'campaigns',
 ];
 
 export const localISO = (date = new Date()) => {

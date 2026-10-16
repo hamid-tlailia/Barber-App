@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { BellRing, Bot, Cake, Check, ListChecks, MessageCircle, Send, Sparkles, Trash2, UserRoundCheck } from 'lucide-react';
+import { BellRing, Bot, Cake, Check, ListChecks, Megaphone, MessageCircle, Send, Sparkles, Trash2, UserRoundCheck } from 'lucide-react';
 import { clientName, addDays, clientLang, dateFor, dateLabel, daysBetween, fillTemplate, localISO, messageFor, num, serviceNames, timeFor, timeLabel, whatsappLink } from '../data.js';
 import { birthdaysToday, dueSoon, lapsedClients } from '../smart.js';
 import { api, bookingUrl, cloudEnabled } from '../lib/sync.js';
 import { WhatsAppSettings } from './Settings.jsx';
+import { OfferShare } from './Offer.jsx';
 import { Alert, Avatar, Badge, Button, Empty, Row, Segmented, openExternal, useApp } from '../ui.jsx';
 import { L } from '../i18n.js';
 
@@ -13,6 +14,7 @@ export default function Messages() {
   // حالة إضافة واتساب الذكي: «تخصيص» إن كانت مفعّلة، و«إعداد» إن لم تكن.
   const [waActive, setWaActive] = useState(false);
   const [waOpen, setWaOpen] = useState(false);
+  const [campaign, setCampaign] = useState(false);
   useEffect(() => { if (cloudEnabled && isManager) api.integration(shop.id).then(row => setWaActive(Boolean(row?.wa_addon))).catch(() => {}); }, [shop.id, isManager, waOpen]);
   useEffect(() => {
     const map = { reminders: 'reminders', lapsed: 'recovery', birthday: 'birthday', waitlist: 'waitlist' };
@@ -52,6 +54,8 @@ export default function Messages() {
       <div><strong>{L('الأتمتة عبر واتساب', 'WhatsApp automation')}{waActive && <Badge tone="green"><Check size={12} /> {L('مفعّلة', 'Active')}</Badge>}</strong><small>{waActive ? L('التذكيرات والتقرير اليومي تُرسل تلقائياً عبر واتساب.', 'Reminders and the daily report are sent automatically on WhatsApp.') : cloudEnabled ? L('عند ربط رقم واتساب للأعمال تُرسل التذكيرات وتقرير اليوم تلقائياً، ويرد المساعد الذكي على الحجوزات.', 'Once a WhatsApp Business number is connected, reminders and the daily report are sent automatically, and the smart assistant replies to booking requests.') : L('اضغط زر واتساب بجانب كل عميل — الرسالة جاهزة.', 'Tap the WhatsApp button next to any client — the message is ready.')}</small></div>
       {cloudEnabled && isManager && <Button size="sm" variant="secondary" onClick={() => setWaOpen(true)}>{waActive ? L('تخصيص', 'Customize') : L('إعداد', 'Set up')}</Button>}
     </div>
+    {isManager && <Button block icon={Megaphone} onClick={() => setCampaign(true)}>{L('عرض جديد لكل العملاء', 'New offer to all clients')}</Button>}
+    {campaign && <OfferShare offer={{ key: `offer-${localISO()}`, title: '', text: '' }} onClose={() => setCampaign(false)} />}
     <Segmented size="sm" items={tabs} value={tab} onChange={setTab} />
 
     {tab === 'reminders' && (reminders.length ? <div className="list">{reminders.map(a => {

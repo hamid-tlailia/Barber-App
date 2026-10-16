@@ -675,3 +675,6 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 .tab-icon { position: relative; display: inline-flex; }
 .tab-badge { position: absolute; top: -4px; inset-inline-end: 4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: grid; place-items: center; background: var(--red); color: #fff; font-size: 11px; font-weight: 800; line-height: 1; border: 2px solid var(--surface); font-variant-numeric: tabular-nums; }
 .sidebar .tab-badge { top: -6px; inset-inline-end: -8px; }
+.progress { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.progress > span { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s; }
+.badge-accent { background: var(--accent-soft); color: var(--accent-ink); }

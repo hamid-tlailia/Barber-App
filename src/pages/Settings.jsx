@@ -8,6 +8,7 @@ import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.js';
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
+import { OfferShare } from './Offer.jsx';
 import { notifyNow, pushState, pushSupported } from '../lib/native.js';
 import { L, LANG, isEn, setLang } from '../i18n.js';
 
@@ -195,7 +196,16 @@ function PackagesSettings({ onClose }) {
   const { data, upsert, remove, toast } = useApp();
   const [edit, setEdit] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sharingPkg, setSharingPkg] = useState(null);
   const v = edit || {};
+  // نص العرض للباقة: خدماتها، سعرها، والتوفير مقارنة بالسعر المعتاد.
+  const packageOffer = p => {
+    const names = packageServices(p).map(id => data.services.find(s => s.id === id)?.name).filter(Boolean);
+    const regular = packageServices(p).reduce((sum, id) => sum + Number(data.services.find(s => s.id === id)?.price || 0), 0) * Number(p.sessions || 1);
+    const sessions = Number(p.sessions || 1) > 1 ? L(` (${num(p.sessions)} جلسات)`, ` (${num(p.sessions)} sessions)`) : '';
+    return { key: `package-${p.id}`, title: `${p.name} — ${money(p.price)}`,
+      text: L(`${names.join(' + ')}${sessions} بسعر ${money(p.price)}${regular > Number(p.price) ? ` بدلاً من ${money(regular)}` : ''}.`, `${names.join(' + ')}${sessions} for ${money(p.price)}${regular > Number(p.price) ? ` instead of ${money(regular)}` : ''}.`) };
+  };
   return <Sheet title={L('الباقات', 'Packages')} subtitle={L('جلسات مدفوعة مسبقاً — تزيد ولاء العملاء والسيولة', 'Prepaid sessions — boost client loyalty and cash flow')} onClose={onClose} footer={!edit && <Button block icon={Plus} onClick={() => setEdit({ name: '', serviceIds: [], sessions: 1, price: 0, validityDays: 90 })}>{L('باقة جديدة', 'New package')}</Button>}>
     {edit ? <div className="stack">
       <Field label={L('اسم الباقة', 'Package name')}><input autoFocus value={v.name} onChange={e => setEdit({ ...v, name: e.target.value })} placeholder={L(`مثال: ليزر ${num(6)} جلسات`, `E.g. Laser, ${num(6)} sessions`)} /></Field>
@@ -221,8 +231,9 @@ function PackagesSettings({ onClose }) {
           if (!packageServices(v).some(id => data.services.some(s => s.id === id))) { toast(L('اختر خدمة واحدة على الأقل', 'Choose at least one service')); return; }
           if (!(Number(v.sessions) >= 1) || !(Number(v.price) > 0)) { toast(L('عدد الجلسات والسعر يجب أن يكونا أكبر من صفر', 'Sessions and price must be greater than zero')); return; } upsert('packages', { ...v, name: v.name.trim(), serviceIds: packageServices(v).filter(id => data.services.some(s => s.id === id)), serviceId: packageServices(v).find(id => data.services.some(s => s.id === id)) || '', id: v.id || uid() }); toast(L('تم الحفظ', 'Saved')); setEdit(null); }}>{L('حفظ', 'Save')}</Button>
       </div>
-    </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={packageServices(p).map(id => data.services.find(x => x.id === id)?.name).filter(Boolean).join(' + ') + ' · ' + L(`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`, `${plural(num(p.sessions), 'session', 'sessions')} · ${plural(num(p.validityDays), 'day', 'days')}`)} trailing={<strong>{money(p.price)}</strong>} onClick={() => setEdit(p)} />)}</div>
+    </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={packageServices(p).map(id => data.services.find(x => x.id === id)?.name).filter(Boolean).join(' + ') + ' · ' + L(`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`, `${plural(num(p.sessions), 'session', 'sessions')} · ${plural(num(p.validityDays), 'day', 'days')}`)} trailing={<span className="row-end"><strong>{money(p.price)}</strong><Button size="sm" variant="ghost" icon={Share2} onClick={event => { event.stopPropagation(); setSharingPkg(p); }}>{L('نشر', 'Share')}</Button></span>} onClick={() => setEdit(p)} />)}</div>
       : <Empty icon={Package} title={L('لا باقات بعد', 'No packages yet')} text={L(`مثال: ${num(5)} قصات بسعر ${num(4)} — يدفع العميل مقدماً ويعود باستمرار`, `E.g. ${num(5)} haircuts for the price of ${num(4)} — the client pays upfront and keeps coming back`)} />}
+    {sharingPkg && <OfferShare offer={packageOffer(sharingPkg)} onClose={() => setSharingPkg(null)} />}
     {confirmDelete && <Confirm title={L('حذف الباقة؟', 'Delete package?')} text={L('الباقات المباعة سابقاً للعملاء تبقى صالحة.', 'Packages already sold to clients stay valid.')} danger confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirmDelete(false)} onConfirm={() => { remove('packages', v.id); setEdit(null); toast(L('تم الحذف', 'Deleted')); }} />}
   </Sheet>;
 }
@@ -246,7 +257,12 @@ function Coupons({ onClose }) {
     upsert('coupons', { ...v, code, value: Number(v.value), maxUses: Number(v.maxUses) || 0, used: Number(v.used) || 0, active: v.active !== false, id: v.id || uid(), createdAt: v.createdAt || localISO() });
     toast(L('تم الحفظ', 'Saved')); setEdit(null); setError('');
   };
-  const shareText = c => L(`🎁 عرض خاص من ${data.shopName || ''}: استخدم الكود ${c.code} واحصل على خصم ${c.type === 'amount' ? money(c.value) : `${num(c.value)}٪`}${c.expiresAt ? ` حتى ${dateLabel(c.expiresAt)}` : ''}.`, `🎁 Special offer from ${data.shopName || ''}: use code ${c.code} for ${c.type === 'amount' ? money(c.value) : `${num(c.value)}%`} off${c.expiresAt ? ` until ${dateLabel(c.expiresAt)}` : ''}.`);
+  const [sharing, setSharing] = useState(null);
+  const offerOf = c => {
+    const off = c.type === 'amount' ? money(c.value) : L(`${num(c.value)}٪`, `${num(c.value)}%`);
+    return { key: `coupon-${c.id}`, code: c.code, until: c.expiresAt ? L(`العرض حتى ${dateLabel(c.expiresAt)}`, `Valid until ${dateLabel(c.expiresAt)}`) : '',
+      title: L(`خصم ${off}`, `${off} off`), text: L(`استخدم الكود ${c.code} عند الدفع واحصل على خصم ${off}${c.expiresAt ? ` — حتى ${dateLabel(c.expiresAt)}` : ''}.`, `Use code ${c.code} at checkout for ${off} off${c.expiresAt ? ` — until ${dateLabel(c.expiresAt)}` : ''}.`) };
+  };
   return <Sheet title={L('أكواد الخصم', 'Discount codes')} subtitle={L('يكتبه العميل أو الكاشير عند الدفع', 'Entered at checkout')} onClose={onClose}
     footer={edit ? <>
       {v.id && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirmDelete(true)}>{L('حذف', 'Delete')}</Button>}
@@ -268,9 +284,10 @@ function Coupons({ onClose }) {
       return <Row key={c.id} leading={<span className={`dot-icon tone-${off ? 'muted' : 'green'}`}><TicketPercent size={18} /></span>}
         title={<span dir="ltr">{c.code}</span>}
         subtitle={`${c.type === 'amount' ? money(c.value) : `${num(c.value)}٪`} · ${L(`استُخدم ${num(s.uses)}${Number(c.maxUses) > 0 ? ` من ${num(c.maxUses)}` : ''}`, `used ${num(s.uses)}${Number(c.maxUses) > 0 ? ` of ${num(c.maxUses)}` : ''}`)} · ${L(`جلب ${money(s.revenue)}`, `brought ${money(s.revenue)}`)}${c.expiresAt ? ` · ${L('حتى', 'until')} ${dateLabel(c.expiresAt, { day: 'numeric', month: 'short' })}` : ''}`}
-        trailing={<span className="row-end">{off && <Badge tone="muted">{L('منتهي', 'Inactive')}</Badge>}<Button size="sm" variant="ghost" icon={Share2} onClick={event => { event.stopPropagation(); openExternal(`https://wa.me/?text=${encodeURIComponent(shareText(c))}`); }}>{L('نشر', 'Share')}</Button></span>}
+        trailing={<span className="row-end">{off && <Badge tone="muted">{L('منتهي', 'Inactive')}</Badge>}<Button size="sm" variant="ghost" icon={Share2} onClick={event => { event.stopPropagation(); setSharing(c); }}>{L('نشر', 'Share')}</Button></span>}
         onClick={() => setEdit(c)} />;
     })}</div> : <Empty icon={TicketPercent} title={L('لا أكواد بعد', 'No codes yet')} text={L('أنشئ كوداً لحملة انستغرام أو عيد، وتابع كم عميلاً استخدمه وكم جلب من دخل', 'Create a code for an Instagram or holiday campaign and track how many clients used it and the revenue it brought')} />}
+    {sharing && <OfferShare offer={offerOf(sharing)} onClose={() => setSharing(null)} />}
     {confirmDelete && <Confirm danger title={L('حذف الكود؟', 'Delete code?')} text={L('المواعيد التي استخدمته تبقى كما هي.', 'Appointments that used it stay as they are.')} confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirmDelete(false)} onConfirm={() => { remove('coupons', v.id); setEdit(null); toast(L('تم الحذف', 'Deleted')); }} />}
   </Sheet>;
 }

@@ -91,6 +91,7 @@ export function ClientForm({ client, onClose, onSaved }) {
       {women && <Field label={L('تركيبة الصبغة / الملف الفني', 'Color formula / technical notes')}><textarea rows="2" value={v.formula} onChange={set('formula')} placeholder={L('الرقم، الأوكسجين، المدة...', 'Shade, developer, timing...')} /></Field>}
       {women && <Field label={L('العنوان (للخدمة المنزلية)', 'Address (for home service)')}><input value={v.address} onChange={set('address')} /></Field>}
       <Field label={L('ملاحظات', 'Notes')}><textarea rows="2" value={v.notes} onChange={set('notes')} placeholder={L('التفضيلات...', 'Preferences...')} /></Field>
+      <Toggle checked={!v.noOffers} onChange={on => setV({ ...v, noOffers: !on })} label={L('يستقبل العروض', 'Receives offers')} hint={L('أوقفها إن طلب العميل عدم إرسال عروض (التذكير بالمواعيد يستمر)', 'Turn off if the client asked not to receive offers (appointment reminders continue)')} />
       <Toggle checked={v.photoConsent} onChange={on => setV({ ...v, photoConsent: on })} label={L('موافقة على التصوير', 'Photo consent')} hint={L('مطلوبة لحفظ صور قبل/بعد', 'Required to save before/after photos')} />
       <Alert>{error}</Alert>
     </div>

@@ -141,6 +141,12 @@ export const api = {
   deletionStatus: shop => rpc('shop_deletion_status', { p_shop: shop }),
   requestDeletion: (shop, reason) => rpc('request_shop_deletion', { p_shop: shop, p_reason: reason }),
   cancelDeletion: shop => rpc('cancel_shop_deletion', { p_shop: shop }),
+  // عرض لكل العملاء عبر واتساب (إضافة واتساب الذكي) — dry_run يعيد عدد المستلمين فقط.
+  broadcast: async (shop, payload) => {
+    const { data, error } = await supabase.functions.invoke('broadcast', { body: { shop_id: shop, ...payload } });
+    if (error) throw new Error((await error.context?.json?.().catch(() => null))?.error || error.message);
+    return data;
+  },
   registerDevice: (shop, device) => rpc('register_device', { p_shop: shop, p_device: device }),
   updateShop: (shop, { name, kind, phone, slug }) => rpc('update_shop', { p_shop: shop, p_name: name, p_kind: kind, p_phone: phone, p_slug: slug || '' }),
   team: shop => rpc('shop_team', { p_shop: shop }),
@@ -211,6 +217,8 @@ export const errorText = error => {
   if (/phone_taken/.test(message)) return L('هذا الرقم مسجّل لصالون آخر — إن كان صالونك فسجّل الدخول بحسابه، أو تواصل معنا', 'This number is registered to another salon — if it is yours, sign in with that account or contact us');
   if (/phone_required/.test(message)) return L('أدخل رقم واتساب صحيحاً للصالون (8 أرقام على الأقل)', 'Enter a valid salon WhatsApp number (at least 8 digits)');
   if (/reason_required/.test(message)) return L('اكتب سبب الحذف', 'Please write the reason for deletion');
+  if (/too_soon/.test(message)) return L('أُرسلت حملة خلال آخر 24 ساعة — حماية لرقمك من الحظر، جرّب غداً', 'A campaign was sent in the last 24 hours — to protect your number, try again tomorrow');
+  if (/addon_required/.test(message)) return L('الإرسال الجماعي يحتاج اشتراك واتساب الذكي', 'Bulk sending requires the Smart WhatsApp add-on');
   if (/too_many/.test(message)) return L('وصلت للحد الأقصى من الحجوزات اليوم، تواصل مع الصالون', 'You\'ve reached today\'s booking limit — please contact the salon');
   if (/shop_unavailable/.test(message)) return L('الحجز الأونلاين غير متاح حالياً لهذا الصالون', 'Online booking is currently unavailable for this salon');
   if (/grace_already_given/.test(message)) return L('سبق منح مهلة لهذه الفترة — جدّد الاشتراك أو أوقف الصالون', 'A grace period was already granted for this term — renew the subscription or suspend the salon');

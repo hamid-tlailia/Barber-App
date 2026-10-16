@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const root = new URL('./', import.meta.url);
 const common = readFileSync(new URL('functions/_shared/common.ts', root), 'utf8');
 
-for (const name of ['whatsapp-webhook', 'send-reminders', 'daily-report']) {
+for (const name of ['whatsapp-webhook', 'send-reminders', 'daily-report', 'broadcast']) {
   const source = readFileSync(new URL(`functions/${name}/index.ts`, root), 'utf8');
   const shared = /import\s*\{[^}]*\}\s*from\s*'\.\.\/_shared\/common\.ts';\n/;
   if (!shared.test(source)) throw new Error(`${name}: shared import not found`);
