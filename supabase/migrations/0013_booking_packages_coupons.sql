@@ -157,3 +157,6 @@ end $$;
 grant execute on function public.public_shop(text) to anon, authenticated;
 grant execute on function public.public_check_coupon(text, text) to anon, authenticated;
 grant execute on function public.public_book(text, text, text, text[], text, text, text, text, text, text) to anon, authenticated;
+
+-- تحديث ذاكرة واجهة البيانات حتى تظهر الدوال الجديدة فوراً.
+notify pgrst, 'reload schema';
