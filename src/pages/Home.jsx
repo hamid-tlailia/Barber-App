@@ -14,7 +14,7 @@ import { shareLink } from '../lib/files.js';
 const insightIcons = { reminders: BellRing, lapsed: UserRoundCheck, stock: Boxes, birthday: Cake, unpaid: Receipt, waitlist: ListChecks };
 
 export default function Home() {
-  const { data, setData, go, role, staffMember, can, patch, toast, shop } = useApp();
+  const { data, setData, go, role, staffMember, can, patch, toast, shop, account } = useApp();
   const link = cloudEnabled && shop?.slug ? bookingUrl(shop.slug) : '';
   const share = async () => { if (await shareLink(link, L(`احجز موعدك في ${data.shopName || ''}:`, `Book your appointment at ${data.shopName || ''}:`))) toast(L('تم نسخ رابط الحجز', 'Booking link copied')); };
   const today = localISO();
@@ -40,6 +40,7 @@ export default function Home() {
     }],
   }));
   const hour = now.getHours();
+  const firstName = account?.displayName?.trim().split(/\s+/)[0] || '';
   const team = staffOnDay(data.staff, today);
   // الحجز وفتح الموعد يتمّان هنا فوق الرئيسية بدون الانتقال لصفحة أخرى.
   const [wizard, setWizard] = useState(null);
@@ -48,7 +49,7 @@ export default function Home() {
 
   return <div className="stack-lg">
     <div className="hello">
-      <span>{hour < 12 ? L('صباح الخير', 'Good morning') : L('مساء الخير', 'Good evening')} 👋</span>
+      <span>{hour < 12 ? L('صباح الخير', 'Good morning') : L('مساء الخير', 'Good evening')}{firstName ? L(`، ${firstName}`, `, ${firstName}`) : ''} 👋</span>
       <small>{dateLabel(today, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</small>
     </div>
 

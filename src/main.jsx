@@ -143,11 +143,12 @@ function Gate() {
   const license = licenseState(shop, anchor);
   // حساب الموظف موقوف: لا نحمّل بيانات الصالون أصلاً.
   if (license.status === 'member_suspended') return <Lock shop={shop} data={null} license={license} shops={shops} switchShop={id => { prefs.set('shop', id); setShopId(id); }} />;
-  return <>{addingScreen}<Shell key={shop.id} shop={shop} shops={shops} license={license} admin={admin} theme={theme} notice={error}
+  const account = session?.user ? { email: session.user.email || '', name: session.user.user_metadata?.name || '' } : null;
+  return <>{addingScreen}<Shell key={shop.id} account={account} shop={shop} shops={shops} license={license} admin={admin} theme={theme} notice={error}
     reloadShops={loadShops} addBranch={() => setAdding(true)} switchShop={id => { prefs.set('shop', id); setShopId(id); }} /></>;
 }
 
-function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switchShop, addBranch }) {
+function Shell({ account, shop, shops, license, admin, theme, notice, reloadShops, switchShop, addBranch }) {
   const onRemoteBookings = useCallback(list => {
     const a = list[0];
     const name = a.clientName || L('عميل جديد', 'New client');
@@ -244,6 +245,8 @@ function Shell({ shop, shops, license, admin, theme, notice, reloadShops, switch
     data, setData, ...helpers, shop, role, license, vocab, go, intent, setIntent, toast: showToast, theme, sync, syncNow,
     reloadShops, switchShop, addBranch, shops, admin, enablePush, refresh: () => setTick(t => t + 1), staffMember, can: name => allowed.includes(name),
     isManager: role === 'owner' || role === 'manager',
+    // من يستخدم التطبيق الآن: اسم ملفه في الفريق إن كان موظفاً، وإلا الاسم المسجّل في حسابه.
+    account: account ? { ...account, displayName: (staffMember && !staffMember.unlinked && staffMember.name) || account.name || account.email.split('@')[0] } : null,
   };
   const Page = PAGES[page].component;
   // من ليس لديه أقسام في «المزيد» (مثل الموظف) يرى الإعدادات مكانها.

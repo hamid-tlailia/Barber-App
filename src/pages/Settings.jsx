@@ -6,7 +6,7 @@ import {
 import { PHONE_ERROR, validPhone, clientName, dateLabel, findDuplicate, packageServices, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.js';
-import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
+import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { notifyNow, pushState, pushSupported } from '../lib/native.js';
 import { L, LANG, isEn, setLang } from '../i18n.js';
@@ -17,7 +17,7 @@ const weekdays = isEn
 const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
 
 export default function Settings() {
-  const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh, enablePush, toast, isManager } = useApp();
+  const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh, enablePush, toast, isManager, account, data, staffMember } = useApp();
   const [push, setPush] = useState(pushState);
   const [open, setOpen] = useState(null);
   useEffect(() => { if (intent?.open) setOpen(intent.open); if (intent) setIntent(null); }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -58,6 +58,14 @@ export default function Settings() {
           subtitle={{ registered: L('مفعّلة على هذا الهاتف ✓', 'Enabled on this phone ✓'), registering: L('جارٍ التسجيل...', 'Registering...'), denied: L('مرفوضة — فعّلها من إعدادات الهاتف ← التطبيقات ← مِقص ← الإشعارات', 'Blocked — enable it in phone Settings → Apps → Miqass → Notifications'), 'not-granted': L('لم يُمنح الإذن بعد', 'Permission not granted yet'), error: L(`خطأ: ${push.error}`, `Error: ${push.error}`), unknown: L('غير مفعّلة', 'Not enabled') }[push.status] || push.status}
           trailing={<Button size="sm" variant={push.status === 'registered' ? 'ghost' : 'primary'} onClick={async () => { setPush({ status: 'registering' }); const r = await enablePush(); setTimeout(() => setPush({ ...pushState }), 1500); setPush({ ...r }); }}>{push.status === 'registered' ? L('إعادة', 'Retry') : L('تفعيل', 'Enable')}</Button>} />
         <Row title={L('إرسال إشعار تجريبي', 'Send a test notification')} subtitle={L('للتأكد أن الهاتف يعرض الإشعارات', 'Check that this phone shows notifications')} onClick={() => { notifyNow(L('📅 إشعار تجريبي', '📅 Test notification'), L('هكذا سيظهر الحجز الجديد', 'This is how a new booking will appear')); toast(L('أُرسل — انظر شريط الإشعارات', 'Sent — check your notification bar')); }} />
+      </div>
+    </Section>}
+    {account && <Section title={L('حسابي', 'My account')}>
+      <div className="list account-card">
+        <Row leading={<Avatar name={account.displayName} />} title={account.displayName} subtitle={<span dir="ltr">{account.email}</span>} />
+        <Row title={L('الصلاحية', 'Role')} trailing={<Badge tone={role === 'owner' ? 'orange' : 'blue'}>{roleText[role] || role}</Badge>} />
+        <Row title={L('الصالون', 'Salon')} trailing={<strong>{data.shopName || shop.name}</strong>} />
+        {role === 'staff' && <Row title={L('ملفي في الفريق', 'My team profile')} trailing={staffMember && !staffMember.unlinked ? <strong>{staffMember.name}</strong> : <Badge tone="red">{L('غير مرتبط — راجع صاحب الصالون', 'Not linked — ask the salon owner')}</Badge>} />}
       </div>
     </Section>}
     <Section title={L('المظهر', 'Appearance')}>
