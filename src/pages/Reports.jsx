@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Ban, CalendarCheck2, CircleDollarSign, Download, FileSpreadsheet, FileText, Gauge, HandCoins, Receipt, Send, ShoppingBag, Sparkles, UserCheck, UserPlus, UserX, Wallet,
 } from 'lucide-react';
-import { clientName as nameOfClient, addDays, amountPaid, appointmentTotal, dateLabel, daysBetween, localISO, money, num, paymentText, serviceNames, sortAppointments, statusText, timeLabel, toCSV } from '../data.js';
+import { clientName as nameOfClient, sourceLabel, addDays, amountPaid, appointmentTotal, dateLabel, daysBetween, localISO, money, num, paymentText, serviceNames, sortAppointments, statusText, timeLabel, toCSV } from '../data.js';
 import { commissions, dailyReport, incomeIn, roi, utilization } from '../smart.js';
 import { Bars, Button, Field, Meter, Row, Section, Segmented, Stat, download, openExternal, useApp } from '../ui.jsx';
 import { exportDocx, exportXlsx } from '../lib/exporters.js';
@@ -86,7 +86,23 @@ export function buildReport(data, from, to, today = localISO()) {
     value: totals[k] || 0,
   }));
 
-  return { appts, done, statuses, served, walkIns, newClients, payments, tips: sum(tipsList), tipsList, income, revenue, byMethod, redeemed, sales, salesByKind, productCost, expensesList, expenses, expensesByCategory, staff, topServices, unpaid, avgTicket, use, chart, span, from, to };
+  // مصادر العملاء الجدد في الفترة: كم عميل من كل قناة وكم دفعوا خلالها.
+  const sources = {};
+  for (const c of newClients) {
+    const key = c.source || '';
+    sources[key] = sources[key] || { count: 0, revenue: 0 };
+    sources[key].count++;
+    sources[key].revenue += data.appointments.filter(a => a.clientId === c.id).flatMap(a => a.payments || []).filter(p => p.kind !== 'tip' && within(p.at)).reduce((s, p) => s + Number(p.amount || 0), 0);
+  }
+  // أكواد الخصم المستخدمة في مواعيد الفترة.
+  const coupons = {};
+  for (const a of appts.filter(x => x.couponCode && x.status !== 'cancelled')) {
+    coupons[a.couponCode] = coupons[a.couponCode] || { uses: 0, discount: 0, revenue: 0 };
+    coupons[a.couponCode].uses++;
+    coupons[a.couponCode].discount += Number(a.discount || 0);
+    coupons[a.couponCode].revenue += amountPaid(a);
+  }
+  return { sources, coupons, appts, done, statuses, served, walkIns, newClients, payments, tips: sum(tipsList), tipsList, income, revenue, byMethod, redeemed, sales, salesByKind, productCost, expensesList, expenses, expensesByCategory, staff, topServices, unpaid, avgTicket, use, chart, span, from, to };
 }
 
 // جداول التقرير الكاملة — نفس المحتوى لـ Excel و Word.
@@ -209,6 +225,8 @@ export default function Reports() {
 
     {r.staff.length > 0 && <Section title={L('أداء الفريق', 'Team performance')}><div className="list">{r.staff.map(s => <Row key={s.member.id} title={s.member.name} subtitle={L(`${num(s.services)} خدمة${s.tips ? ` · بقشيش ${money(s.tips)}` : ''} · عمولة ${money(s.commission)}`, `${num(s.services)} services${s.tips ? ` · tips ${money(s.tips)}` : ''} · commission ${money(s.commission)}`)} trailing={<strong>{money(s.revenue)}</strong>} />)}</div></Section>}
 
+    {r.newClients.length > 0 && <Section title={L(`من أين جاء العملاء الجدد (${num(r.newClients.length)})`, `Where new clients came from (${num(r.newClients.length)})`)}><div className="list">{Object.entries(r.sources).sort((a, b) => b[1].count - a[1].count).map(([id, s]) => <Row key={id || 'none'} title={sourceLabel(id)} subtitle={L(`دفعوا ${money(s.revenue)}`, `Paid ${money(s.revenue)}`)} trailing={<span className="row-end"><strong>{num(s.count)}</strong><small>{num(Math.round(s.count / r.newClients.length * 100))}%</small></span>} />)}</div></Section>}
+    {Object.keys(r.coupons).length > 0 && <Section title={L('أكواد الخصم', 'Discount codes')}><div className="list">{Object.entries(r.coupons).sort((a, b) => b[1].uses - a[1].uses).map(([code, s]) => <Row key={code} title={<span dir="ltr">{code}</span>} subtitle={L(`خصم ${money(s.discount)} · جلب ${money(s.revenue)}`, `Discount ${money(s.discount)} · brought ${money(s.revenue)}`)} trailing={<strong>{L(`${num(s.uses)} مرة`, `${num(s.uses)}×`)}</strong>} />)}</div></Section>}
     {r.topServices.length > 0 && <Section title={L('الخدمات الأكثر دخلاً', 'Top services by revenue')}><div className="list">{r.topServices.slice(0, 8).map(([name, s]) => <Row key={name} title={name} subtitle={<Meter value={s.revenue} max={r.topServices[0][1].revenue} />} trailing={<span className="row-end"><strong>{money(s.revenue)}</strong><small>{num(s.count)}×</small></span>} />)}</div></Section>}
 
     {Object.keys(r.expensesByCategory).length > 0 && <Section title={L('المصروفات حسب الفئة', 'Expenses by category')}><div className="list">{Object.entries(r.expensesByCategory).sort((a, b) => b[1] - a[1]).map(([k, v]) => <Row key={k} title={k} trailing={<strong className="red">{money(v)}</strong>} />)}</div></Section>}

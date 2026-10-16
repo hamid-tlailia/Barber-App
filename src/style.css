@@ -165,6 +165,7 @@ input[type='checkbox'] { width: auto; min-height: 0; }
 .tone-blue { --tone: var(--blue); --tone-soft: var(--blue-soft); }
 .tone-purple { --tone: var(--purple); --tone-soft: var(--purple-soft); }
 .tone-orange { --tone: var(--orange); --tone-soft: var(--orange-soft); }
+.tone-muted { --tone: var(--muted); --tone-soft: var(--surface-3); }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; }
 .stats-3 { grid-template-columns: repeat(3, 1fr); }
@@ -668,3 +669,9 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 .select-text small { color: var(--muted); font-size: 13px; }
 .select-trailing { color: var(--accent-ink); font-weight: 700; font-size: 14px; white-space: nowrap; }
 .select-empty { padding: 18px; }
+.code-row { display: flex; gap: 8px; align-items: center; }
+.code-row input { flex: 1; text-transform: uppercase; letter-spacing: .06em; }
+/* شارة عدد المواعيد التي لم تكتمل اليوم */
+.tab-icon { position: relative; display: inline-flex; }
+.tab-badge { position: absolute; top: -4px; inset-inline-end: 4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: grid; place-items: center; background: var(--red); color: #fff; font-size: 11px; font-weight: 800; line-height: 1; border: 2px solid var(--surface); font-variant-numeric: tabular-nums; }
+.sidebar .tab-badge { top: -6px; inset-inline-end: -8px; }

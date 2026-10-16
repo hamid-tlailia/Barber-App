@@ -212,7 +212,8 @@ function Shell({ account, shop, shops, license, admin, theme, notice, reloadShop
   // تسجيل الجهاز لإشعارات Firebase (حجز جديد حتى والتطبيق مغلق).
   const enablePush = useCallback(() => registerPush(
     token => api.saveDeviceToken(shop.id, token).catch(() => {}),
-    payload => { if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId, date: payload.date }); },
+    // «أنهى الموظف موعداً» يفتح شاشة الدفع لذلك الموعد مباشرة، وباقي الإشعارات تفتح الموعد.
+    payload => { if (payload.kind === 'collect' && payload.appointmentId) goRef.current?.('checkout', { open: payload.appointmentId }); else if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId, date: payload.date }); },
   ), [shop.id]);
   useEffect(() => { if (cloudEnabled && shop.id !== 'local') enablePush(); }, [enablePush]);
   useEffect(() => { if (cloudEnabled && role === 'owner' && shop.id !== 'local') deviceId().then(id => id && api.registerDevice(shop.id, id).catch(() => {})); }, [shop.id, role]);
@@ -249,6 +250,11 @@ function Shell({ account, shop, shops, license, admin, theme, notice, reloadShop
     account: account ? { ...account, displayName: (staffMember && !staffMember.unlinked && staffMember.name) || account.name || account.email.split('@')[0] } : null,
   };
   const Page = PAGES[page].component;
+  // شارة المواعيد: مواعيد اليوم التي لم تكتمل بعد (للموظف: مواعيده فقط).
+  const todayISO = localISO();
+  const openToday = data.appointments.filter(a => a.date === todayISO && ['pending', 'confirmed', 'arrived'].includes(a.status)
+    && (role !== 'staff' || (staffMember && (a.staffId === staffMember.id || (a.items || []).some(i => i.staffId === staffMember.id))))).length;
+  const badgeFor = id => (id === 'appointments' && openToday > 0 ? <b className="tab-badge">{openToday > 99 ? '99+' : openToday}</b> : null);
   // من ليس لديه أقسام في «المزيد» (مثل الموظف) يرى الإعدادات مكانها.
   const tabs = TABS.map(id => (id === 'more' && !allowed.includes('more') ? 'settings' : id)).filter(id => allowed.includes(id));
   const SyncIcon = !cloudEnabled ? null : sync.state === 'error' || sync.state === 'offline' ? CloudOff : sync.state === 'syncing' ? RefreshCw : Cloud;
@@ -259,7 +265,7 @@ function Shell({ account, shop, shops, license, admin, theme, notice, reloadShop
         <div className="brand"><span className="brand-mark"><Scissors size={20} /></span><span><strong>{data.shopName || 'مِقص'}</strong><small>{shops.length > 1 ? L('تبديل الفرع من الإعدادات', 'Switch branch in Settings') : vocab.shop}</small></span></div>
         <nav>{allowed.filter(id => !['more', 'settings', 'admin'].includes(id)).map(id => {
           const Icon = PAGES[id].icon;
-          return <button type="button" key={id} className={page === id ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{id === 'clients' ? vocab.clients : PAGES[id].label}</span></button>;
+          return <button type="button" key={id} className={page === id ? 'active' : ''} onClick={() => go(id)}><span className="tab-icon"><Icon size={20} />{badgeFor(id)}</span><span>{id === 'clients' ? vocab.clients : PAGES[id].label}</span></button>;
         })}</nav>
         <div className="sidebar-foot">
           <button type="button" onClick={() => theme.setMode(theme.theme === 'dark' ? 'light' : 'dark')}>{theme.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}<span>{theme.theme === 'dark' ? L('الوضع النهاري', 'Light mode') : L('الوضع الليلي', 'Dark mode')}</span></button>
@@ -284,7 +290,7 @@ function Shell({ account, shop, shops, license, admin, theme, notice, reloadShop
 
       <nav className="tabbar">{tabs.map(id => {
         const Icon = PAGES[id].icon;
-        return <button type="button" key={id} className={page === id || (id === 'more' && ['messages', 'reports', 'inventory', 'team'].includes(page)) ? 'active' : ''} onClick={() => go(id)}><Icon size={22} /><span>{id === 'clients' ? vocab.clients : TAB_LABELS[id]?.() || PAGES[id].label.split(' ')[0]}</span></button>;
+        return <button type="button" key={id} className={page === id || (id === 'more' && ['messages', 'reports', 'inventory', 'team'].includes(page)) ? 'active' : ''} onClick={() => go(id)}><span className="tab-icon"><Icon size={22} />{badgeFor(id)}</span><span>{id === 'clients' ? vocab.clients : TAB_LABELS[id]?.() || PAGES[id].label.split(' ')[0]}</span></button>;
       })}</nav>
       <Toast toast={toast} onClose={closeToast} />
     </div>

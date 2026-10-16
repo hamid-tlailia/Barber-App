@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
-  Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
+  Plus, QrCode, Scissors, Share2, ShieldCheck, SlidersHorizontal, Store, TicketPercent, Trash2, Upload,
 } from 'lucide-react';
-import { PHONE_ERROR, validPhone, clientName, dateLabel, findDuplicate, packageServices, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
+import { PHONE_ERROR, validPhone, clientName, dateLabel, findDuplicate, packageServices, amountPaid, normalCode, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.js';
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
@@ -34,6 +34,7 @@ export default function Settings() {
     { title: L('العملاء والرسائل', 'Clients & messages'), items: [
       cloudEnabled && { id: 'booking', icon: Link2, label: L('رابط الحجز الأونلاين', 'Online booking link') },
       cloudEnabled && owner && { id: 'whatsapp', icon: Bot, label: L('واتساب الذكي', 'Smart WhatsApp') },
+      { id: 'coupons', icon: TicketPercent, label: L('أكواد الخصم', 'Discount codes'), subtitle: L('للحملات والعروض — مع عدد الاستخدام والدخل', 'For campaigns and offers — with uses and revenue') },
       { id: 'smart', icon: SlidersHorizontal, label: L('القواعد الذكية', 'Smart rules') },
     ] },
     { title: L('الحساب', 'Account'), items: [
@@ -43,7 +44,7 @@ export default function Settings() {
       cloudEnabled && owner && { id: 'delete', icon: Trash2, label: L('حذف الصالون والحساب', 'Delete salon and account'), danger: true },
     ] },
   ];
-  const Sheets = { shop: ShopSettings, services: ServicesSettings, hours: HoursSettings, packages: PackagesSettings, gifts: GiftCards, booking: BookingSettings, smart: SmartSettings, whatsapp: WhatsAppSettings, audit: AuditLog, backup: Backup, plan: Plan, delete: DeleteShop };
+  const Sheets = { shop: ShopSettings, services: ServicesSettings, hours: HoursSettings, packages: PackagesSettings, gifts: GiftCards, booking: BookingSettings, smart: SmartSettings, whatsapp: WhatsAppSettings, audit: AuditLog, backup: Backup, plan: Plan, delete: DeleteShop, coupons: Coupons };
   const Current = open && Sheets[open];
   const setDigits = value => { if (value === digitStyle) return; setDigitStyle(value); refresh(); };
   const changeLang = value => { if (value !== LANG) setLang(value); };
@@ -223,6 +224,54 @@ function PackagesSettings({ onClose }) {
     </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={packageServices(p).map(id => data.services.find(x => x.id === id)?.name).filter(Boolean).join(' + ') + ' · ' + L(`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`, `${plural(num(p.sessions), 'session', 'sessions')} · ${plural(num(p.validityDays), 'day', 'days')}`)} trailing={<strong>{money(p.price)}</strong>} onClick={() => setEdit(p)} />)}</div>
       : <Empty icon={Package} title={L('لا باقات بعد', 'No packages yet')} text={L(`مثال: ${num(5)} قصات بسعر ${num(4)} — يدفع العميل مقدماً ويعود باستمرار`, `E.g. ${num(5)} haircuts for the price of ${num(4)} — the client pays upfront and keeps coming back`)} />}
     {confirmDelete && <Confirm title={L('حذف الباقة؟', 'Delete package?')} text={L('الباقات المباعة سابقاً للعملاء تبقى صالحة.', 'Packages already sold to clients stay valid.')} danger confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirmDelete(false)} onConfirm={() => { remove('packages', v.id); setEdit(null); toast(L('تم الحذف', 'Deleted')); }} />}
+  </Sheet>;
+}
+
+// أكواد الخصم للحملات: إنشاء، إيقاف، ومتابعة كم استُخدم كل كود وكم جلب من دخل.
+function Coupons({ onClose }) {
+  const { data, upsert, remove, toast } = useApp();
+  const [edit, setEdit] = useState(null);
+  const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const v = edit || {};
+  const stats = c => {
+    const appts = data.appointments.filter(a => a.couponId === c.id);
+    return { uses: appts.length, revenue: appts.reduce((s, a) => s + amountPaid(a), 0), discount: appts.reduce((s, a) => s + Number(a.discount || 0), 0), clients: new Set(appts.map(a => a.clientId)).size };
+  };
+  const save = () => {
+    const code = normalCode(v.code);
+    if (!/^[A-Z0-9_-]{3,20}$/.test(code)) { setError(L('الكود من 3 إلى 20 حرفاً إنجليزياً أو رقماً (مثل EID20)', 'The code must be 3–20 English letters or digits (e.g. EID20)')); return; }
+    if (data.coupons.some(c => c.id !== v.id && normalCode(c.code) === code)) { setError(L('هذا الكود موجود', 'This code already exists')); return; }
+    if (!(Number(v.value) > 0) || (v.type !== 'amount' && Number(v.value) > 100)) { setError(L('قيمة الخصم غير صحيحة (النسبة بين 1 و100)', 'Invalid discount value (percentage between 1 and 100)')); return; }
+    upsert('coupons', { ...v, code, value: Number(v.value), maxUses: Number(v.maxUses) || 0, used: Number(v.used) || 0, active: v.active !== false, id: v.id || uid(), createdAt: v.createdAt || localISO() });
+    toast(L('تم الحفظ', 'Saved')); setEdit(null); setError('');
+  };
+  const shareText = c => L(`🎁 عرض خاص من ${data.shopName || ''}: استخدم الكود ${c.code} واحصل على خصم ${c.type === 'amount' ? money(c.value) : `${num(c.value)}٪`}${c.expiresAt ? ` حتى ${dateLabel(c.expiresAt)}` : ''}.`, `🎁 Special offer from ${data.shopName || ''}: use code ${c.code} for ${c.type === 'amount' ? money(c.value) : `${num(c.value)}%`} off${c.expiresAt ? ` until ${dateLabel(c.expiresAt)}` : ''}.`);
+  return <Sheet title={L('أكواد الخصم', 'Discount codes')} subtitle={L('يكتبه العميل أو الكاشير عند الدفع', 'Entered at checkout')} onClose={onClose}
+    footer={edit ? <>
+      {v.id && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirmDelete(true)}>{L('حذف', 'Delete')}</Button>}
+      <div className="spacer" /><Button variant="ghost" onClick={() => { setEdit(null); setError(''); }}>{L('رجوع', 'Back')}</Button><Button icon={Check} onClick={save}>{L('حفظ', 'Save')}</Button>
+    </> : <Button block icon={Plus} onClick={() => setEdit({ code: '', type: 'percent', value: 10, maxUses: 0, expiresAt: '', active: true })}>{L('كود جديد', 'New code')}</Button>}>
+    {edit ? <div className="stack">
+      <Field label={L('الكود', 'Code')} required hint={L('حروف إنجليزية وأرقام — مثل EID20 أو INSTA10', 'English letters and digits — e.g. EID20 or INSTA10')}><input dir="ltr" className="code-input" autoFocus value={v.code} onChange={e => { setEdit({ ...v, code: e.target.value.toUpperCase() }); setError(''); }} placeholder="EID20" /></Field>
+      <Field label={L('نوع الخصم', 'Discount type')}><Segmented items={[{ id: 'percent', label: L('نسبة ٪', 'Percent %') }, { id: 'amount', label: L('مبلغ ثابت', 'Fixed amount') }]} value={v.type} onChange={type => setEdit({ ...v, type })} /></Field>
+      <div className="grid-2">
+        <Field label={v.type === 'amount' ? L('المبلغ (ر.ق)', 'Amount (QAR)') : L('النسبة ٪', 'Percent %')}><NumInput value={v.value} onChange={e => setEdit({ ...v, value: e.target.value })} /></Field>
+        <Field label={L('حد الاستخدام', 'Usage limit')} hint={L('0 = بلا حد', '0 = unlimited')}><NumInput value={v.maxUses} onChange={e => setEdit({ ...v, maxUses: e.target.value })} /></Field>
+      </div>
+      <Field label={L('ينتهي في (اختياري)', 'Expires on (optional)')}><input type="date" value={v.expiresAt || ''} min={localISO()} onChange={e => setEdit({ ...v, expiresAt: e.target.value })} /></Field>
+      <Toggle checked={v.active !== false} onChange={active => setEdit({ ...v, active })} label={L('مفعّل', 'Active')} />
+      <Alert>{error}</Alert>
+    </div> : data.coupons.length ? <div className="list">{data.coupons.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(c => {
+      const s = stats(c);
+      const off = c.active === false || (c.expiresAt && c.expiresAt < localISO()) || (Number(c.maxUses) > 0 && Number(c.used || 0) >= Number(c.maxUses));
+      return <Row key={c.id} leading={<span className={`dot-icon tone-${off ? 'muted' : 'green'}`}><TicketPercent size={18} /></span>}
+        title={<span dir="ltr">{c.code}</span>}
+        subtitle={`${c.type === 'amount' ? money(c.value) : `${num(c.value)}٪`} · ${L(`استُخدم ${num(s.uses)}${Number(c.maxUses) > 0 ? ` من ${num(c.maxUses)}` : ''}`, `used ${num(s.uses)}${Number(c.maxUses) > 0 ? ` of ${num(c.maxUses)}` : ''}`)} · ${L(`جلب ${money(s.revenue)}`, `brought ${money(s.revenue)}`)}${c.expiresAt ? ` · ${L('حتى', 'until')} ${dateLabel(c.expiresAt, { day: 'numeric', month: 'short' })}` : ''}`}
+        trailing={<span className="row-end">{off && <Badge tone="muted">{L('منتهي', 'Inactive')}</Badge>}<Button size="sm" variant="ghost" icon={Share2} onClick={event => { event.stopPropagation(); openExternal(`https://wa.me/?text=${encodeURIComponent(shareText(c))}`); }}>{L('نشر', 'Share')}</Button></span>}
+        onClick={() => setEdit(c)} />;
+    })}</div> : <Empty icon={TicketPercent} title={L('لا أكواد بعد', 'No codes yet')} text={L('أنشئ كوداً لحملة انستغرام أو عيد، وتابع كم عميلاً استخدمه وكم جلب من دخل', 'Create a code for an Instagram or holiday campaign and track how many clients used it and the revenue it brought')} />}
+    {confirmDelete && <Confirm danger title={L('حذف الكود؟', 'Delete code?')} text={L('المواعيد التي استخدمته تبقى كما هي.', 'Appointments that used it stay as they are.')} confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirmDelete(false)} onConfirm={() => { remove('coupons', v.id); setEdit(null); toast(L('تم الحذف', 'Deleted')); }} />}
   </Sheet>;
 }
 

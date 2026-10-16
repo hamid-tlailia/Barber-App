@@ -4,7 +4,7 @@ import {
   TicketPercent, Trash2, Vault, WalletCards,
 } from 'lucide-react';
 import {
-  addDays, amountPaid, businessDay, packageServices, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
+  addDays, amountPaid, businessDay, checkCoupon, couponDiscount, normalCode, packageServices, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
   paymentText, serviceNames, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { expectedCash, incomeIn } from '../smart.js';
@@ -93,6 +93,10 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
   const pkg = client && !packageUsed && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && (a.items || []).some(i => packageServices(p).includes(i.serviceId)) && (!p.expiresAt || p.expiresAt >= localISO()));
   const [usePackage, setUsePackage] = useState(Boolean(pkg) && !depositMode);
   const [discount, setDiscount] = useState(Number(a.discount || 0));
+  // كود الخصم: يُحسب الخصم منه ويُسجَّل استخدامه عند الدفع (مرة واحدة لكل موعد).
+  const [codeText, setCodeText] = useState(a.couponCode || '');
+  const [coupon, setCoupon] = useState(a.couponId ? data.coupons.find(c => c.id === a.couponId) || null : null);
+  const [codeError, setCodeError] = useState('');
   const [method, setMethod] = useState('cash');
   const [giftCode, setGiftCode] = useState('');
   const [tip, setTip] = useState(0);
@@ -124,7 +128,9 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
     if (Number(tip) > 0) payments.push({ id: uid(), amount: Number(tip), method, at: today, kind: 'tip', staffId: a.staffId, ...(gift ? { giftId: gift.id } : {}) });
     setData(prev => ({
       ...prev,
-      appointments: prev.appointments.map(x => x.id === a.id ? { ...x, payments, discount: depositMode ? x.discount : discount } : x),
+      appointments: prev.appointments.map(x => x.id === a.id ? { ...x, payments, discount: depositMode ? x.discount : discount, ...(depositMode ? {} : { couponId: coupon?.id || '', couponCode: coupon?.code || '' }) } : x),
+      // يُحسب استخدام الكود مرة واحدة لكل موعد، ويُرجَع إذا أُزيل.
+      coupons: depositMode || (coupon?.id || '') === (a.couponId || '') ? prev.coupons : prev.coupons.map(c => c.id === coupon?.id ? { ...c, used: Number(c.used || 0) + 1 } : c.id === a.couponId ? { ...c, used: Math.max(0, Number(c.used || 0) - 1) } : c),
       clientPackages: packageItem ? prev.clientPackages.map(p => p.id === pkg.id ? { ...p, used: p.used + 1 } : p) : prev.clientPackages,
       giftCards: gift ? prev.giftCards.map(g => g.id === gift.id ? { ...g, balance: g.balance - value - Number(tip || 0) } : g) : prev.giftCards,
     }));
@@ -140,6 +146,18 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
         {already > 0 && <Row title={L('مدفوع سابقاً', 'Previously paid')} trailing={<strong className="green">−{money(already)}</strong>} />}
       </div>
       {pkg && !depositMode && <label className="toggle-row"><span><strong>{L(`استخدام جلسة من «${pkg.name}»`, `Use a session from “${pkg.name}”`)}</strong><small>{L(`متبقٍ ${pkg.total - pkg.used} من ${pkg.total}`, `${pkg.total - pkg.used} of ${pkg.total} left`)}</small></span><input type="checkbox" className="toggle" checked={usePackage} onChange={e => setUsePackage(e.target.checked)} /></label>}
+      {!depositMode && data.coupons.length > 0 && <Field label={L('كود خصم', 'Discount code')} hint={coupon ? L(`«${coupon.code}» — خصم ${coupon.type === 'amount' ? money(coupon.value) : `${num(coupon.value)}٪`}`, `“${coupon.code}” — ${coupon.type === 'amount' ? money(coupon.value) : `${num(coupon.value)}%`} off`) : ''}>
+        <div className="code-row">
+          <input dir="ltr" className="code-input" value={codeText} onChange={e => { setCodeText(e.target.value.toUpperCase()); setCodeError(''); }} placeholder="EID20" disabled={Boolean(coupon)} />
+          {coupon ? <Button variant="ghost" onClick={() => { setCoupon(null); setCodeText(''); setDiscount(0); }}>{L('إزالة', 'Remove')}</Button>
+            : <Button variant="secondary" disabled={!codeText.trim()} onClick={() => {
+              const result = a.couponId && normalCode(a.couponCode) === normalCode(codeText) ? { coupon: data.coupons.find(c => c.id === a.couponId) } : checkCoupon(data.coupons, codeText, localISO());
+              if (!result.coupon) { setCodeError(result.error); return; }
+              setCoupon(result.coupon); setCodeText(result.coupon.code); setDiscount(couponDiscount(result.coupon, gross));
+            }}>{L('تطبيق', 'Apply')}</Button>}
+        </div>
+        {codeError && <small className="red">{codeError}</small>}
+      </Field>}
       {!depositMode && <Field label={L('خصم', 'Discount')}><div className="quick-amounts">
         {[0, 10, 20].map(p => <button type="button" key={p} className={`chip ${discount === Math.round(gross * p / 100) ? 'active' : ''}`} onClick={() => setDiscount(Math.round(gross * p / 100))}>{p ? L(`${p}٪`, `${p}%`) : L('بدون', 'None')}</button>)}
         <div className="money-input"><NumInput min="0" value={discount} onChange={e => setDiscount(Math.min(gross, Number(e.target.value)))} /><span>{L('ر.ق', 'QAR')}</span></div>
@@ -173,7 +191,7 @@ export function InvoiceSheet({ appointment: a, onClose, canUndo }) {
       <header><strong>{data.shopName}</strong><small dir="ltr">{number}</small></header>
       <div className="invoice-meta"><span>{client?.name || (a.clientId ? deletedName : '')}</span><span>{dateLabel(a.date)} · {timeLabel(a.time)}</span></div>
       {(a.items || []).map((item, i) => <div className="invoice-line" key={i}><span>{item.name}</span><strong>{money(item.price)}</strong></div>)}
-      {Number(a.discount) > 0 && <div className="invoice-line"><span>{L('خصم', 'Discount')}</span><strong>−{money(a.discount)}</strong></div>}
+      {Number(a.discount) > 0 && <div className="invoice-line"><span>{L('خصم', 'Discount')}{a.couponCode ? ` (${a.couponCode})` : ''}</span><strong>−{money(a.discount)}</strong></div>}
       <div className="invoice-line total"><span>{L('الإجمالي', 'Total')}</span><strong>{money(appointmentTotal(a))}</strong></div>
       {(a.payments || []).map(p => <div className="invoice-line muted" key={p.id}><span>{p.kind === 'tip' ? L('إكرامية', 'Tip') : p.kind === 'deposit' ? L('عربون', 'Deposit') : L('دفعة', 'Payment')} · {paymentText[p.method]}</span><span>{money(p.amount)}</span></div>)}
       <footer>{L('شكراً لزيارتك — نتطلع لرؤيتك مجدداً', 'Thank you for your visit — we look forward to seeing you again')}</footer>

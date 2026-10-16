@@ -143,6 +143,18 @@ async function activity(sa: ServiceAccount, payload: any) {
   if (collection === 'appointments' && action === 'update' && /^(عدّل موعداً|غيّر حالة موعد إلى «(وصل|قيد الخدمة|مؤكد)»)$/.test(text)) return 0;
   const members: { user_id: string; role: string; display_name: string | null }[] = await rest(`shop_members?select=user_id,role,display_name&shop_id=eq.${shop_id}`);
   const actor = members?.find(m => m.user_id === user_id)?.display_name ?? 'موظف';
+  // موظف أنهى موعداً: إشعار «للتحصيل» يفتح شاشة الدفع باسم الزبون، لمن يستلم المال (المالك والمدير والاستقبال).
+  if (collection === 'appointments' && action === 'update' && before?.status !== 'completed' && after?.status === 'completed') {
+    const total = Math.max(0, (after.items ?? []).reduce((sum: number, i: any) => sum + Number(i.price || 0), 0) - Number(after.discount || 0));
+    const paid = (after.payments ?? []).filter((p: any) => p.kind !== 'tip').reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+    const [client] = after.clientId ? await rest(`records?select=data&shop_id=eq.${shop_id}&collection=eq.clients&id=eq.${encodeURIComponent(after.clientId)}&limit=1`) : [];
+    const cashiers = (members ?? []).filter(m => ['owner', 'manager', 'reception'].includes(m.role) && m.user_id !== user_id).map(m => m.user_id);
+    const services = (after.items ?? []).map((i: { name: string }) => i.name).join(' + ');
+    const due = total - paid;
+    return sendTo(sa, await tokensOf(cashiers, shop_id), `✂️ ${actor} أنهى موعد ${client?.data?.name ?? 'عميل'}`,
+      `${services}${due > 0 ? ` · المستحق ${money(due)} — اضغط للتحصيل` : ' · مدفوع ✓'}`,
+      { kind: due > 0 ? 'collect' : 'activity', appointmentId: String(after.id ?? ''), shopId: String(shop_id) });
+  }
   const owners = (members ?? []).filter(m => m.role === 'owner').map(m => m.user_id);
   return sendTo(sa, await tokensOf(owners, shop_id), `👤 ${actor}`, text, { kind: 'activity', shopId: String(shop_id) });
 }

@@ -6,7 +6,7 @@ export const DATA_VERSION = 2;
 
 export const COLLECTIONS = [
   'clients', 'services', 'staff', 'products', 'stockMovements', 'appointments', 'packages',
-  'clientPackages', 'giftCards', 'waitlist', 'drawers', 'messages', 'photos', 'expenses', 'sales',
+  'clientPackages', 'giftCards', 'waitlist', 'drawers', 'messages', 'photos', 'expenses', 'sales', 'coupons',
 ];
 
 export const localISO = (date = new Date()) => {
@@ -259,6 +259,25 @@ export const isDateString = value => typeof value === 'string' && /^\d{4}-\d{2}-
 
 // خدمات الباقة: الباقة قد تجمع أكثر من خدمة (مثلاً شعر ولحية + تدليك + ماسك). الباقات القديمة فيها serviceId واحد.
 export const packageServices = p => (Array.isArray(p?.serviceIds) && p.serviceIds.length ? p.serviceIds : p?.serviceId ? [p.serviceId] : []);
+// من أين عرفنا العميل (للتسويق): يُختار عند الإضافة، ويُسجَّل تلقائياً للحجز الأونلاين وواتساب.
+export const CLIENT_SOURCES = [
+  { id: 'instagram', label: L('انستغرام', 'Instagram') }, { id: 'tiktok', label: L('تيك توك', 'TikTok') }, { id: 'snapchat', label: L('سناب شات', 'Snapchat') },
+  { id: 'google', label: L('خرائط جوجل', 'Google Maps') }, { id: 'friend', label: L('صديق / توصية', 'Friend / referral') }, { id: 'walkby', label: L('مرّ بالصالون', 'Walked by') },
+  { id: 'online', label: L('رابط الحجز', 'Booking link') }, { id: 'whatsapp', label: L('واتساب', 'WhatsApp') }, { id: 'other', label: L('أخرى', 'Other') },
+];
+export const sourceLabel = id => CLIENT_SOURCES.find(s => s.id === id)?.label || L('غير محدد', 'Not set');
+
+// أكواد الخصم: نسبة أو مبلغ، بتاريخ انتهاء وحد استخدام اختياريين.
+export const normalCode = code => latinDigits(code).trim().toUpperCase().replace(/\s+/g, '');
+export const couponDiscount = (coupon, gross) => Math.min(gross, Math.round(coupon.type === 'amount' ? Number(coupon.value || 0) : gross * Number(coupon.value || 0) / 100));
+export const checkCoupon = (coupons, code, today) => {
+  const c = (coupons || []).find(x => normalCode(x.code) === normalCode(code));
+  if (!c) return { error: L('الكود غير موجود', 'Code not found') };
+  if (c.active === false) return { error: L('الكود موقوف', 'This code is disabled') };
+  if (c.expiresAt && c.expiresAt < today) return { error: L('انتهت صلاحية الكود', 'This code has expired') };
+  if (Number(c.maxUses) > 0 && Number(c.used || 0) >= Number(c.maxUses)) return { error: L('استُخدم الكود بالحد الأقصى', 'This code has reached its usage limit') };
+  return { coupon: c };
+};
 export const appointmentTotal = a => Math.max(0, (a.items || []).reduce((sum, item) => sum + Number(item.price || 0), 0) - Number(a.discount || 0));
 export const amountPaid = a => (a.payments || []).filter(p => p.kind !== 'tip').reduce((sum, p) => sum + Number(p.amount || 0), 0);
 export const balanceDue = a => Math.max(0, appointmentTotal(a) - amountPaid(a));

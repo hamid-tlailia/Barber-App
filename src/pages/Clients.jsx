@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Award, CalendarCheck, CalendarPlus, Camera, Check, Contact, FileUp, FlaskConical, Image, MessageCircle, Package, Pencil, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound, Wallet,
 } from 'lucide-react';
-import { PHONE_ERROR, validPhone, appointmentTotal, dateLabel, importClients, localISO, money, num, phoneDigits, samePhone, serviceNames, statusText, uid, whatsappLink } from '../data.js';
+import { CLIENT_SOURCES, sourceLabel, PHONE_ERROR, validPhone, appointmentTotal, dateLabel, importClients, localISO, money, num, phoneDigits, samePhone, serviceNames, statusText, uid, whatsappLink } from '../data.js';
 import { clientStats, loyaltyPoints, noShowRisk } from '../smart.js';
-import { Alert, Avatar, Badge, Button, Confirm, Empty, Field, Row, SearchBox, Section, Segmented, Sheet, Stat, Toggle, compressImage, openExternal, useApp } from '../ui.jsx';
+import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, SearchBox, Section, Segmented, Sheet, Stat, Toggle, compressImage, openExternal, useApp } from '../ui.jsx';
 import { contactsSupported, pickContacts, readClientsFile } from '../lib/importers.js';
 import { BookingWizard } from './Appointments.jsx';
 import { L } from '../i18n.js';
@@ -81,6 +81,7 @@ export function ClientForm({ client, onClose, onSaved }) {
     <div className="stack">
       <Field label={L('الاسم', 'Name')} required><input autoFocus value={v.name} onChange={set('name')} /></Field>
       <Field label={L('رقم الهاتف', 'Phone number')} required><input type="tel" dir="ltr" value={v.phone} onChange={set('phone')} placeholder="5555 1234" /></Field>
+      <Field label={L('كيف عرفنا؟', 'How did they find us?')} hint={L('يظهر في التقارير: أي قناة تجلب عملاء أكثر', 'Shown in reports: which channel brings the most clients')}><Chips items={CLIENT_SOURCES.filter(s => !['online', 'whatsapp'].includes(s.id) || s.id === v.source)} value={v.source || ''} onChange={source => setV({ ...v, source })} /></Field>
       <Field label={L('لغة رسائل واتساب', 'WhatsApp message language')} hint={L('التذكيرات والعروض والمساعد الذكي يكلّمونه بهذه اللغة', 'Reminders, offers and the AI assistant talk to this client in this language')}>
         <Segmented items={[{ id: 'ar', label: 'العربية' }, { id: 'en', label: 'English' }]} value={v.lang === 'en' ? 'en' : 'ar'} onChange={lang => setV({ ...v, lang })} />
       </Field>
@@ -159,6 +160,7 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
         <Avatar name={client.name} size="xl" />
         <div className="chips chips-center">
           {(client.tags || []).includes('VIP') && <Badge tone="orange">VIP</Badge>}
+          {client.source && <Badge tone="purple">{sourceLabel(client.source)}</Badge>}
           {risk.level !== 'low' && <Badge tone="red">{risk.label}</Badge>}
           {stats.avgInterval && <Badge tone="blue">{L(`يزور كل ${num(stats.avgInterval)} يوم`, `Visits every ${num(stats.avgInterval)} ${stats.avgInterval === 1 ? 'day' : 'days'}`)}</Badge>}
         </div>

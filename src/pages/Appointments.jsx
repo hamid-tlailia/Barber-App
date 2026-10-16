@@ -3,7 +3,7 @@ import {
   ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
   ListPlus, MapPin, MessageCircle, Package, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { PHONE_ERROR, validPhone,
+import { CLIENT_SOURCES, PHONE_ERROR, validPhone,
   addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, packageServices, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
@@ -364,6 +364,7 @@ export function ClientPicker({ value, onChange, walkIn = false }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [source, setSource] = useState('');
   const [error, setError] = useState('');
   const q = query.trim();
   const matches = data.clients.filter(c => !q || c.name.includes(q) || phoneDigits(c.phone).includes(phoneDigits(q) || '@')).slice(0, 30);
@@ -381,13 +382,14 @@ export function ClientPicker({ value, onChange, walkIn = false }) {
     const existing = phone && data.clients.find(c => samePhone(c.phone, phone));
     if (existing) { onChange(existing.id); return; }
     const id = uid();
-    upsert('clients', { id, name: name.trim(), phone: phone.trim(), notes: '', createdAt: localISO() });
+    upsert('clients', { id, name: name.trim(), phone: phone.trim(), notes: '', createdAt: localISO(), ...(source ? { source } : walkIn ? { source: 'walkby' } : {}) });
     onChange(id);
   };
 
   if (adding) return <div className="stack">
     <Field label={L('الاسم', 'Name')} required><input autoFocus value={name} onChange={e => setName(e.target.value)} /></Field>
     <Field label={walkIn ? L('رقم الهاتف (اختياري)', 'Phone number (optional)') : L('رقم الهاتف', 'Phone number')} required={!walkIn} hint={walkIn ? L('يفيد لإرسال الفاتورة والتذكير بالزيارة القادمة', 'Useful for sending the receipt and next-visit reminders') : ''}><input type="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="5555 1234" /></Field>
+    <Field label={L('كيف عرفنا؟ (اختياري)', 'How did they find us? (optional)')}><Chips items={CLIENT_SOURCES.filter(s => !['online', 'whatsapp'].includes(s.id))} value={source} onChange={setSource} /></Field>
     <Alert>{error}</Alert>
     <div className="row-buttons"><Button variant="ghost" onClick={() => setAdding(false)}>{L('رجوع', 'Back')}</Button><Button icon={Check} onClick={add}>{L('حفظ ومتابعة', 'Save & continue')}</Button></div>
   </div>;
