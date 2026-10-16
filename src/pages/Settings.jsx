@@ -3,10 +3,10 @@ import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, Scissors, ShieldCheck, SlidersHorizontal, Store, Trash2, Upload,
 } from 'lucide-react';
-import { PHONE_ERROR, validPhone, clientName, dateLabel, findDuplicate, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
+import { PHONE_ERROR, validPhone, clientName, dateLabel, findDuplicate, packageServices, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.js';
-import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
+import { Alert, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { notifyNow, pushState, pushSupported } from '../lib/native.js';
 import { L, LANG, isEn, setLang } from '../i18n.js';
@@ -134,8 +134,8 @@ function ServiceForm({ service, onClose }) {
   return <Sheet title={service ? L('تعديل الخدمة', 'Edit service') : L('خدمة جديدة', 'New service')} onClose={onClose} footer={<>
     {service && <Button variant="danger-ghost" icon={Trash2} onClick={() => {
       // خدمة عليها باقات مباعة أو باقات معروضة أو مواعيد قادمة: الحذف يفسدها، فنقترح إيقافها بدل ذلك.
-      const sold = data.clientPackages.filter(p => p.serviceId === service.id && p.used < p.total).length;
-      const offered = data.packages.filter(p => p.serviceId === service.id).length;
+      const sold = data.clientPackages.filter(p => packageServices(p).includes(service.id) && p.used < p.total).length;
+      const offered = data.packages.filter(p => packageServices(p).includes(service.id)).length;
       const upcoming = data.appointments.filter(a => a.date >= localISO() && ['pending', 'confirmed', 'arrived'].includes(a.status) && (a.items || []).some(i => i.serviceId === service.id)).length;
       if (sold || offered || upcoming) { setError(L(`لا يمكن حذفها: ${[sold && `${num(sold)} باقة مباعة لم تُستهلك`, offered && `${num(offered)} باقة معروضة`, upcoming && `${num(upcoming)} موعد قادم`].filter(Boolean).join('، ')}. أوقف «متاحة في الحجز الأونلاين» بدلاً من ذلك.`, `Can't delete: ${[sold && `${num(sold)} sold package(s) not used up`, offered && `${num(offered)} package(s) on sale`, upcoming && `${num(upcoming)} upcoming appointment(s)`].filter(Boolean).join(', ')}. Turn off online booking for it instead.`)); return; }
       setConfirm(true);
@@ -187,26 +187,32 @@ function PackagesSettings({ onClose }) {
   const [edit, setEdit] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const v = edit || {};
-  return <Sheet title={L('الباقات', 'Packages')} subtitle={L('جلسات مدفوعة مسبقاً — تزيد ولاء العملاء والسيولة', 'Prepaid sessions — boost client loyalty and cash flow')} onClose={onClose} footer={!edit && <Button block icon={Plus} onClick={() => setEdit({ name: '', serviceId: data.services[0]?.id, sessions: 5, price: 0, validityDays: 90 })}>{L('باقة جديدة', 'New package')}</Button>}>
+  return <Sheet title={L('الباقات', 'Packages')} subtitle={L('جلسات مدفوعة مسبقاً — تزيد ولاء العملاء والسيولة', 'Prepaid sessions — boost client loyalty and cash flow')} onClose={onClose} footer={!edit && <Button block icon={Plus} onClick={() => setEdit({ name: '', serviceIds: [], sessions: 1, price: 0, validityDays: 90 })}>{L('باقة جديدة', 'New package')}</Button>}>
     {edit ? <div className="stack">
       <Field label={L('اسم الباقة', 'Package name')}><input autoFocus value={v.name} onChange={e => setEdit({ ...v, name: e.target.value })} placeholder={L(`مثال: ليزر ${num(6)} جلسات`, `E.g. Laser, ${num(6)} sessions`)} /></Field>
-      <Field label={L('الخدمة', 'Service')}><select value={v.serviceId} onChange={e => setEdit({ ...v, serviceId: e.target.value })}>{data.services.map(s => <option key={s.id} value={s.id}>{s.name} — {money(s.price)}</option>)}</select></Field>
+      <Field label={L('خدمات الباقة', 'Services in the package')} hint={L('اختر خدمة أو أكثر — مثلاً شعر ولحية + تدليك + ماسك', 'Choose one or more — e.g. hair & beard + massage + mask')}>
+        <Select multiple value={packageServices(v)} onChange={ids => setEdit({ ...v, serviceIds: ids, serviceId: ids[0] || '' })} placeholder={L('اختر الخدمات', 'Choose services')}
+          options={data.services.map(s => ({ id: s.id, label: s.name, hint: `${num(s.duration)} ${L('دقيقة', 'min')}`, trailing: money(s.price) }))} />
+      </Field>
       <div className="grid-2">
         <Field label={L('عدد الجلسات', 'Number of sessions')}><NumInput min="1" value={v.sessions} onChange={e => setEdit({ ...v, sessions: Number(e.target.value) })} /></Field>
         <Field label={L('سعر الباقة', 'Package price')}><NumInput min="0" value={v.price} onChange={e => setEdit({ ...v, price: Number(e.target.value) })} /></Field>
       </div>
       <Field label={L('صالحة لمدة (يوم)', 'Valid for (days)')}><NumInput min="0" value={v.validityDays} onChange={e => setEdit({ ...v, validityDays: Number(e.target.value) })} /></Field>
-      {v.serviceId && <small className="muted">{L('السعر المعتاد', 'Regular price')} {money((data.services.find(s => s.id === v.serviceId)?.price || 0) * v.sessions)} — {L('توفير للعميل', 'client saves')} {money(Math.max(0, (data.services.find(s => s.id === v.serviceId)?.price || 0) * v.sessions - v.price))}</small>}
+      {packageServices(v).length > 0 && (() => {
+        const regular = packageServices(v).reduce((sum, id) => sum + Number(data.services.find(s => s.id === id)?.price || 0), 0) * Number(v.sessions || 1);
+        return <small className="muted">{L('السعر المعتاد', 'Regular price')} {money(regular)} — {L('توفير للعميل', 'client saves')} {money(Math.max(0, regular - Number(v.price || 0)))}</small>;
+      })()}
       <div className="row-buttons">
         {v.id && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirmDelete(true)}>{L('حذف', 'Delete')}</Button>}
         <div className="spacer" /><Button variant="ghost" onClick={() => setEdit(null)}>{L('رجوع', 'Back')}</Button>
         <Button icon={Check} disabled={!v.name?.trim()} onClick={() => {
           const dup = findDuplicate(data.packages, v);
           if (dup) { toast(L(`توجد باقة بنفس الاسم «${dup.name}»`, `A package named “${dup.name}” already exists`)); return; }
-          if (!data.services.some(s => s.id === v.serviceId)) { toast(L('اختر خدمة الباقة', 'Choose the package service')); return; }
-          if (!(Number(v.sessions) >= 1) || !(Number(v.price) > 0)) { toast(L('عدد الجلسات والسعر يجب أن يكونا أكبر من صفر', 'Sessions and price must be greater than zero')); return; } upsert('packages', { ...v, name: v.name.trim(), id: v.id || uid() }); toast(L('تم الحفظ', 'Saved')); setEdit(null); }}>{L('حفظ', 'Save')}</Button>
+          if (!packageServices(v).some(id => data.services.some(s => s.id === id))) { toast(L('اختر خدمة واحدة على الأقل', 'Choose at least one service')); return; }
+          if (!(Number(v.sessions) >= 1) || !(Number(v.price) > 0)) { toast(L('عدد الجلسات والسعر يجب أن يكونا أكبر من صفر', 'Sessions and price must be greater than zero')); return; } upsert('packages', { ...v, name: v.name.trim(), serviceIds: packageServices(v).filter(id => data.services.some(s => s.id === id)), serviceId: packageServices(v).find(id => data.services.some(s => s.id === id)) || '', id: v.id || uid() }); toast(L('تم الحفظ', 'Saved')); setEdit(null); }}>{L('حفظ', 'Save')}</Button>
       </div>
-    </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={L(`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`, `${plural(num(p.sessions), 'session', 'sessions')} · ${plural(num(p.validityDays), 'day', 'days')}`)} trailing={<strong>{money(p.price)}</strong>} onClick={() => setEdit(p)} />)}</div>
+    </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={packageServices(p).map(id => data.services.find(x => x.id === id)?.name).filter(Boolean).join(' + ') + ' · ' + L(`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`, `${plural(num(p.sessions), 'session', 'sessions')} · ${plural(num(p.validityDays), 'day', 'days')}`)} trailing={<strong>{money(p.price)}</strong>} onClick={() => setEdit(p)} />)}</div>
       : <Empty icon={Package} title={L('لا باقات بعد', 'No packages yet')} text={L(`مثال: ${num(5)} قصات بسعر ${num(4)} — يدفع العميل مقدماً ويعود باستمرار`, `E.g. ${num(5)} haircuts for the price of ${num(4)} — the client pays upfront and keeps coming back`)} />}
     {confirmDelete && <Confirm title={L('حذف الباقة؟', 'Delete package?')} text={L('الباقات المباعة سابقاً للعملاء تبقى صالحة.', 'Packages already sold to clients stay valid.')} danger confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirmDelete(false)} onConfirm={() => { remove('packages', v.id); setEdit(null); toast(L('تم الحذف', 'Deleted')); }} />}
   </Sheet>;

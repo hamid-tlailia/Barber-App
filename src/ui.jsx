@@ -1,7 +1,7 @@
 // مكونات الواجهة المشتركة: بسيطة، كبيرة، وواضحة للمس.
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronLeft, ChevronRight, Loader2, Search, TriangleAlert, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Search, TriangleAlert, X } from 'lucide-react';
 import { statusText } from './data.js';
 import { L, isEn } from './i18n.js';
 import { saveFile } from './lib/files.js';
@@ -211,6 +211,39 @@ export function Chips({ items, value, onChange, multiple }) {
     const active = selected.includes(item.id);
     return <button type="button" key={item.id} className={`chip ${active ? 'active' : ''}`} onClick={() => onChange(multiple ? (active ? value.filter(v => v !== item.id) : [...value, item.id]) : item.id)}>{item.label}</button>;
   })}</div>;
+}
+
+// قائمة اختيار بتصميم التطبيق بدل قائمة النظام: زر يعرض الاختيار، ونافذة بالخيارات مع بحث للقوائم الطويلة.
+// options: [{ id, label, hint?, trailing? }] — multiple: اختيار أكثر من عنصر (value مصفوفة).
+export function Select({ value, onChange, options, placeholder = L('اختر...', 'Choose...'), title, multiple = false, searchable }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const chosen = multiple ? options.filter(o => (value || []).includes(o.id)) : options.filter(o => o.id === value);
+  const label = chosen.length ? chosen.map(o => o.label).join(L('، ', ', ')) : placeholder;
+  const search = searchable ?? options.length > 8;
+  const shown = query ? options.filter(o => `${o.label} ${o.hint || ''}`.toLowerCase().includes(query.toLowerCase())) : options;
+  const pick = id => {
+    if (!multiple) { onChange(id); setOpen(false); setQuery(''); return; }
+    const list = value || [];
+    onChange(list.includes(id) ? list.filter(v => v !== id) : [...list, id]);
+  };
+  return <>
+    <button type="button" className={`select-btn ${chosen.length ? '' : 'placeholder'}`} onClick={() => setOpen(true)}>
+      <span>{label}</span>{multiple && chosen.length > 1 && <b className="select-count">{chosen.length}</b>}<ChevronDown size={18} />
+    </button>
+    {open && <Sheet title={title || placeholder} onClose={() => { setOpen(false); setQuery(''); }} size="sm"
+      footer={multiple && <Button block icon={Check} onClick={() => { setOpen(false); setQuery(''); }}>{L(`تم${chosen.length ? ` (${chosen.length})` : ''}`, `Done${chosen.length ? ` (${chosen.length})` : ''}`)}</Button>}>
+      {search && <SearchBox value={query} onChange={setQuery} />}
+      <div className="list select-list">{shown.map(o => {
+        const on = multiple ? (value || []).includes(o.id) : o.id === value;
+        return <button type="button" key={o.id} className={`select-option ${on ? 'active' : ''}`} onClick={() => pick(o.id)}>
+          <span className={`select-mark ${multiple ? 'square' : ''}`}>{on && <Check size={14} />}</span>
+          <span className="select-text"><strong>{o.label}</strong>{o.hint && <small>{o.hint}</small>}</span>
+          {o.trailing && <span className="select-trailing">{o.trailing}</span>}
+        </button>;
+      })}{!shown.length && <p className="muted center select-empty">{L('لا نتائج', 'No results')}</p>}</div>
+    </Sheet>}
+  </>;
 }
 
 // حقل رقم يمكن مسحه بالكامل (لا يعود الصفر أثناء الكتابة)، ويقبل الأرقام العربية ويحولها.

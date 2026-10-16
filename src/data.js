@@ -257,6 +257,8 @@ export const isDateString = value => typeof value === 'string' && /^\d{4}-\d{2}-
 
 /* ───────────── المواعيد والدفعات ───────────── */
 
+// خدمات الباقة: الباقة قد تجمع أكثر من خدمة (مثلاً شعر ولحية + تدليك + ماسك). الباقات القديمة فيها serviceId واحد.
+export const packageServices = p => (Array.isArray(p?.serviceIds) && p.serviceIds.length ? p.serviceIds : p?.serviceId ? [p.serviceId] : []);
 export const appointmentTotal = a => Math.max(0, (a.items || []).reduce((sum, item) => sum + Number(item.price || 0), 0) - Number(a.discount || 0));
 export const amountPaid = a => (a.payments || []).filter(p => p.kind !== 'tip').reduce((sum, p) => sum + Number(p.amount || 0), 0);
 export const balanceDue = a => Math.max(0, appointmentTotal(a) - amountPaid(a));

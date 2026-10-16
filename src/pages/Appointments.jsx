@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
-  ListPlus, MapPin, MessageCircle, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
+  ListPlus, MapPin, MessageCircle, Package, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
 import { PHONE_ERROR, validPhone,
-  addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, timeFor,
+  addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, packageServices, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { noShowRisk, waitlistMatches } from '../smart.js';
@@ -215,7 +215,13 @@ export function BookingWizard({ initial, onClose, onDone }) {
   useEffect(() => { if (clash) clashRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, [clash]);
   const client = data.clients.find(c => c.id === clientId);
   const items = buildItems(data.services, serviceIds, staffId, edit?.items);
-  const total = items.reduce((s, i) => s + i.price, 0);
+  const gross = items.reduce((s, i) => s + i.price, 0);
+  // باقة بجلسة واحدة = عرض مجمّع: اختيارها يطبّق سعرها كخصم ما دامت كل خدماتها مختارة.
+  const [bundleId, setBundleId] = useState(edit?.bundleId || '');
+  const bundle = data.packages.find(p => p.id === bundleId);
+  const bundleOn = Boolean(bundle) && packageServices(bundle).every(id => serviceIds.includes(id));
+  const bundleDiscount = bundleOn ? Math.max(0, packageServices(bundle).reduce((sum, id) => sum + Number(items.find(i => i.serviceId === id)?.price || 0), 0) - Number(bundle.price || 0)) : 0;
+  const total = Math.max(0, gross - bundleDiscount);
   const duration = items.reduce((s, i) => s + i.duration, 0);
   const risk = client ? noShowRisk(client.id, data.appointments) : null;
   const serviceDeposit = buildItems(data.services, serviceIds).reduce((s, i) => s + Number(data.services.find(x => x.id === i.serviceId)?.deposit || 0), 0);
@@ -242,14 +248,14 @@ export function BookingWizard({ initial, onClose, onDone }) {
     toast(L(`تم إنهاء موعد ${clientName(data.clients, c.clientId)}`, `${clientName(data.clients, c.clientId)} marked as done`));
   };
   const categories = [...new Set(data.services.map(s => s.category || L('عام', 'General')))];
-  const pkg = client && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && serviceIds.includes(p.serviceId) && (!p.expiresAt || p.expiresAt >= localISO()));
+  const pkg = client && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && packageServices(p).some(id => serviceIds.includes(id)) && (!p.expiresAt || p.expiresAt >= localISO()));
 
   const save = (force = false) => {
     if (!time) { setError(L('اختر وقت الموعد', 'Choose an appointment time')); return; }
     const record = {
-      ...(edit || {}), id: edit?.id || uid(), clientId, items, staffId, date, time, duration, price: total, location,
+      ...(edit || {}), id: edit?.id || uid(), clientId, items, staffId, date, time, duration, price: gross, location,
       address: location === 'home' ? address : '', travel: location === 'home' ? 30 : 0, notes: notes.trim(), deposit: finalDeposit,
-      status: edit?.status || (walkIn ? 'arrived' : 'confirmed'), payments: edit?.payments || [], discount: edit?.discount || 0, source: edit?.source || (walkIn ? 'walkin' : 'app'), createdAt: edit?.createdAt || localISO(),
+      status: edit?.status || (walkIn ? 'arrived' : 'confirmed'), payments: edit?.payments || [], discount: bundleOn ? bundleDiscount : (edit?.bundleId ? 0 : edit?.discount || 0), bundleId: bundleOn ? bundle.id : '', source: edit?.source || (walkIn ? 'walkin' : 'app'), createdAt: edit?.createdAt || localISO(),
       ...(walkIn ? { arrivedAt: new Date().toISOString() } : {}),
     };
     // الصالون فيه أكثر من موظف: التعارض يُعرض فقط إذا لم يبق أحد متاح، مع خيار التعديل أو التجاهل.
@@ -277,6 +283,12 @@ export function BookingWizard({ initial, onClose, onDone }) {
     {key === 'client' && <ClientPicker walkIn={walkIn} value={clientId} onChange={id => { setClientId(id); setStep(1); }} />}
 
     {key === 'services' && <div className="stack">
+      {/* الباقات التي تجمع أكثر من خدمة: ضغطة واحدة تختار كل خدماتها */}
+      {data.packages.some(p => packageServices(p).length > 1) && <div className="chips">{data.packages.filter(p => packageServices(p).length > 1).map(p => {
+        const ids = packageServices(p).filter(id => data.services.some(s => s.id === id));
+        const on = ids.length > 0 && ids.every(id => serviceIds.includes(id));
+        return <button type="button" key={p.id} className={`chip ${on ? 'active' : ''}`} onClick={() => { setServiceIds(on ? serviceIds.filter(id => !ids.includes(id)) : [...new Set([...serviceIds, ...ids])]); setBundleId(on || Number(p.sessions || 1) !== 1 ? '' : p.id); if (!walkIn) setTime(''); }}><Package size={14} /> {p.name}{Number(p.sessions || 1) === 1 ? ` · ${money(p.price)}` : ''}</button>;
+      })}</div>}
       {categories.length > 1 && <Chips items={[{ id: 'all', label: L('الكل', 'All') }, ...categories.map(c => ({ id: c, label: c }))]} value={category} onChange={setCategory} />}
       <div className="service-grid">{data.services.filter(s => category === 'all' || (s.category || L('عام', 'General')) === category).map(s => {
         const on = serviceIds.includes(s.id);
@@ -285,7 +297,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
           <strong>{s.name}</strong><small>{num(s.duration)} {L('دقيقة', 'min')}</small><b>{money(s.price)}</b>
         </button>;
       })}</div>
-      {items.length > 0 && <div className="summary-bar"><span>{L(`${items.length} خدمات`, `${items.length} ${items.length === 1 ? 'service' : 'services'}`)} · {num(duration)} {L('دقيقة', 'min')}</span><strong>{money(total)}</strong></div>}
+      {items.length > 0 && <div className="summary-bar"><span>{L(`${items.length} خدمات`, `${items.length} ${items.length === 1 ? 'service' : 'services'}`)} · {num(duration)} {L('دقيقة', 'min')}</span><strong>{bundleDiscount > 0 && <s className="muted">{money(gross)}</s>} {money(total)}</strong></div>}
       {pkg && <Alert tone="green" icon={Check}>{L(<>لدى {client.name} باقة «{pkg.name}» — متبقٍ {pkg.total - pkg.used} جلسات (تُخصم عند الدفع)</>, <>{client.name} has the “{pkg.name}” package — {pkg.total - pkg.used} {pkg.total - pkg.used === 1 ? 'session' : 'sessions'} left (deducted at checkout)</>)}</Alert>}
     </div>}
 

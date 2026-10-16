@@ -4,11 +4,11 @@ import {
   TicketPercent, Trash2, Vault, WalletCards,
 } from 'lucide-react';
 import {
-  addDays, amountPaid, businessDay, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
+  addDays, amountPaid, businessDay, packageServices, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
   paymentText, serviceNames, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { expectedCash, incomeIn } from '../smart.js';
-import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Stat, Tile, openExternal, useApp, NumInput } from '../ui.jsx';
+import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Select, Stat, Tile, openExternal, useApp, NumInput } from '../ui.jsx';
 import { L } from '../i18n.js';
 import { printElement } from '../lib/files.js';
 
@@ -90,18 +90,20 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
   const depositMode = needsDeposit(a) && a.status !== 'completed';
   // الباقة تُخصم مرة واحدة فقط لكل موعد (حتى لو دُفع الباقي على دفعات).
   const packageUsed = (a.payments || []).some(p => p.method === 'package');
-  const pkg = client && !packageUsed && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && (a.items || []).some(i => i.serviceId === p.serviceId) && (!p.expiresAt || p.expiresAt >= localISO()));
+  const pkg = client && !packageUsed && data.clientPackages.find(p => p.clientId === client.id && p.used < p.total && (a.items || []).some(i => packageServices(p).includes(i.serviceId)) && (!p.expiresAt || p.expiresAt >= localISO()));
   const [usePackage, setUsePackage] = useState(Boolean(pkg) && !depositMode);
   const [discount, setDiscount] = useState(Number(a.discount || 0));
   const [method, setMethod] = useState('cash');
   const [giftCode, setGiftCode] = useState('');
   const [tip, setTip] = useState(0);
   const [error, setError] = useState('');
-  const packageItem = usePackage && pkg ? (a.items || []).find(i => i.serviceId === pkg.serviceId) : null;
+  // كل بنود الموعد التي تشملها الباقة تُغطّى بجلسة واحدة منها.
+  const packageItems = usePackage && pkg ? (a.items || []).filter(i => packageServices(pkg).includes(i.serviceId)) : [];
+  const packageItem = packageItems.length > 0;
   const gross = (a.items || []).reduce((s, i) => s + Number(i.price || 0), 0);
   const total = Math.max(0, gross - discount);
   const already = amountPaid(a);
-  const packageValue = packageItem ? Number(packageItem.price) : 0;
+  const packageValue = packageItems.reduce((sum, i) => sum + Number(i.price || 0), 0);
   const due = depositMode ? Math.max(0, Math.min(Number(a.deposit), total) - depositPaid(a)) : Math.max(0, total - already - packageValue);
   const [amount, setAmount] = useState(due);
   useEffect(() => setAmount(due), [due]);
@@ -134,7 +136,7 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
     footer={<Button size="lg" block icon={Check} onClick={pay}>{Number(amount) > 0 ? L(`استلام ${money(amount)}`, `Collect ${money(amount)}`) : L('تأكيد', 'Confirm')}</Button>}>
     <div className="stack">
       <div className="list">
-        {(a.items || []).map((item, i) => <Row key={i} title={item.name} trailing={<strong className={packageItem === item ? 'strike' : ''}>{money(item.price)}</strong>} />)}
+        {(a.items || []).map((item, i) => <Row key={i} title={item.name} trailing={<strong className={packageItems.includes(item) ? 'strike' : ''}>{money(item.price)}</strong>} />)}
         {already > 0 && <Row title={L('مدفوع سابقاً', 'Previously paid')} trailing={<strong className="green">−{money(already)}</strong>} />}
       </div>
       {pkg && !depositMode && <label className="toggle-row"><span><strong>{L(`استخدام جلسة من «${pkg.name}»`, `Use a session from “${pkg.name}”`)}</strong><small>{L(`متبقٍ ${pkg.total - pkg.used} من ${pkg.total}`, `${pkg.total - pkg.used} of ${pkg.total} left`)}</small></span><input type="checkbox" className="toggle" checked={usePackage} onChange={e => setUsePackage(e.target.checked)} /></label>}
@@ -234,8 +236,8 @@ function PayMethod({ value, onChange }) {
 }
 
 function ClientSelect({ value, onChange }) {
-  const { data } = useApp();
-  return <select value={value} onChange={e => onChange(e.target.value)}><option value="">{L('اختر...', 'Choose...')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>;
+  const { data, vocab } = useApp();
+  return <Select value={value} onChange={onChange} title={vocab.client} options={data.clients.filter(c => c.id !== 'walk-in').map(c => ({ id: c.id, label: c.name, hint: c.phone }))} searchable />;
 }
 
 function SellPackage({ onClose }) {
@@ -250,14 +252,14 @@ function SellPackage({ onClose }) {
     const id = uid();
     setData(prev => ({
       ...prev,
-      clientPackages: [...prev.clientPackages, { id, clientId, packageId: pkg.id, name: pkg.name, serviceId: pkg.serviceId, total: pkg.sessions, used: 0, purchasedAt: today, expiresAt: pkg.validityDays ? addDays(today, Number(pkg.validityDays)) : '' }],
+      clientPackages: [...prev.clientPackages, { id, clientId, packageId: pkg.id, name: pkg.name, serviceId: packageServices(pkg)[0] || '', serviceIds: packageServices(pkg), total: pkg.sessions, used: 0, purchasedAt: today, expiresAt: pkg.validityDays ? addDays(today, Number(pkg.validityDays)) : '' }],
       sales: [...prev.sales, { id: uid(), kind: 'package', refId: id, label: pkg.name, clientId, amount: pkg.price, method, at: today }],
     }));
     toast(L('تم بيع الباقة', 'Package sold')); onClose();
   }}>{pkg ? L(`بيع بـ ${money(pkg.price)}`, `Sell for ${money(pkg.price)}`) : L('بيع', 'Sell')}</Button>}>
     <div className="stack">
       <Field label={vocab.client}><ClientSelect value={clientId} onChange={setClientId} /></Field>
-      <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={L(`${num(p.sessions)} جلسات · صالحة ${num(p.validityDays)} يوم`, `${num(p.sessions)} session${Number(p.sessions) === 1 ? '' : 's'} · valid ${num(p.validityDays)} day${Number(p.validityDays) === 1 ? '' : 's'}`)} trailing={<span className="row-end"><strong>{money(p.price)}</strong>{packageId === p.id && <Check className="green" size={18} />}</span>} onClick={() => setPackageId(p.id)} />)}</div>
+      <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={packageServices(p).map(id => data.services.find(x => x.id === id)?.name).filter(Boolean).join(' + ') + ' · ' + L(`${num(p.sessions)} جلسات · صالحة ${num(p.validityDays)} يوم`, `${num(p.sessions)} session${Number(p.sessions) === 1 ? '' : 's'} · valid ${num(p.validityDays)} day${Number(p.validityDays) === 1 ? '' : 's'}`)} trailing={<span className="row-end"><strong>{money(p.price)}</strong>{packageId === p.id && <Check className="green" size={18} />}</span>} onClick={() => setPackageId(p.id)} />)}</div>
       <Field label={L('طريقة الدفع', 'Payment method')}><PayMethod value={method} onChange={setMethod} /></Field>
     </div>
   </Sheet>;

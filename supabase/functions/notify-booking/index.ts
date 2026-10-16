@@ -89,6 +89,21 @@ async function booking(sa: ServiceAccount, shop_id: string, a: any) {
   return sendTo(sa, await tokensOf(targets, shop_id), title, body, { appointmentId: String(a.id ?? ''), shopId: String(shop_id) });
 }
 
+// موعد حُجز أو حُوِّل لموظف من داخل التطبيق: يصل الموظف المعيّن فقط (وليس من قام بالحجز نفسه).
+async function assigned(sa: ServiceAccount, payload: any) {
+  const { shop_id, appointment: a, actor, kind } = payload;
+  const staffId = a.staffId || (a.items ?? []).find((i: any) => i.staffId)?.staffId;
+  if (!staffId) return 0;
+  const members: { user_id: string; staff_id: string | null; suspended: boolean }[] = await rest(`shop_members?select=user_id,staff_id,suspended&shop_id=eq.${shop_id}`);
+  const targets = (members ?? []).filter(m => !m.suspended && m.staff_id === staffId && m.user_id !== actor).map(m => m.user_id);
+  if (!targets.length) return 0;
+  const [client] = a.clientId ? await rest(`records?select=data&shop_id=eq.${shop_id}&collection=eq.clients&id=eq.${encodeURIComponent(a.clientId)}&limit=1`) : [];
+  const services = (a.items ?? []).map((i: { name: string }) => i.name).join(' + ');
+  const title = kind === 'reassigned' ? '🔁 حُوِّل إليك موعد' : '📅 موعد جديد لك';
+  const body = `${client?.data?.name ?? 'عميل'} · ${dateAr(a.date)} ${timeAr(a.time)}${services ? ` · ${services}` : ''}`;
+  return sendTo(sa, await tokensOf(targets, shop_id), title, body, { appointmentId: String(a.id ?? ''), shopId: String(shop_id), date: String(a.date ?? '') });
+}
+
 const COLLECTION_AR: Record<string, string> = {
   appointments: 'موعد', clients: 'عميل', sales: 'عملية بيع', expenses: 'مصروف', drawers: 'إغلاق الصندوق', services: 'خدمة',
   products: 'منتج', giftCards: 'بطاقة هدية', clientPackages: 'باقة عميل', staff: 'موظف',
@@ -219,5 +234,6 @@ Deno.serve(async req => {
   if (payload.kind === 'deletion_request') return json(await deletionRequest(sa, payload.shop_id));
   if (!sa) return json({ skipped: 'FCM_SERVICE_ACCOUNT not set' });
   if (payload.kind === 'activity') return json({ sent: await activity(sa, payload) });
+  if (payload.kind === 'assigned' || payload.kind === 'reassigned') return json({ sent: await assigned(sa, payload) });
   return json({ sent: await booking(sa, payload.shop_id, payload.appointment) });
 });

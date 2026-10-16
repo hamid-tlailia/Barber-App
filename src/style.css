@@ -648,3 +648,23 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 .plain-list { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; font-size: 14.5px; }
 .more-page { display: flex; flex-direction: column; gap: 18px; min-height: calc(100dvh - 260px); }
 .more-page > .btn { margin-top: auto; align-self: center; }
+
+/* قائمة الاختيار بتصميم التطبيق (بدل select النظام) */
+.select-btn { width: 100%; min-height: 50px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-radius: var(--radius-sm, 14px); border: 1.5px solid var(--line); background: var(--surface-2); color: var(--ink); font: inherit; font-size: 15px; text-align: start; cursor: pointer; transition: border-color .2s, box-shadow .2s; }
+.select-btn > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select-btn.placeholder > span { color: var(--muted); }
+.select-btn:focus-visible, .select-btn:active { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
+.select-btn svg { color: var(--muted); flex: none; }
+.select-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: grid; place-items: center; font-size: 12px; background: var(--accent); color: var(--surface); }
+.select-list { max-height: none; }
+.select-option { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--ink); font: inherit; text-align: start; cursor: pointer; }
+.select-option:last-child { border-bottom: 0; }
+.select-option.active { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.select-mark { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 2px solid var(--line-strong); display: grid; place-items: center; color: var(--surface); transition: background .15s, border-color .15s; }
+.select-mark.square { border-radius: 7px; }
+.select-option.active .select-mark { background: var(--accent); border-color: var(--accent); }
+.select-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.select-text strong { font-weight: 600; font-size: 15px; }
+.select-text small { color: var(--muted); font-size: 13px; }
+.select-trailing { color: var(--accent-ink); font-weight: 700; font-size: 14px; white-space: nowrap; }
+.select-empty { padding: 18px; }

@@ -6,7 +6,7 @@ import { api, cloudEnabled, errorText, publicBase } from '../lib/sync.js';
 import { L, isEn } from '../i18n.js';
 
 const appLink = /localhost|capacitor:/.test(publicBase) ? '' : publicBase;
-import { Alert, Avatar, Badge, Button, Stat, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, openExternal, useApp, NumInput } from '../ui.jsx';
+import { Alert, Avatar, Badge, Button, Select, Stat, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Toggle, openExternal, useApp, NumInput } from '../ui.jsx';
 
 const ranges = [{ id: 'today', label: L('اليوم', 'Today') }, { id: 'week', label: L('الأسبوع', 'Week') }, { id: 'month', label: L('الشهر', 'Month') }, { id: 'lastMonth', label: L('الشهر الماضي', 'Last month') }];
 const weekdays = isEn
@@ -158,7 +158,7 @@ function Accounts({ onClose }) {
       <Section title={L('دعوة عضو جديد', 'Invite a new member')}>
         <Field label={L('الصلاحية', 'Role')}><Chips items={['manager', 'reception', 'staff'].map(id => ({ id, label: roleText[id] }))} value={role} onChange={setRole} /></Field>
         <small className="muted">{role === 'staff' ? L('يرى مواعيده فقط، بدون أرقام العملاء أو الإيرادات', 'Sees only their own appointments — no client numbers or revenue') : role === 'reception' ? L('الحجوزات والعملاء والدفع — بدون التقارير والإعدادات', 'Bookings, clients and payments — no reports or settings') : L('كل شيء عدا الاشتراك وربط واتساب', 'Everything except subscription and WhatsApp connection')}</small>
-        {role === 'staff' && <Field label={L('مرتبط بـ', 'Linked to')}><select value={staffId} onChange={e => setStaffId(e.target.value)}><option value="">{L('اختر من الفريق', 'Choose from the team')}</option>{data.staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>}
+        {role === 'staff' && <Field label={L('مرتبط بـ', 'Linked to')}><Select value={staffId} onChange={setStaffId} placeholder={L('اختر من الفريق', 'Choose from the team')} options={data.staff.map(s => ({ id: s.id, label: s.name, hint: s.role }))} /></Field>}
         {code ? <div className="invite-code"><strong dir="ltr">{code}</strong><small>{L(`صالح ${num(7)} أيام — لمرة واحدة`, `Valid for ${num(7)} days — single use`)}</small>
           <div className="row-buttons"><Button variant="secondary" icon={Copy} onClick={() => { navigator.clipboard?.writeText(code); toast(L('تم النسخ', 'Copied')); }}>{L('نسخ', 'Copy')}</Button>
             <Button icon={MessageCircle} onClick={() => openExternal(staffMember?.phone ? whatsappLink(staffMember.phone, inviteText) : `https://wa.me/?text=${encodeURIComponent(inviteText)}`)}>{L('إرسال', 'Send')}</Button></div>
