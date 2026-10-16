@@ -1,16 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Banknote, Check, CreditCard, Gift, HandCoins, Landmark, Lock, MessageCircle, Package, Pencil, Printer, Receipt, ShoppingBag,
+  Banknote, Check, CreditCard, Image as ImageIcon, ScanLine, Search, Gift, HandCoins, Landmark, Lock, MessageCircle, Package, Pencil, Printer, Receipt, ShoppingBag,
   TicketPercent, Trash2, Vault, WalletCards,
 } from 'lucide-react';
 import {
-  addDays, amountPaid, businessDay, checkCoupon, couponDiscount, normalCode, packageServices, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
+  addDays, amountPaid, businessDay, findInvoice, invoiceNumber, checkCoupon, couponDiscount, normalCode, packageServices, appointmentTotal, balanceDue, dateLabel, depositPaid, isPaid, localISO, money, needsDeposit, num,
   paymentText, serviceNames, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { expectedCash, incomeIn } from '../smart.js';
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Sheet, Select, Stat, Tile, openExternal, useApp, NumInput } from '../ui.jsx';
 import { L } from '../i18n.js';
 import { printElement } from '../lib/files.js';
+import { invoicePng, qrMatrix, shareImage } from '../lib/invoiceImage.js';
 
 const deletedName = L('عميل محذوف', 'Deleted client');
 
@@ -27,6 +28,7 @@ export default function Checkout() {
   const [open, setOpen] = useState(null);
   const [invoice, setInvoice] = useState(null);
   const [sheet, setSheet] = useState(null);
+  const [lookup, setLookup] = useState(false);
 
   useEffect(() => {
     if (intent?.open) setOpen(intent.open);
@@ -57,6 +59,8 @@ export default function Checkout() {
       <Tile icon={ShoppingBag} label={L('بيع منتج', 'Sell product')} tone="green" onClick={() => setSheet('product')} />
       <Tile icon={Receipt} label={L('مصروف', 'Expense')} tone="red" onClick={() => setSheet('expense')} />
     </div>
+    <Button variant="secondary" icon={ScanLine} block onClick={() => setLookup(true)}>{L('البحث عن فاتورة — رقم أو مسح QR', 'Find an invoice — number or scan QR')}</Button>
+    {lookup && <InvoiceLookup onClose={() => setLookup(false)} onFound={id => { setLookup(false); setInvoice(id); }} />}
     <Segmented items={[{ id: 'due', label: L('للتحصيل', 'To collect') }, { id: 'paid', label: L('مدفوعة اليوم', 'Paid today') }, { id: 'drawer', label: L('الصندوق', 'Cash drawer') }]} value={tab} onChange={setTab} />
 
     {tab === 'due' && (due.length ? <div className="list">{due.map(a => <Row key={a.id}
@@ -178,14 +182,30 @@ export function InvoiceSheet({ appointment: a, onClose, canUndo }) {
   const ref = useRef(null);
   if (!a) return null;
   const client = data.clients.find(c => c.id === a.clientId);
-  const number = `INV-${a.date.replaceAll('-', '')}-${a.id.slice(-4).toUpperCase()}`;
+  const number = invoiceNumber(a);
   const text = [`🧾 ${data.shopName}`, L(`فاتورة ${number}`, `Invoice ${number}`), `${dateLabel(a.date)} · ${timeLabel(a.time)}`, '', ...(a.items || []).map(i => `• ${i.name}: ${money(i.price)}`),
     Number(a.discount) ? L(`خصم: −${money(a.discount)}`, `Discount: −${money(a.discount)}`) : '', L(`الإجمالي: ${money(appointmentTotal(a))}`, `Total: ${money(appointmentTotal(a))}`), L(`المدفوع: ${money(amountPaid(a))}`, `Paid: ${money(amountPaid(a))}`), '', L('شكراً لزيارتك 🙏', 'Thank you for your visit 🙏')].filter(line => line !== '').join('\n');
   return <Sheet title={L('الفاتورة', 'Invoice')} onClose={onClose} footer={<>
     {canUndo && <Button variant="danger-ghost" icon={Trash2} onClick={() => setConfirm(true)}>{L('إلغاء الدفع', 'Void payment')}</Button>}
     <div className="spacer" />
     <Button variant="secondary" icon={Printer} onClick={() => printElement(ref.current, number).catch(e => toast(e.message || String(e)))}>{L('طباعة', 'Print')}</Button>
-    {client && <Button icon={MessageCircle} onClick={() => openExternal(whatsappLink(client.phone, text))}>{L('إرسال واتساب', 'Send via Whats')}</Button>}
+    {client?.phone && <Button variant="ghost" icon={MessageCircle} onClick={() => openExternal(whatsappLink(client.phone, text))}>{L('نص', 'Text')}</Button>}
+    <Button icon={ImageIcon} onClick={async () => {
+      // صورة الفاتورة مع رمز QR — تُفتح قائمة المشاركة لاختيار واتساب والعميل.
+      try {
+        const blob = await invoicePng({
+          shopName: data.shopName, number, client: client?.name || '', when: `${dateLabel(a.date)} · ${timeLabel(a.time)}`,
+          lines: [...(a.items || []).map(i => ({ label: i.name, value: money(i.price) })),
+            ...(Number(a.discount) > 0 ? [{ label: `${L('خصم', 'Discount')}${a.couponCode ? ` (${a.couponCode})` : ''}`, value: `−${money(a.discount)}` }] : []),
+            { label: L('الإجمالي', 'Total'), value: money(appointmentTotal(a)), strong: true },
+            ...(a.payments || []).map(p => ({ label: `${p.kind === 'tip' ? L('إكرامية', 'Tip') : p.kind === 'deposit' ? L('عربون', 'Deposit') : L('دفعة', 'Payment')} · ${paymentText[p.method]}`, value: money(p.amount), muted: true }))],
+          total: L(`المدفوع ${money(amountPaid(a))}`, `Paid ${money(amountPaid(a))}`),
+          footer: L('شكراً لزيارتك — امسح الرمز لعرض الفاتورة في الصالون', 'Thank you — scan the code to view this invoice at the salon'),
+        });
+        if (client?.phone) navigator.clipboard?.writeText(client.phone).catch(() => {});
+        await shareImage(blob, `${number}.png`, L(`فاتورة ${number} — ${data.shopName}`, `Invoice ${number} — ${data.shopName}`));
+      } catch (e) { toast(e.message || String(e)); }
+    }}>{L('إرسال كصورة', 'Send as image')}</Button>
   </>}>
     <article className="invoice" ref={ref}>
       <header><strong>{data.shopName}</strong><small dir="ltr">{number}</small></header>
@@ -194,6 +214,7 @@ export function InvoiceSheet({ appointment: a, onClose, canUndo }) {
       {Number(a.discount) > 0 && <div className="invoice-line"><span>{L('خصم', 'Discount')}{a.couponCode ? ` (${a.couponCode})` : ''}</span><strong>−{money(a.discount)}</strong></div>}
       <div className="invoice-line total"><span>{L('الإجمالي', 'Total')}</span><strong>{money(appointmentTotal(a))}</strong></div>
       {(a.payments || []).map(p => <div className="invoice-line muted" key={p.id}><span>{p.kind === 'tip' ? L('إكرامية', 'Tip') : p.kind === 'deposit' ? L('عربون', 'Deposit') : L('دفعة', 'Payment')} · {paymentText[p.method]}</span><span>{money(p.amount)}</span></div>)}
+      <QrCode text={number} />
       <footer>{L('شكراً لزيارتك — نتطلع لرؤيتك مجدداً', 'Thank you for your visit — we look forward to seeing you again')}</footer>
     </article>
     {confirm && <Confirm title={L('إلغاء تسجيل الدفع؟', 'Void this payment?')} text={L('سيُسجَّل هذا الإجراء في سجل التعديلات باسمك.', 'This action will be recorded in the audit log under your name.')} danger confirmLabel={L('إلغاء الدفع', 'Void payment')} onClose={() => setConfirm(false)} onConfirm={() => {
@@ -205,6 +226,60 @@ export function InvoiceSheet({ appointment: a, onClose, canUndo }) {
       }));
       toast(L('تم إلغاء الدفع', 'Payment voided')); onClose();
     }} />}
+  </Sheet>;
+}
+
+// رمز QR برقم الفاتورة (SVG حتى يبقى حاداً في الطباعة).
+function QrCode({ text }) {
+  const { n, dark } = qrMatrix(text);
+  const cells = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (dark(r, c)) cells.push(`M${c} ${r}h1v1h-1z`);
+  return <div className="invoice-qr"><svg viewBox={`-2 -2 ${n + 4} ${n + 4}`} width="116" height="116" role="img" aria-label={text}><rect x="-2" y="-2" width={n + 4} height={n + 4} fill="#fff" /><path d={cells.join('')} fill="#1d1a16" /></svg></div>;
+}
+
+// البحث عن فاتورة برقمها (أو آخر 4 أحرف منه) أو بمسح رمز QR بكاميرا الهاتف.
+function InvoiceLookup({ onClose, onFound }) {
+  const { data } = useApp();
+  const [query, setQuery] = useState('');
+  const [error, setError] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const video = useRef(null);
+  const canScan = typeof window !== 'undefined' && 'BarcodeDetector' in window && navigator.mediaDevices?.getUserMedia;
+  const tryOpen = value => {
+    const a = findInvoice(data.appointments, value);
+    if (a) { onFound(a.id); return true; }
+    setError(L('لا توجد فاتورة بهذا الرقم', 'No invoice with this number')); return false;
+  };
+  useEffect(() => {
+    if (!scanning) return undefined;
+    let stream; let timer; let stopped = false;
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (stopped) return;
+        video.current.srcObject = stream; await video.current.play();
+        const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        const tick = async () => {
+          if (stopped) return;
+          const codes = await detector.detect(video.current).catch(() => []);
+          if (codes[0]?.rawValue) { setScanning(false); setQuery(codes[0].rawValue); tryOpen(codes[0].rawValue); return; }
+          timer = setTimeout(tick, 250);
+        };
+        tick();
+      } catch { setScanning(false); setError(L('تعذّر فتح الكاميرا — اسمح للتطبيق باستخدامها أو اكتب الرقم', 'Could not open the camera — allow camera access or type the number')); }
+    })();
+    return () => { stopped = true; clearTimeout(timer); stream?.getTracks().forEach(t => t.stop()); };
+  }, [scanning]);
+  return <Sheet title={L('البحث عن فاتورة', 'Find an invoice')} onClose={onClose} size="sm"
+    footer={<Button block icon={Search} disabled={query.trim().length < 4} onClick={() => tryOpen(query)}>{L('فتح الفاتورة', 'Open invoice')}</Button>}>
+    <div className="stack">
+      <Field label={L('رقم الفاتورة', 'Invoice number')} hint={L('مثل INV-20261016-9A5D، أو آخر 4 أحرف منه فقط', 'E.g. INV-20261016-9A5D, or just its last 4 characters')}>
+        <input dir="ltr" className="code-input" autoFocus value={query} onChange={e => { setQuery(e.target.value.toUpperCase()); setError(''); }} onKeyDown={e => { if (e.key === 'Enter') tryOpen(query); }} placeholder="9A5D" />
+      </Field>
+      {canScan && (scanning ? <div className="scanner"><video ref={video} playsInline muted /><span className="scanner-frame" /></div>
+        : <Button variant="secondary" icon={ScanLine} block onClick={() => { setError(''); setScanning(true); }}>{L('مسح رمز QR بالكاميرا', 'Scan the QR code with the camera')}</Button>)}
+      <Alert>{error}</Alert>
+    </div>
   </Sheet>;
 }
 

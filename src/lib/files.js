@@ -8,14 +8,14 @@ const toBase64 = bytes => {
   return btoa(binary);
 };
 
-export async function saveFile(name, content, type = 'application/octet-stream') {
+export async function saveFile(name, content, type = 'application/octet-stream', { text } = {}) {
   if (isNative) {
     const [{ Filesystem, Directory }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')]);
     const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : new Uint8Array(content);
     const safe = name.replace(/[\\/:*?"<>|]+/g, '-');
     const { uri } = await Filesystem.writeFile({ path: safe, data: toBase64(bytes), directory: Directory.Cache });
     // إلغاء المستخدم لقائمة المشاركة ليس خطأ.
-    await Share.share({ title: safe, files: [uri], dialogTitle: safe }).catch(() => {});
+    await Share.share({ title: safe, files: [uri], dialogTitle: safe, ...(text ? { text } : {}) }).catch(() => {});
     return;
   }
   const url = URL.createObjectURL(new Blob([content], { type }));

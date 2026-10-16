@@ -64,13 +64,15 @@ export function Stat({ icon: Icon, label, value, tone = 'accent', onClick }) {
   </Tag>;
 }
 
-export function Row({ leading, title, subtitle, trailing, onClick, tone }) {
+// action: زر منفصل بجانب الصف (مثل «نشر») — خارج زر الصف حتى لا تتداخل الضغطات على الهاتف.
+export function Row({ leading, title, subtitle, trailing, onClick, tone, action }) {
   const Tag = onClick ? 'button' : 'div';
-  return <Tag type={onClick ? 'button' : undefined} className={`row ${tone ? `row-${tone}` : ''}`} onClick={onClick}>
+  const row = <Tag type={onClick ? 'button' : undefined} className={`row ${tone ? `row-${tone}` : ''}`} onClick={onClick}>
     {leading && <span className="row-leading">{leading}</span>}
     <span className="row-body"><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}</span>
-    {trailing !== undefined ? <span className="row-trailing">{trailing}</span> : onClick ? <Chevron className="row-chevron" size={18} /> : null}
+    {trailing !== undefined ? <span className="row-trailing">{trailing}</span> : onClick && !action ? <Chevron className="row-chevron" size={18} /> : null}
   </Tag>;
+  return action ? <div className="row row-split">{row}<span className="row-action">{action}</span></div> : row;
 }
 
 export function Section({ title, action, children, className = '' }) {
@@ -145,6 +147,8 @@ export function Sheet({ title, subtitle, onClose, children, footer, size = 'md' 
   const onPointerDown = event => {
     if (event.pointerType === 'mouse' || window.matchMedia?.('(min-width: 700px)').matches) return;
     if (!event.target.closest('.sheet-grip, .sheet-head') || event.target.closest('button, input, a')) return;
+    // نافذة داخل نافذة: أحداث React تصعد عبر الـ portal للنافذة الأم — نتجاهلها حتى لا تُسحب النافذتان معاً.
+    if (event.target.closest('.sheet') !== event.currentTarget) return;
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* pointer already released */ }
     drag.current = { startY: event.clientY, lastY: event.clientY, lastT: performance.now(), velocity: 0, dy: 0, active: false };
   };

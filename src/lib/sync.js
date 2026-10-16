@@ -179,7 +179,10 @@ export const api = {
   publicShop: slug => rpc('public_shop', { p_slug: slug }),
   publicBook: v => rpc('public_book', {
     p_slug: v.slug, p_name: v.name, p_phone: v.phone, p_service_ids: v.serviceIds, p_staff: v.staffId || '', p_date: v.date, p_time: v.time, p_note: v.note || '',
+    // يُرسلان فقط عند استخدامهما، حتى يبقى الحجز العادي يعمل قبل تشغيل ملف 0013.
+    ...(v.coupon ? { p_coupon: v.coupon } : {}), ...(v.packageId ? { p_package: v.packageId } : {}),
   }),
+  publicCheckCoupon: (slug, code) => rpc('public_check_coupon', { p_slug: slug, p_code: code }),
   admin: {
     shops: () => rpc('admin_list_shops'),
     setLicense: (shop, plan, paidUntil, note) => rpc('admin_set_license', { p_shop: shop, p_plan: plan, p_paid_until: paidUntil, p_note: note ?? null }),
@@ -219,6 +222,9 @@ export const errorText = error => {
   if (/reason_required/.test(message)) return L('اكتب سبب الحذف', 'Please write the reason for deletion');
   if (/too_soon/.test(message)) return L('أُرسلت حملة خلال آخر 24 ساعة — حماية لرقمك من الحظر، جرّب غداً', 'A campaign was sent in the last 24 hours — to protect your number, try again tomorrow');
   if (/addon_required/.test(message)) return L('الإرسال الجماعي يحتاج اشتراك واتساب الذكي', 'Bulk sending requires the Smart WhatsApp add-on');
+  if (/coupon_invalid/.test(message)) return L('كود الخصم غير صحيح', 'Invalid discount code');
+  if (/coupon_expired/.test(message)) return L('انتهت صلاحية كود الخصم', 'This discount code has expired');
+  if (/coupon_used_up/.test(message)) return L('استُخدم كود الخصم بالحد الأقصى', 'This discount code has reached its limit');
   if (/too_many/.test(message)) return L('وصلت للحد الأقصى من الحجوزات اليوم، تواصل مع الصالون', 'You\'ve reached today\'s booking limit — please contact the salon');
   if (/shop_unavailable/.test(message)) return L('الحجز الأونلاين غير متاح حالياً لهذا الصالون', 'Online booking is currently unavailable for this salon');
   if (/grace_already_given/.test(message)) return L('سبق منح مهلة لهذه الفترة — جدّد الاشتراك أو أوقف الصالون', 'A grace period was already granted for this term — renew the subscription or suspend the salon');

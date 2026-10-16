@@ -41,8 +41,8 @@ export function OfferShare({ offer, onClose }) {
 
       <Section title={L('لكل العملاء عبر واتساب', 'All clients on WhatsApp')}>
         <div className="stack">
-          {waActive && <Button block icon={Send} disabled={!text.trim() || !recipients.length} onClick={() => setConfirm(true)}>{L(`إرسال تلقائي للجميع (${num(recipients.length)})`, `Send automatically to all (${num(recipients.length)})`)}</Button>}
-          <Button block variant={waActive ? 'secondary' : 'primary'} icon={Users} disabled={!text.trim() || !recipients.length} onClick={() => setMode('queue')}>{L('إرسال من واتسابك — عميل بعد عميل', 'Send from your WhatsApp — one client after another')}</Button>
+          {waActive && <Button block icon={Send} disabled={!text.trim() || !recipients.length} onClick={() => setConfirm(true)}>{L(`إرسال تلقائي للجميع (${num(recipients.length)})`, `Send to all automatically (${num(recipients.length)})`)}</Button>}
+          <Button block variant={waActive ? 'secondary' : 'primary'} icon={Users} disabled={!text.trim() || !recipients.length} onClick={() => setMode('queue')}>{L('من واتسابك — واحداً تلو الآخر', 'From your WhatsApp — one by one')}</Button>
           <small className="muted">{waActive
             ? L('التلقائي يصل الجميع دفعة واحدة من رقم الصالون (مرة كل 24 ساعة، وبرسوم ميتا لكل رسالة تسويقية). ومن يرد «إيقاف» لا تصله عروض بعدها.', 'Automatic sends to everyone at once from the salon number (once every 24 hours; Meta charges per marketing message). Anyone who replies “stop” won’t get offers again.')
             : L('واتساب لا يسمح بإرسال جماعي من التطبيق العادي: نفتح لك محادثة كل عميل بالرسالة جاهزة، تضغط إرسال ثم «التالي». للإرسال التلقائي للجميع بضغطة واحدة فعّل إضافة واتساب الذكي.', 'WhatsApp doesn’t allow bulk sending from the regular app: we open each client’s chat with the message ready — tap send, then “Next”. For one-tap sending to everyone, enable the Smart WhatsApp add-on.')}</small>

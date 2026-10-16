@@ -218,6 +218,7 @@ function PackagesSettings({ onClose }) {
         <Field label={L('سعر الباقة', 'Package price')}><NumInput min="0" value={v.price} onChange={e => setEdit({ ...v, price: Number(e.target.value) })} /></Field>
       </div>
       <Field label={L('صالحة لمدة (يوم)', 'Valid for (days)')}><NumInput min="0" value={v.validityDays} onChange={e => setEdit({ ...v, validityDays: Number(e.target.value) })} /></Field>
+      <Toggle checked={Boolean(v.online)} onChange={online => setEdit({ ...v, online })} label={L('يظهر في رابط الحجز', 'Show in the booking link')} hint={Number(v.sessions || 1) === 1 ? L('يختاره العميل أونلاين ويُحسب له سعر الباقة تلقائياً', 'Clients can pick it online and get the package price automatically') : L('يظهر كاختصار لاختيار خدماته (الجلسات المدفوعة مسبقاً تُباع في الصالون)', 'Shown as a shortcut to its services (prepaid sessions are sold in the salon)')} />
       {packageServices(v).length > 0 && (() => {
         const regular = packageServices(v).reduce((sum, id) => sum + Number(data.services.find(s => s.id === id)?.price || 0), 0) * Number(v.sessions || 1);
         return <small className="muted">{L('السعر المعتاد', 'Regular price')} {money(regular)} — {L('توفير للعميل', 'client saves')} {money(Math.max(0, regular - Number(v.price || 0)))}</small>;
@@ -231,7 +232,8 @@ function PackagesSettings({ onClose }) {
           if (!packageServices(v).some(id => data.services.some(s => s.id === id))) { toast(L('اختر خدمة واحدة على الأقل', 'Choose at least one service')); return; }
           if (!(Number(v.sessions) >= 1) || !(Number(v.price) > 0)) { toast(L('عدد الجلسات والسعر يجب أن يكونا أكبر من صفر', 'Sessions and price must be greater than zero')); return; } upsert('packages', { ...v, name: v.name.trim(), serviceIds: packageServices(v).filter(id => data.services.some(s => s.id === id)), serviceId: packageServices(v).find(id => data.services.some(s => s.id === id)) || '', id: v.id || uid() }); toast(L('تم الحفظ', 'Saved')); setEdit(null); }}>{L('حفظ', 'Save')}</Button>
       </div>
-    </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={packageServices(p).map(id => data.services.find(x => x.id === id)?.name).filter(Boolean).join(' + ') + ' · ' + L(`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`, `${plural(num(p.sessions), 'session', 'sessions')} · ${plural(num(p.validityDays), 'day', 'days')}`)} trailing={<span className="row-end"><strong>{money(p.price)}</strong><Button size="sm" variant="ghost" icon={Share2} onClick={event => { event.stopPropagation(); setSharingPkg(p); }}>{L('نشر', 'Share')}</Button></span>} onClick={() => setEdit(p)} />)}</div>
+    </div> : data.packages.length ? <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={packageServices(p).map(id => data.services.find(x => x.id === id)?.name).filter(Boolean).join(' + ') + ' · ' + L(`${num(p.sessions)} جلسات · ${num(p.validityDays)} يوم`, `${plural(num(p.sessions), 'session', 'sessions')} · ${plural(num(p.validityDays), 'day', 'days')}`)} trailing={<strong>{money(p.price)}</strong>} onClick={() => setEdit(p)}
+        action={<Button size="sm" variant="secondary" icon={Share2} onClick={() => setSharingPkg(p)}>{L('نشر', 'Share')}</Button>} />)}</div>
       : <Empty icon={Package} title={L('لا باقات بعد', 'No packages yet')} text={L(`مثال: ${num(5)} قصات بسعر ${num(4)} — يدفع العميل مقدماً ويعود باستمرار`, `E.g. ${num(5)} haircuts for the price of ${num(4)} — the client pays upfront and keeps coming back`)} />}
     {sharingPkg && <OfferShare offer={packageOffer(sharingPkg)} onClose={() => setSharingPkg(null)} />}
     {confirmDelete && <Confirm title={L('حذف الباقة؟', 'Delete package?')} text={L('الباقات المباعة سابقاً للعملاء تبقى صالحة.', 'Packages already sold to clients stay valid.')} danger confirmLabel={L('حذف', 'Delete')} onClose={() => setConfirmDelete(false)} onConfirm={() => { remove('packages', v.id); setEdit(null); toast(L('تم الحذف', 'Deleted')); }} />}
@@ -240,7 +242,7 @@ function PackagesSettings({ onClose }) {
 
 // أكواد الخصم للحملات: إنشاء، إيقاف، ومتابعة كم استُخدم كل كود وكم جلب من دخل.
 function Coupons({ onClose }) {
-  const { data, upsert, remove, toast } = useApp();
+  const { data, upsert, remove, toast, shop } = useApp();
   const [edit, setEdit] = useState(null);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -248,6 +250,13 @@ function Coupons({ onClose }) {
   const stats = c => {
     const appts = data.appointments.filter(a => a.couponId === c.id);
     return { uses: appts.length, revenue: appts.reduce((s, a) => s + amountPaid(a), 0), discount: appts.reduce((s, a) => s + Number(a.discount || 0), 0), clients: new Set(appts.map(a => a.clientId)).size };
+  };
+  // اقتراحات: من اسم الصالون (رابط الحجز بالإنجليزية) ومناسبات شائعة، مع قيمة الخصم الحالية.
+  const codeIdeas = draft => {
+    const n = Number(draft.value) || 10;
+    const brand = String(shop.slug || '').replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8);
+    const used = new Set(data.coupons.map(c => normalCode(c.code)));
+    return [brand && `${brand}${n}`, `WELCOME${n}`, `EID${n}`, `VIP${n}`, `INSTA${n}`, `FRIEND${n}`, `NEW${n}`, `QATAR${n}`].filter(c => c && !used.has(c)).slice(0, 7);
   };
   const save = () => {
     const code = normalCode(v.code);
@@ -269,7 +278,8 @@ function Coupons({ onClose }) {
       <div className="spacer" /><Button variant="ghost" onClick={() => { setEdit(null); setError(''); }}>{L('رجوع', 'Back')}</Button><Button icon={Check} onClick={save}>{L('حفظ', 'Save')}</Button>
     </> : <Button block icon={Plus} onClick={() => setEdit({ code: '', type: 'percent', value: 10, maxUses: 0, expiresAt: '', active: true })}>{L('كود جديد', 'New code')}</Button>}>
     {edit ? <div className="stack">
-      <Field label={L('الكود', 'Code')} required hint={L('حروف إنجليزية وأرقام — مثل EID20 أو INSTA10', 'English letters and digits — e.g. EID20 or INSTA10')}><input dir="ltr" className="code-input" autoFocus value={v.code} onChange={e => { setEdit({ ...v, code: e.target.value.toUpperCase() }); setError(''); }} placeholder="EID20" /></Field>
+      <Field label={L('الكود', 'Code')} required hint={L('حروف إنجليزية وأرقام — مثل EID20 أو INSTA10', 'English letters and digits — e.g. EID20 or INSTA10')}><input dir="ltr" className="code-input" autoFocus value={v.code} onChange={e => { setEdit({ ...v, code: normalCode(e.target.value) }); setError(''); }} placeholder="EID20" /></Field>
+      {!v.id && <div className="chips code-ideas">{codeIdeas(v).map(code => <button type="button" key={code} className={`chip ${v.code === code ? 'active' : ''}`} onClick={() => { setEdit({ ...v, code }); setError(''); }}>{code}</button>)}</div>}
       <Field label={L('نوع الخصم', 'Discount type')}><Segmented items={[{ id: 'percent', label: L('نسبة ٪', 'Percent %') }, { id: 'amount', label: L('مبلغ ثابت', 'Fixed amount') }]} value={v.type} onChange={type => setEdit({ ...v, type })} /></Field>
       <div className="grid-2">
         <Field label={v.type === 'amount' ? L('المبلغ (ر.ق)', 'Amount (QAR)') : L('النسبة ٪', 'Percent %')}><NumInput value={v.value} onChange={e => setEdit({ ...v, value: e.target.value })} /></Field>
@@ -284,7 +294,8 @@ function Coupons({ onClose }) {
       return <Row key={c.id} leading={<span className={`dot-icon tone-${off ? 'muted' : 'green'}`}><TicketPercent size={18} /></span>}
         title={<span dir="ltr">{c.code}</span>}
         subtitle={`${c.type === 'amount' ? money(c.value) : `${num(c.value)}٪`} · ${L(`استُخدم ${num(s.uses)}${Number(c.maxUses) > 0 ? ` من ${num(c.maxUses)}` : ''}`, `used ${num(s.uses)}${Number(c.maxUses) > 0 ? ` of ${num(c.maxUses)}` : ''}`)} · ${L(`جلب ${money(s.revenue)}`, `brought ${money(s.revenue)}`)}${c.expiresAt ? ` · ${L('حتى', 'until')} ${dateLabel(c.expiresAt, { day: 'numeric', month: 'short' })}` : ''}`}
-        trailing={<span className="row-end">{off && <Badge tone="muted">{L('منتهي', 'Inactive')}</Badge>}<Button size="sm" variant="ghost" icon={Share2} onClick={event => { event.stopPropagation(); setSharing(c); }}>{L('نشر', 'Share')}</Button></span>}
+        trailing={off ? <Badge tone="muted">{L('منتهي', 'Inactive')}</Badge> : null}
+        action={<Button size="sm" variant="secondary" icon={Share2} onClick={() => setSharing(c)}>{L('نشر', 'Share')}</Button>}
         onClick={() => setEdit(c)} />;
     })}</div> : <Empty icon={TicketPercent} title={L('لا أكواد بعد', 'No codes yet')} text={L('أنشئ كوداً لحملة انستغرام أو عيد، وتابع كم عميلاً استخدمه وكم جلب من دخل', 'Create a code for an Instagram or holiday campaign and track how many clients used it and the revenue it brought')} />}
     {sharing && <OfferShare offer={offerOf(sharing)} onClose={() => setSharing(null)} />}

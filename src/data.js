@@ -268,7 +268,8 @@ export const CLIENT_SOURCES = [
 export const sourceLabel = id => CLIENT_SOURCES.find(s => s.id === id)?.label || L('غير محدد', 'Not set');
 
 // أكواد الخصم: نسبة أو مبلغ، بتاريخ انتهاء وحد استخدام اختياريين.
-export const normalCode = code => latinDigits(code).trim().toUpperCase().replace(/\s+/g, '');
+// تنظيف الكود: لوحات المفاتيح العربية تضيف علامات اتجاه خفية، وبعضها يكتب أحرفاً عريضة (ＥＩＤ) — نزيلها ونوحّدها.
+export const normalCode = code => latinDigits(String(code || '').normalize('NFKC')).replace(/[\p{Cf}\s]/gu, '').toUpperCase();
 export const couponDiscount = (coupon, gross) => Math.min(gross, Math.round(coupon.type === 'amount' ? Number(coupon.value || 0) : gross * Number(coupon.value || 0) / 100));
 export const checkCoupon = (coupons, code, today) => {
   const c = (coupons || []).find(x => normalCode(x.code) === normalCode(code));
@@ -277,6 +278,13 @@ export const checkCoupon = (coupons, code, today) => {
   if (c.expiresAt && c.expiresAt < today) return { error: L('انتهت صلاحية الكود', 'This code has expired') };
   if (Number(c.maxUses) > 0 && Number(c.used || 0) >= Number(c.maxUses)) return { error: L('استُخدم الكود بالحد الأقصى', 'This code has reached its usage limit') };
   return { coupon: c };
+};
+// رقم الفاتورة ثابت لكل موعد: INV-تاريخه-آخر 4 من معرّفه (يُطبع في الفاتورة وفي رمز QR).
+export const invoiceNumber = a => `INV-${String(a.date || '').replaceAll('-', '')}-${String(a.id || '').slice(-4).toUpperCase()}`;
+export const findInvoice = (appointments, query) => {
+  const q = normalCode(query).replace(/^MIQASS:/, '');
+  if (q.length < 4) return null;
+  return appointments.find(a => (a.payments || []).length && (invoiceNumber(a) === q || (q.length <= 6 && invoiceNumber(a).endsWith(q)))) || null;
 };
 export const appointmentTotal = a => Math.max(0, (a.items || []).reduce((sum, item) => sum + Number(item.price || 0), 0) - Number(a.discount || 0));
 export const amountPaid = a => (a.payments || []).filter(p => p.kind !== 'tip').reduce((sum, p) => sum + Number(p.amount || 0), 0);
