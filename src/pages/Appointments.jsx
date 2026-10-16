@@ -20,6 +20,39 @@ const PrevChevron = isEn ? ChevronLeft : ChevronRight;
 
 const dayStrip = (center, count = 14) => Array.from({ length: count }, (_, i) => addDays(center, i - 2));
 
+// فلتر الحلاقين: المتاح أولاً ثم الأقل مواعيد في اليوم المختار؛ ثلاثة ظاهرة والباقي خلف «+N آخرون».
+const VISIBLE_STAFF = 3;
+function StaffChips({ date, value, onChange }) {
+  const { data } = useApp();
+  const [expanded, setExpanded] = useState(false);
+  const ordered = useMemo(() => {
+    const counts = {};
+    for (const a of data.appointments) {
+      if (a.date !== date || ['cancelled', 'no_show'].includes(a.status)) continue;
+      for (const id of new Set([a.staffId, ...(a.items || []).map(i => i.staffId)].filter(Boolean))) counts[id] = (counts[id] || 0) + 1;
+    }
+    return data.staff.filter(s => s.active !== false)
+      .map(s => ({ s, off: isStaffOff(s, date) ? 1 : 0, count: counts[s.id] || 0 }))
+      .sort((a, b) => a.off - b.off || a.count - b.count)
+      .map(x => x.s);
+  }, [data.appointments, data.staff, date]);
+  let shown = expanded ? ordered : ordered.slice(0, VISIBLE_STAFF);
+  // الحلاق المختار يبقى ظاهراً حتى لو كان ضمن المطويين.
+  if (!expanded && value !== 'all' && !shown.some(s => s.id === value)) {
+    const picked = ordered.find(s => s.id === value);
+    if (picked) shown = [...shown, picked];
+  }
+  const hidden = ordered.length - shown.length;
+  const items = [{ id: 'all', label: L('الكل', 'All') }, ...shown.map(s => ({ id: s.id, label: shortName(data.staff, s) }))];
+  if (hidden > 0) items.push({ id: '__more', label: L(`+${hidden} آخرون`, `+${hidden} more`) });
+  else if (expanded && ordered.length > VISIBLE_STAFF) items.push({ id: '__less', label: L('إخفاء', 'Less') });
+  return <Chips items={items} value={value} onChange={id => {
+    if (id === '__more') setExpanded(true);
+    else if (id === '__less') setExpanded(false);
+    else onChange(id);
+  }} />;
+}
+
 export default function Appointments() {
   const { data, intent, setIntent, role, staffMember, can } = useApp();
   const [date, setDate] = useState(localISO());
@@ -73,7 +106,7 @@ export default function Appointments() {
       </div>}
     </div>
 
-    {role !== 'staff' && data.staff.length > 1 && <Chips items={[{ id: 'all', label: L('الكل', 'All') }, ...data.staff.filter(s => s.active !== false).map(s => ({ id: s.id, label: shortName(data.staff, s) }))]} value={staffFilter} onChange={setStaffFilter} />}
+    {role !== 'staff' && data.staff.length > 1 && <StaffChips date={date} value={staffFilter} onChange={setStaffFilter} />}
 
     {list.length ? <div className="timeline">{list.map(a => {
       const client = clients[a.clientId];

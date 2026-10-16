@@ -69,7 +69,7 @@ export default function Home() {
         <Badge status={next.status} />
         <div className="next-actions">
           {next.status !== 'arrived' && <Button variant="secondary" icon={UserRoundCheck} onClick={() => { patch('appointments', next.id, { status: 'arrived', arrivedAt: new Date().toISOString() }); toast(L('تم تسجيل الوصول', 'Checked in')); }}>{L('وصل', 'Arrived')}</Button>}
-          <Button icon={CalendarCheck2} onClick={() => setOpenId(next.id)}>{L('فتح الموعد', 'Open appointment')}</Button>
+          <Button icon={CalendarCheck2} onClick={() => setOpenId(next.id)}>{L('فتح', 'Open')}</Button>
         </div>
       </div> : <Empty icon={CalendarCheck2} title={L('لا مواعيد قادمة اليوم', 'No more appointments today')} text={link ? L('الجدول فارغ — شارك رابط الحجز مع عملائك', 'Your schedule is clear — share your booking link with clients') : L('الجدول فارغ حالياً', 'Your schedule is clear for now')}
         action={<div className="row-buttons center">

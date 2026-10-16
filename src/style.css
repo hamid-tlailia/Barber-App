@@ -698,3 +698,7 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 .package-card b { color: var(--accent-ink); font-size: 16px; }
 .package-card s { font-size: 12.5px; }
 .package-card .check { position: absolute; top: 10px; inset-inline-end: 10px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--surface); }
+
+/* اسم المحل في الشريط العلوي: تدرّج ألوان جذاب */
+.shop-name { background: linear-gradient(100deg, #e0572a 0%, #d63384 45%, #7b4dff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; font-weight: 800; padding-block: 2px; }
+:root[data-theme='dark'] .shop-name { background-image: linear-gradient(100deg, #ffb057 0%, #ff6fae 50%, #a98bff 100%); }

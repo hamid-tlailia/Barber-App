@@ -275,7 +275,7 @@ function Shell({ account, shop, shops, license, admin, theme, notice, reloadShop
 
       <main className="main">
         <header className="topbar">
-          <div className="topbar-title"><h1>{page === 'home' ? (data.shopName || L('مِقص', 'Miqass')) : page === 'clients' ? vocab.clients : page === 'team' ? vocab.team : PAGES[page].label}</h1></div>
+          <div className="topbar-title"><h1>{page === 'home' ? <span className="shop-name">{data.shopName || L('مِقص', 'Miqass')}</span> : page === 'clients' ? vocab.clients : page === 'team' ? vocab.team : PAGES[page].label}</h1></div>
           <div className="topbar-actions">
             {SyncIcon && <button type="button" className={`sync-pill sync-${sync.state}`} onClick={() => { syncNow(); if (sync.state === 'error') showToast(L(`تعذّرت المزامنة: ${sync.error}`, `Sync failed: ${sync.error}`), 'error'); }} title={sync.error || L('مزامنة', 'Sync')}><SyncIcon size={16} className={sync.state === 'syncing' ? 'spin' : ''} />{sync.pending ? <span>{sync.pending}</span> : null}</button>}
             {admin && <button type="button" className={`icon-btn ${page === 'admin' ? 'active' : ''}`} onClick={() => go('admin')} aria-label={L('لوحة المطوّر', 'Developer panel')}><ShieldCheck size={19} /></button>}
