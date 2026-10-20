@@ -3,7 +3,7 @@ import {
   ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
   ListPlus, MapPin, MessageCircle, Package, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { CLIENT_SOURCES, PHONE_ERROR, validPhone,
+import { CLIENT_SOURCES, bookedAs, PHONE_ERROR, validPhone,
   addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, packageServices, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
@@ -114,6 +114,7 @@ export default function Appointments() {
         <span className="slot-time"><strong>{timeLabel(a.time)}</strong><small>{num(a.duration)}{L('د', 'm')}</small></span>
         <span className="slot-body">
           <strong>{client?.name || L('عميل محذوف', 'Deleted client')}</strong>
+          {bookedAs(a, client) && <small>{L(`حُجز باسم «${bookedAs(a, client)}»`, `Booked as “${bookedAs(a, client)}”`)}</small>}
           <small>{serviceNames(a)}</small>
           <span className="slot-tags">
             <Badge status={a.status} />
@@ -198,9 +199,13 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
         <Avatar name={client?.name} size="lg" />
         <div><Badge status={a.status} /> {risk?.level === 'high' && <Badge tone="red">{risk.label}</Badge>}</div>
       </div>
+      {bookedAs(a, client) && <div className="stack-sm">
+        <Alert tone="blue" icon={UserPlus}>{L(`حُجز أونلاين باسم «${bookedAs(a, client)}» برقم مسجّل عندك للعميل «${client.name}».`, `Booked online as “${bookedAs(a, client)}” with a number saved for “${client.name}”.`)}</Alert>
+        {role !== 'staff' && <Button size="sm" variant="secondary" icon={Pencil} onClick={() => { patch('clients', client.id, { name: bookedAs(a, client) }); toast(L('تم تحديث اسم العميل', 'Client name updated')); }}>{L(`اعتماد «${bookedAs(a, client)}» اسماً للعميل`, `Rename client to “${bookedAs(a, client)}”`)}</Button>}
+      </div>}
       <div className="list">
         {(a.items || []).map((item, i) => <Row key={i} title={item.name} subtitle={`${num(item.duration)} ${L('دقيقة', 'min')}${item.processing ? L(` · منها ${num(item.processing)} انتظار`, ` · incl. ${num(item.processing)} processing`) : ''}${item.staffId ? ` · ${data.staff.find(s => s.id === item.staffId)?.name || ''}` : ''}`} trailing={<strong>{money(item.price)}</strong>} />)}
-        {Number(a.discount) > 0 && <Row title={L('خصم', 'Discount')} trailing={<strong className="green">−{money(a.discount)}</strong>} />}
+        {Number(a.discount) > 0 && <Row title={L('خصم', 'Discount')} subtitle={[a.bundleId && data.packages?.find(p => p.id === a.bundleId)?.name, a.couponCode && L(`كود ${a.couponCode}`, `Code ${a.couponCode}`)].filter(Boolean).join(' · ') || undefined} trailing={<strong className="green">−{money(a.discount)}</strong>} />}
         <Row title={L('الإجمالي', 'Total')} trailing={<strong>{money(total)}</strong>} />
         {Number(a.deposit) > 0 && <Row title={L('العربون', 'Deposit')} subtitle={depositPaid(a) >= a.deposit ? L('مدفوع', 'Paid') : L('لم يُدفع بعد', 'Not paid yet')} trailing={<strong className={depositPaid(a) >= a.deposit ? 'green' : 'red'}>{money(a.deposit)}</strong>} />}
         {a.location === 'home' && <Row leading={<MapPin size={18} />} title={L('خدمة منزلية', 'Home service')} subtitle={a.address || L('بدون عنوان', 'No address')} />}

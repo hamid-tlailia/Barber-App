@@ -212,6 +212,7 @@ Deno.serve(async req => {
   const raw = await req.text();
   if (!(await verifySignature(req, raw))) return new Response('bad signature', { status: 401 });
   const payload = JSON.parse(raw);
+  console.log('webhook', JSON.stringify(payload.entry?.[0]?.changes?.[0]?.field ?? ''), (payload.entry?.[0]?.changes?.[0]?.value?.messages ?? []).length);
   for (const entry of payload.entry ?? []) for (const change of entry.changes ?? []) {
     const value = change.value ?? {};
     for (const message of value.messages ?? []) {
@@ -273,17 +274,35 @@ async function replyToReminder(shopId: string, config: WaConfig, from: string, c
   const [appointments, clients] = await Promise.all([collection(shopId, 'appointments'), collection(shopId, 'clients')]);
   const client = clients.find(c => samePhone(c.data.phone, from));
   if (!client) return false;
-  const today = isoDate(localNow());
-  const next = appointments.filter(a => a.data.clientId === client.id && a.data.date >= today && ['pending', 'confirmed'].includes(a.data.status))
-    .sort((a, b) => `${a.data.date}${a.data.time}`.localeCompare(`${b.data.date}${b.data.time}`))[0];
+  // أقرب موعد لم يفت وقته بعد (مع ساعة سماح) — لا نؤكد موعداً انتهى صباحاً بدل موعد الظهر.
+  const now = localNow();
+  const today = isoDate(now);
+  const grace = isoTime(new Date(now.getTime() - 60 * 60000));
+  const upcoming = appointments.filter(a => a.data.clientId === client.id && ['pending', 'confirmed'].includes(a.data.status)
+    && (a.data.date > today || (a.data.date === today && String(a.data.time) >= (grace > isoTime(now) ? '00:00' : grace))))
+    .sort((a, b) => `${a.data.date}${a.data.time}`.localeCompare(`${b.data.date}${b.data.time}`));
+  // التأكيد يخص أول موعد بانتظار التأكيد؛ الإلغاء يخص أقرب موعد.
+  const next = confirm ? (upcoming.find(a => a.data.status === 'pending') ?? upcoming[0]) : upcoming[0];
   if (!next) return false;
-  await saveRecord(shopId, 'appointments', next.id, { ...next.data, status: confirm ? 'confirmed' : 'cancelled', confirmedVia: 'whatsapp' });
+  await saveRecord(shopId, 'appointments', next.id, { ...next.data, status: confirm ? 'confirmed' : 'cancelled', [confirm ? 'confirmedVia' : 'cancelledVia']: 'whatsapp' });
+  await notifySalon({ kind: 'wa_reply', shop_id: shopId, confirm, client: client.data.name ?? '', appointment: { id: next.id, ...next.data } });
   const en = client.data.lang === 'en';
   const dateEn = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${next.data.date}T12:00:00Z`));
   await sendText(config, from, confirm
     ? (en ? `Your appointment is confirmed ✅ ${dateEn} at ${next.data.time}. See you soon!` : `تم تأكيد موعدك ✅ ${dateAr(next.data.date)} الساعة ${timeAr(next.data.time)}. نراك قريباً!`)
     : (en ? 'Your appointment has been cancelled. Message us anytime to book a new one 🙏' : 'تم إلغاء موعدك. نتمنى رؤيتك قريباً — أرسل لنا متى ما أردت حجز موعد جديد 🙏'));
   return true;
+}
+
+// إشعار الصالون (جوال) بردّ العميل: نفس دالة الإشعارات بسر المهام المجدولة.
+async function notifySalon(body: Record<string, unknown>) {
+  const secret = Deno.env.get('CRON_SECRET');
+  if (!secret) return;
+  try {
+    await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/notify-booking`, {
+      method: 'POST', headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+  } catch (e) { console.error('notify failed', e); }
 }
 
 /* ───────── المساعد الذكي ───────── */

@@ -248,6 +248,8 @@ export const timeLabel = time => {
 export const sortAppointments = (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
 
 // اسم العميل للعرض: العميل المحذوف يبقى ظاهراً في السجلات القديمة بعبارة «عميل محذوف».
+// حجز أونلاين باسم مختلف عن اسم العميل المسجّل بنفس الرقم (الرقم هو الهوية، والاسم المكتوب يُعرض للتوضيح).
+export const bookedAs = (a, client) => a?.onlineName && client?.name && !sameName(a.onlineName, client.name) ? String(a.onlineName) : '';
 export const clientName = (clients, id) => {
   const list = Array.isArray(clients) ? clients : Object.values(clients || {});
   const found = list.find(c => c.id === id);

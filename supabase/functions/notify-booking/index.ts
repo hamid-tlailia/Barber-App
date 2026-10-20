@@ -159,6 +159,18 @@ async function activity(sa: ServiceAccount, payload: any) {
   return sendTo(sa, await tokensOf(owners, shop_id), `👤 ${actor}`, text, { kind: 'activity', shopId: String(shop_id) });
 }
 
+// ردّ العميل على تذكير واتساب (1 تأكيد / 2 إلغاء): للمالك والمدير والاستقبال والحلاق المعيّن.
+async function waReply(sa: ServiceAccount, payload: any) {
+  const { shop_id, confirm, client, appointment: a } = payload;
+  const members: { user_id: string; role: string }[] = await rest(`shop_members?select=user_id,role&shop_id=eq.${shop_id}`);
+  const staffId = a?.staffId || (a?.items ?? []).find((i: any) => i.staffId)?.staffId || '';
+  const linked: { user_id: string }[] = staffId ? await rest(`shop_members?select=user_id&shop_id=eq.${shop_id}&staff_id=eq.${encodeURIComponent(staffId)}`).catch(() => []) : [];
+  const users = [...new Set([...(members ?? []).filter(m => ['owner', 'manager', 'reception'].includes(m.role)).map(m => m.user_id), ...(linked ?? []).map(m => m.user_id)])];
+  const when = a?.date ? `${dateAr(a.date)} · ${timeAr(String(a.time ?? '00:00'))}` : '';
+  return sendTo(sa, await tokensOf(users, shop_id), confirm ? `✅ ${client || 'عميل'} أكّد موعده عبر واتساب` : `❌ ${client || 'عميل'} ألغى موعده عبر واتساب`,
+    when, { kind: 'booking', appointmentId: String(a?.id ?? ''), date: String(a?.date ?? ''), shopId: String(shop_id) });
+}
+
 // بريد لمالك التطبيق عبر Resend (اختياري): RESEND_API_KEY و ADMIN_EMAIL، و MAIL_FROM إن كان لديك نطاق موثّق.
 async function emailAdmin(subject: string, lines: string[]) {
   const key = Deno.env.get('RESEND_API_KEY');
@@ -246,6 +258,7 @@ Deno.serve(async req => {
   if (payload.kind === 'deletion_request') return json(await deletionRequest(sa, payload.shop_id));
   if (!sa) return json({ skipped: 'FCM_SERVICE_ACCOUNT not set' });
   if (payload.kind === 'activity') return json({ sent: await activity(sa, payload) });
+  if (payload.kind === 'wa_reply') return json({ sent: await waReply(sa, payload) });
   if (payload.kind === 'assigned' || payload.kind === 'reassigned') return json({ sent: await assigned(sa, payload) });
   return json({ sent: await booking(sa, payload.shop_id, payload.appointment) });
 });

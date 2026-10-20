@@ -452,7 +452,12 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .photo-grid figure { margin: 0; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-3); }
 .photo-grid img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
-.photo-grid figcaption { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; font-size: 12.5px; color: var(--muted); }
+.photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.photo-grid figcaption { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 4px 12px; font-size: 13px; color: var(--ink-2); }
+.photo-session h4 { margin: 0 0 8px; font-size: 14.5px; color: var(--ink-2); }
+.photo-actions { display: flex; gap: 2px; }
+.photo-actions label, .photo-actions button { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: var(--muted); cursor: pointer; background: none; border: 0; }
+.photo-actions label:active, .photo-actions button:active { background: var(--surface-2); }
 .drop { display: grid; justify-items: center; gap: 6px; padding: 26px; border-radius: var(--radius); border: 2px dashed var(--line-strong); background: var(--surface-2); text-align: center; cursor: pointer; color: var(--ink-2); }
 .drop small { color: var(--muted); }
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
@@ -702,3 +707,5 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 /* اسم المحل في الشريط العلوي: تدرّج ألوان جذاب */
 .shop-name { background: linear-gradient(100deg, #e0572a 0%, #d63384 45%, #7b4dff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; font-weight: 800; padding-block: 2px; }
 :root[data-theme='dark'] .shop-name { background-image: linear-gradient(100deg, #ffb057 0%, #ff6fae 50%, #a98bff 100%); }
+.stack-sm { display: grid; gap: 8px; justify-items: start; }
+.stack-sm > .alert { justify-self: stretch; }

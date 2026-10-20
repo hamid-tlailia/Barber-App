@@ -1,13 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Award, CalendarCheck, CalendarPlus, Camera, Check, Contact, FileUp, FlaskConical, Image, MessageCircle, Package, Pencil, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound, Wallet,
+  Award, CalendarCheck, CalendarPlus, Camera, RefreshCw, Check, Contact, FileUp, FlaskConical, Image, MessageCircle, Package, Pencil, Phone, ShieldAlert, Star, Trash2, UserPlus, UsersRound, Wallet,
 } from 'lucide-react';
-import { CLIENT_SOURCES, sourceLabel, PHONE_ERROR, validPhone, appointmentTotal, dateLabel, importClients, localISO, money, num, phoneDigits, samePhone, serviceNames, statusText, uid, whatsappLink } from '../data.js';
+import { CLIENT_SOURCES, sourceLabel, timeLabel, PHONE_ERROR, validPhone, appointmentTotal, dateLabel, importClients, localISO, money, num, phoneDigits, samePhone, serviceNames, statusText, uid, whatsappLink } from '../data.js';
 import { clientStats, loyaltyPoints, noShowRisk } from '../smart.js';
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, SearchBox, Section, Segmented, Sheet, Stat, Toggle, compressImage, openExternal, useApp } from '../ui.jsx';
 import { contactsSupported, pickContacts, readClientsFile } from '../lib/importers.js';
 import { BookingWizard } from './Appointments.jsx';
 import { L } from '../i18n.js';
+
+// صور قبل/بعد مجمّعة حسب يوم الجلسة: «قبل» ثم «بعد»، والأحدث أولاً. الوقت من أول صورة في الجلسة.
+const localTime = iso => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+function photoSessions(photos) {
+  const days = new Map();
+  for (const p of photos) { const day = String(p.at || '').slice(0, 10); if (!days.has(day)) days.set(day, []); days.get(day).push(p); }
+  return [...days].sort(([a], [b]) => b.localeCompare(a)).map(([date, list]) => {
+    const sorted = list.slice().sort((a, b) => (a.kind === b.kind ? String(a.takenAt || '').localeCompare(String(b.takenAt || '')) : a.kind === 'before' ? -1 : 1));
+    const first = list.map(p => p.takenAt).filter(Boolean).sort()[0];
+    return { date, time: first ? localTime(first) : '', photos: sorted };
+  });
+}
 
 export default function Clients() {
   const { data, intent, setIntent, vocab, role, staffMember } = useApp();
@@ -136,13 +148,14 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
   const hidePhotos = role === 'staff' && data.settings.hideClientPhotosFromStaff;
   const showPhone = role !== 'staff';
 
-  const addPhoto = async (event, kind) => {
+  // replace: إعادة التقاط صورة موجودة (نفس المعرّف والجلسة).
+  const addPhoto = async (event, kind, replace) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
     try {
       const dataUrl = await compressImage(file);
-      upsert('photos', { id: uid(), clientId: client.id, kind, dataUrl, at: localISO() });
+      upsert('photos', replace ? { ...replace, dataUrl, takenAt: new Date().toISOString() } : { id: uid(), clientId: client.id, kind, dataUrl, at: localISO(), takenAt: new Date().toISOString() });
       toast(L('تم حفظ الصورة', 'Photo saved'));
     } catch { toast(L('تعذر قراءة الصورة', 'Couldn’t read the image'), 'error'); }
   };
@@ -197,7 +210,19 @@ export function ClientProfile({ clientId, onClose, onEdit }) {
               <label className="btn btn-secondary"><Camera size={18} /><span>{L('صورة قبل', 'Before photo')}</span><input hidden type="file" accept="image/*" capture="environment" onChange={e => addPhoto(e, 'before')} /></label>
               <label className="btn btn-secondary"><Camera size={18} /><span>{L('صورة بعد', 'After photo')}</span><input hidden type="file" accept="image/*" capture="environment" onChange={e => addPhoto(e, 'after')} /></label>
             </div>
-            {photos.length ? <div className="photo-grid">{photos.slice().reverse().map(p => <figure key={p.id}><img src={p.dataUrl} alt={p.kind === 'before' ? L('قبل', 'Before') : L('بعد', 'After')} /><figcaption>{p.kind === 'before' ? L('قبل', 'Before') : L('بعد', 'After')} · {dateLabel(p.at, { day: 'numeric', month: 'short' })}{role !== 'staff' && <button type="button" onClick={() => remove('photos', p.id)} aria-label={L('حذف', 'Delete')}><Trash2 size={14} /></button>}</figcaption></figure>)}</div>
+            {photos.length ? <div className="stack">{photoSessions(photos).map(session => <div key={session.date} className="photo-session">
+              <h4>{dateLabel(session.date, { day: 'numeric', month: 'long', year: 'numeric' })}{session.time ? ` · ${timeLabel(session.time)}` : ''}</h4>
+              <div className="photo-grid">{session.photos.map(p => <figure key={p.id}>
+                <img src={p.dataUrl} alt={p.kind === 'before' ? L('قبل', 'Before') : L('بعد', 'After')} />
+                <figcaption>
+                  <strong>{p.kind === 'before' ? L('قبل', 'Before') : L('بعد', 'After')}</strong>
+                  {role !== 'staff' && <span className="photo-actions">
+                    <label aria-label={L('إعادة التقاط', 'Retake')}><RefreshCw size={15} /><input hidden type="file" accept="image/*" capture="environment" onChange={e => addPhoto(e, p.kind, p)} /></label>
+                    <button type="button" onClick={() => remove('photos', p.id)} aria-label={L('حذف', 'Delete')}><Trash2 size={15} /></button>
+                  </span>}
+                </figcaption>
+              </figure>)}</div>
+            </div>)}</div>
               : <Empty icon={Image} title={L('لا صور بعد', 'No photos yet')} />}
           </>)}
     </div>
