@@ -59,7 +59,7 @@ export function OfferShare({ offer, onClose }) {
         <small className="muted">{L('تنزل صورة مربعة بتصميم الصالون والعرض، ويُنسخ النص تلقائياً. اختر انستغرام أو فيسبوك أو الحالة من قائمة المشاركة.', 'A designed square image is created and the text is copied. Choose Instagram, Facebook or Status from the share menu.')}</small>
       </Section>
     </div>
-    {confirm && <Confirm title={L(`إرسال العرض لـ ${num(recipients.length)} عميل؟`, `Send the offer to ${num(recipients.length)} clients?`)} text={L('يُرسل الآن من رقم الصالون. لا يمكن التراجع بعد الإرسال.', 'It is sent now from the salon number and cannot be undone.')} confirmLabel={L('إرسال', 'Send')} onClose={() => setConfirm(false)} onConfirm={async () => {
+    {confirm && <Confirm title={L(`إرسال العرض لـ ${num(recipients.length)} عميل؟`, `Send the offer to ${num(recipients.length)} clients?`)} text={L('يُرسل الآن من رقم الصالون. لا يمكن التراجع بعد الإرسال.', 'It is sent now from the salon number and cannot be undone.')} confirmLabel={L('إرسال', 'Send')} busyLabel={L(`جارٍ الإرسال لـ ${num(recipients.length)} عميل…`, `Sending to ${num(recipients.length)} clients…`)} onClose={() => setConfirm(false)} onConfirm={async () => {
       try {
         const result = await api.broadcast(shop.id, { title, text: [text, link && L(`للحجز: ${link}`, `Book: ${link}`)].filter(Boolean).join(' — ') });
         toast(L(`أُرسل لـ ${num(result.sent)} عميل${result.failed ? ` · تعذّر ${num(result.failed)}` : ''}`, `Sent to ${num(result.sent)} clients${result.failed ? ` · ${num(result.failed)} failed` : ''}`));

@@ -278,9 +278,20 @@ export function Toggle({ checked, onChange, label, hint }) {
   return <label className="toggle-row"><span><strong>{label}</strong>{hint && <small>{hint}</small>}</span><input type="checkbox" className="toggle" checked={Boolean(checked)} onChange={event => onChange(event.target.checked)} /></label>;
 }
 
-export function Confirm({ title, text, confirmLabel = L('تأكيد', 'Confirm'), danger, onConfirm, onClose }) {
-  return <Sheet title={title} onClose={onClose} size="sm" footer={<><Button variant="ghost" onClick={onClose}>{L('تراجع', 'Cancel')}</Button><Button variant={danger ? 'danger' : 'primary'} onClick={() => { onConfirm(); onClose(); }}>{confirmLabel}</Button></>}>
+// onConfirm قد يكون غير متزامن (إرسال للخادم): تبقى النافذة مفتوحة مع مؤشر تحميل حتى ينتهي.
+export function Confirm({ title, text, confirmLabel = L('تأكيد', 'Confirm'), busyLabel, danger, onConfirm, onClose }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    const result = onConfirm();
+    if (result && typeof result.then === 'function') {
+      setBusy(true);
+      try { await result; } catch (error) { console.error(error); } finally { setBusy(false); }
+    }
+    onClose();
+  };
+  return <Sheet title={title} onClose={busy ? () => {} : onClose} size="sm" footer={<><Button variant="ghost" disabled={busy} onClick={onClose}>{L('تراجع', 'Cancel')}</Button><Button variant={danger ? 'danger' : 'primary'} loading={busy} onClick={run}>{busy ? (busyLabel || L('جارٍ التنفيذ…', 'Working…')) : confirmLabel}</Button></>}>
     <p className="muted">{text}</p>
+    {busy && <p className="muted center">{L('لا تغلق التطبيق حتى ينتهي.', 'Keep the app open until it finishes.')}</p>}
   </Sheet>;
 }
 
