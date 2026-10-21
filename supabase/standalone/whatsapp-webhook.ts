@@ -312,6 +312,17 @@ async function notifySalon(body: Record<string, unknown>) {
 
 /* ───────── المساعد الذكي ───────── */
 
+// الوقت كما يكتبه المساعد للعميل («5:00 م» / «5:00 PM») أو بصيغة 24 ساعة ← HH:MM.
+const toHHMM = (value: string) => {
+  const raw = String(value || '').replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).trim();
+  const m = raw.match(/^(\d{1,2}):(\d{2})\s*(ص|م|am|pm|a\.m\.|p\.m\.)?$/i);
+  if (!m) return '';
+  let h = Number(m[1]); const min = Number(m[2]); const mer = (m[3] || '').toLowerCase();
+  if (h > 23 || min > 59) return '';
+  if (mer === 'م' || mer.startsWith('p')) { if (h < 12) h += 12; } else if ((mer === 'ص' || mer.startsWith('a')) && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+};
+
 const tools: Anthropic.Tool[] = [
   { name: 'list_services', description: 'قائمة خدمات الصالون مع الأسعار والمدة والمعرّفات، وقائمة الموظفين.', input_schema: { type: 'object', properties: {}, additionalProperties: false } },
   {
@@ -320,7 +331,7 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: 'book_appointment', description: 'حجز موعد بعد أن يؤكد العميل صراحة الخدمة واليوم والوقت والاسم.',
-    input_schema: { type: 'object', properties: { name: { type: 'string' }, date: { type: 'string' }, time: { type: 'string', description: 'HH:MM بنظام 24 ساعة' }, service_ids: { type: 'array', items: { type: 'string' } }, staff_id: { type: 'string' }, note: { type: 'string' } }, required: ['name', 'date', 'time', 'service_ids'], additionalProperties: false },
+    input_schema: { type: 'object', properties: { name: { type: 'string' }, date: { type: 'string' }, time: { type: 'string', description: 'الوقت كما ظهر في find_available_times، مثل «5:00 م»' }, service_ids: { type: 'array', items: { type: 'string' } }, staff_id: { type: 'string' }, note: { type: 'string' } }, required: ['name', 'date', 'time', 'service_ids'], additionalProperties: false },
   },
   { name: 'my_appointments', description: 'مواعيد هذا العميل القادمة (يتعرف عليه برقم الواتساب).', input_schema: { type: 'object', properties: {}, additionalProperties: false } },
   {
@@ -338,6 +349,9 @@ async function runTool(shopId: string, from: string, name: string, input: Record
     serviceId: s.id, name: s.data.name, price: Number(s.data.price || 0), duration: Number(s.data.duration || 30), processing: Number(s.data.processing || 0), staffId,
   }));
   const today = isoDate(localNow());
+  // نفس العميل لديه موعد قائم في ذلك اليوم: لا حجز ثانٍ (مثل رابط الحجز).
+  const sameDayOf = (date: string) => client && appointments.find(a => a.data.clientId === client.id && a.data.date === date && ['pending', 'confirmed', 'arrived'].includes(a.data.status));
+  const sameDayNote = (a: Rec) => `لدى العميل موعد قائم في هذا اليوم الساعة ${timeAr(a.data.time)} (${(a.data.items ?? []).map((i: any) => i.name).join(' + ')}). لا يمكن حجز موعد ثانٍ في نفس اليوم: أخبره بموعده الحالي، واقترح يوماً آخر، أو أن يتواصل مع الصالون لتعديله.`;
 
   if (name === 'list_services') {
     return JSON.stringify({
@@ -350,18 +364,20 @@ async function runTool(shopId: string, from: string, name: string, input: Record
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || input.date < today || input.date > addDays(today, 60)) return 'تاريخ غير صالح — يجب أن يكون خلال الشهرين القادمين.';
     const chosen = items(input.service_ids, input.staff_id || '');
     if (!chosen.length) return 'لم يتم العثور على الخدمات. استخدم list_services للحصول على المعرّفات.';
+    const existing = sameDayOf(input.date);
+    if (existing) return sameDayNote(existing);
     const slots = availableSlots(appointments.map(a => ({ id: a.id, ...a.data })), input.date, chosen, input.staff_id || '', settings, staff);
-    // label بصيغة 12 ساعة (ص/م) هو ما يُكتب للعميل؛ time للحجز فقط.
-    return slots.length ? JSON.stringify({ date: input.date, times: slots.slice(0, 24).map(t => ({ time: t, label: timeAr(t) })) }) : 'لا توجد أوقات متاحة في هذا اليوم.';
+    // الأوقات بصيغة 12 ساعة فقط (ص/م) — تُكتب للعميل كما هي، وتُمرَّر كما هي إلى book_appointment.
+    return slots.length ? JSON.stringify({ date: input.date, times: slots.slice(0, 24).map(timeAr) }) : 'لا توجد أوقات متاحة في هذا اليوم.';
   }
   if (name === 'book_appointment') {
     const chosen = items(input.service_ids, input.staff_id || '');
-    if (!chosen.length || !/^\d{2}:\d{2}$/.test(input.time) || input.date < today) return 'بيانات الحجز غير مكتملة.';
-    const candidate = { id: crypto.randomUUID(), date: input.date, time: input.time, staffId: input.staff_id || '', items: chosen, status: 'pending' };
+    const time = toHHMM(input.time);
+    if (!chosen.length || !time || input.date < today) return 'بيانات الحجز غير مكتملة.';
+    const existing = sameDayOf(input.date);
+    if (existing) return sameDayNote(existing);
+    const candidate = { id: crypto.randomUUID(), date: input.date, time, staffId: input.staff_id || '', items: chosen, status: 'pending' };
     if (conflicts(appointments.map(a => ({ id: a.id, ...a.data })), candidate)) return 'هذا الوقت لم يعد متاحاً. اقترح وقتاً آخر.';
-    // نفس العميل لديه موعد قائم في نفس اليوم: لا حجز ثانٍ (مثل رابط الحجز).
-    const sameDay = client && appointments.find(a => a.data.clientId === client.id && a.data.date === input.date && ['pending', 'confirmed', 'arrived'].includes(a.data.status));
-    if (sameDay) return `لدى العميل موعد قائم في هذا اليوم الساعة ${timeAr(sameDay.data.time)}. لا تحجز موعداً ثانياً: أخبره بموعده الحالي، واقترح يوماً آخر، أو أن يتواصل مع الصالون لتعديله.`;
     let clientId = client?.id;
     if (!clientId) {
       clientId = crypto.randomUUID();
@@ -373,12 +389,12 @@ async function runTool(shopId: string, from: string, name: string, input: Record
       ...candidate, clientId, duration: chosen.reduce((s, i) => s + i.duration, 0), price: total, discount: 0, deposit, payments: [],
       location: 'salon', notes: String(input.note || '').slice(0, 300), source: 'whatsapp', createdAt: today,
     });
-    return JSON.stringify({ booked: true, id: candidate.id, date: input.date, time: input.time, label: timeAr(input.time), total, deposit, status: 'pending — سيؤكده الصالون' });
+    return JSON.stringify({ booked: true, id: candidate.id, date: input.date, time: timeAr(time), total, deposit, status: 'pending — سيؤكده الصالون' });
   }
   if (name === 'my_appointments') {
     if (!client) return 'لا توجد مواعيد مسجلة لهذا الرقم.';
     const mine = appointments.filter(a => a.data.clientId === client.id && a.data.date >= today && ['pending', 'confirmed'].includes(a.data.status));
-    return JSON.stringify(mine.map(a => ({ id: a.id, date: a.data.date, time: a.data.time, label: timeAr(a.data.time), services: (a.data.items ?? []).map((i: any) => i.name), status: a.data.status })));
+    return JSON.stringify(mine.map(a => ({ id: a.id, date: a.data.date, time: timeAr(a.data.time), services: (a.data.items ?? []).map((i: any) => i.name), status: a.data.status })));
   }
   if (name === 'cancel_appointment') {
     const target = appointments.find(a => a.id === input.appointment_id && client && a.data.clientId === client.id);
@@ -408,7 +424,7 @@ async function assistant(brain: Brain, shopId: string, config: WaConfig, from: s
 قواعد: استخدم الأدوات دائماً للأسعار والأوقات ولا تخمّن. قبل book_appointment اعرض ملخص الحجز واطلب تأكيداً صريحاً. اقترح ٣ أوقات كحد أقصى.
 إذا طلب العميل شيئاً خارج الحجز أو اشتكى، اعتذر بلطف وأخبره أن فريق الصالون سيتواصل معه${shop?.phone ? ` أو يمكنه الاتصال على ${shop.phone}` : ''}.
 ساعات العمل: ${settings.hours?.allDay ? 'مفتوح 24 ساعة طوال الأسبوع' : `${timeAr(settings.hours?.open ?? '09:00')} – ${timeAr(settings.hours?.close ?? '22:00')}`}.
-الأوقات: اكتبها للعميل دائماً بصيغة 12 ساعة مع ص أو م (استخدم label من find_available_times)، مثل «5:00 م»، ولا تكتب «17:00» أو «05:00».`;
+الأوقات: انسخها كما تعيدها الأدوات بالضبط (مثل «5:00 م»)، ولا تكتب «17:00» أو «05:00» أبداً.`;
 
   const userText = `${text}\n\n[سياق النظام: اليوم ${dateAr(isoDate(now))} (${isoDate(now)}) الساعة ${now.toISOString().slice(11, 16)}. اسم العميل في واتساب: ${profileName ?? 'غير معروف'}]`;
   const call = (name: string, input: Record<string, any>) => runTool(shopId, from, name, input);
