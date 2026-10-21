@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
-  ListPlus, MapPin, MessageCircle, Package, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
+  Globe, Hourglass, ListPlus, MapPin, MessageCircle, Smartphone, Package, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
 import { CLIENT_SOURCES, bookedAs, PHONE_ERROR, validPhone,
   addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, packageServices, timeFor,
@@ -76,9 +76,13 @@ export default function Appointments() {
   }, [pendingOpen, data.appointments]);
 
   const clients = useMemo(() => Object.fromEntries(data.clients.map(c => [c.id, c])), [data.clients]);
+  // الترتيب: من في الصالون الآن، ثم القادم حسب الأقرب وقتاً، ثم المنتهي (مكتمل/ملغي/غائب أو تأخر أكثر من ساعة).
+  const now = Date.now();
+  const rank = a => a.status === 'arrived' || a.status === 'in_service' ? 0
+    : ['pending', 'confirmed'].includes(a.status) && new Date(`${a.date}T${a.time}:00`).getTime() > now - 60 * 60000 ? 1 : 2;
   const list = data.appointments
     .filter(a => a.date === date && (staffFilter === 'all' || a.staffId === staffFilter || (a.items || []).some(i => i.staffId === staffFilter)))
-    .sort(sortAppointments);
+    .sort((a, b) => rank(a) - rank(b) || sortAppointments(a, b));
   const active = list.filter(a => a.status !== 'cancelled');
   const days = dayStrip(startDay);
   const counts = useMemo(() => {
@@ -99,7 +103,7 @@ export default function Appointments() {
     </div>
 
     <div className="page-head">
-      <div><h2>{date === localISO() ? L('اليوم', 'Today') : dateLabel(date)}</h2><small>{num(active.length)} {L('مواعيد', active.length === 1 ? 'appointment' : 'appointments')} · {money(active.reduce((s, a) => s + appointmentTotal(a), 0))}</small></div>
+      <div><small>{num(active.length)} {L('مواعيد', active.length === 1 ? 'appointment' : 'appointments')} · {money(active.reduce((s, a) => s + appointmentTotal(a), 0))}</small></div>
       {can('appointments') && <div className="row-buttons">
         {date === localISO() && <Button variant="secondary" icon={UserRoundCheck} onClick={() => setWizard({ walkIn: true })}>{L('حاضر الآن', 'Walk-in')}</Button>}
         <Button icon={CalendarPlus} onClick={() => setWizard({ date })}>{L('حجز', 'Book')}</Button>
@@ -121,18 +125,27 @@ export default function Appointments() {
           <Badge status={a.status}>{a.status === 'pending' ? L('بانتظار التأكيد', 'Pending') : undefined}</Badge>
           {a.location === 'home' && <Badge tone="purple">{L('منزلي', 'Home')}</Badge>}
           {needsDeposit(a) && <Badge tone="red">{L('عربون', 'Deposit')}</Badge>}
-          {a.source === 'online' && <Badge tone="blue">{L('أونلاين', 'Online')}</Badge>}
-          {a.source === 'whatsapp' && <Badge tone="green">{L('واتساب', 'WhatsApp')}</Badge>}
           {['pending', 'confirmed'].includes(a.status) && Date.now() - new Date(`${a.date}T${a.time}:00`).getTime() >= 30 * 60000 && <Badge tone="red">{L('متأخر', 'Late')}</Badge>}
           {a.status === 'completed' && !isPaid(a) && <Badge tone="red">{L('غير مدفوع', 'Unpaid')}</Badge>}
         </span>
-        <NextChevron size={18} className="muted" />
+        <SourceIcon source={a.source} />
       </button>;
     })}</div> : <Empty icon={CalendarPlus} title={L('لا مواعيد في هذا اليوم', 'No appointments this day')} text={L('اضغط «حجز» لإضافة موعد جديد', 'Tap “Book” to add a new appointment')} />}
 
     {current && <AppointmentSheet appointment={current} onClose={() => setOpen(null)} onEdit={() => { setWizard({ edit: current }); setOpen(null); }} />}
     {wizard && <BookingWizard initial={wizard} onClose={() => setWizard(null)} onDone={a => { setWizard(null); setDate(a.date); }} />}
   </div>;
+}
+
+// مصدر الحجز كأيقونة صغيرة بدل شارة نصية: واتساب، أونلاين، قائمة الانتظار، أو من التطبيق.
+const SOURCES = {
+  whatsapp: { icon: MessageCircle, tone: 'green', label: L('حجز عبر واتساب', 'Booked via WhatsApp') },
+  online: { icon: Globe, tone: 'blue', label: L('حجز أونلاين', 'Online booking') },
+  waitlist: { icon: Hourglass, tone: 'purple', label: L('من قائمة الانتظار', 'From waitlist') },
+};
+function SourceIcon({ source }) {
+  const s = SOURCES[source] || { icon: Smartphone, tone: 'muted', label: L('من التطبيق', 'From the app') };
+  return <span className={`src-icon tone-${s.tone}`} title={s.label} aria-label={s.label}><s.icon size={16} /></span>;
 }
 
 export function AppointmentSheet({ appointment: a, onClose, onEdit }) {

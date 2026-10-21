@@ -217,7 +217,7 @@ button.row:active { background: var(--surface-3); }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 14px; font-weight: 700; font-size: 14.5px; white-space: nowrap; transition: transform .1s, filter .15s; }
 .btn:active:not(:disabled) { transform: scale(.97); }
 .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 30%, transparent); }
-:root[data-theme='dark'] .btn-primary { color: #1a1206; }
+:root[data-theme='dark'] .btn-primary { color: #1a1206; background: #c08a4c; box-shadow: none; }
 .btn-primary:hover { filter: brightness(1.05); }
 .btn-secondary { background: var(--accent-soft); color: var(--accent-ink); }
 .btn-ghost { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
@@ -390,7 +390,11 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .day.active small { color: rgba(255, 255, 255, .85); }
 .day.active strong { color: #fff; }
 .day.active i { background: rgba(255, 255, 255, .25); color: #fff; }
-:root[data-theme='dark'] .day.active, :root[data-theme='dark'] .day.active strong { color: #1a1206; }
+/* الوضع الليلي: اليوم المختار والأزرار الأساسية بدرجة هادئة بدل البرتقالي الساطع. */
+:root[data-theme='dark'] .day.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 65%, transparent); }
+:root[data-theme='dark'] .day.active small { color: var(--ink-2); }
+:root[data-theme='dark'] .day.active strong { color: var(--accent-ink); }
+:root[data-theme='dark'] .day.active i { background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--accent-ink); }
 .day-strip-wide .day { width: 62px; }
 
 .timeline { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
@@ -716,3 +720,7 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 .stack-sm { display: grid; gap: 8px; justify-items: start; }
 .stack-sm > .alert { justify-self: stretch; }
 .section-label { margin: 6px 0 0; font-size: 13.5px; font-weight: 700; color: var(--muted); }
+
+/* أيقونة مصدر الحجز في بطاقة الموعد */
+.src-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: var(--tone-soft, var(--surface-3)); color: var(--tone, var(--muted)); }
+.tone-muted { --tone: var(--muted); --tone-soft: var(--surface-3); }
