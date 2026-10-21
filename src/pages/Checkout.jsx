@@ -68,7 +68,7 @@ export default function Checkout() {
       title={nameOf(a)}
       subtitle={`${a.date === today ? timeLabel(a.time) : dateLabel(a.date, { day: 'numeric', month: 'short' })} · ${serviceNames(a)}`}
       trailing={settled(a) ? <span className="row-end"><strong className="green">{money(amountPaid(a))}</strong><Badge tone="green">{L('مدفوع', 'Paid')}</Badge></span>
-        : <span className="row-end"><strong>{money(needsDeposit(a) && a.status !== 'completed' ? a.deposit - depositPaid(a) : balanceDue(a))}</strong>{needsDeposit(a) && a.status !== 'completed' ? <Badge tone="orange">{L('عربون', 'Deposit')}</Badge> : <Badge status={a.status} />}</span>}
+        : <span className="row-end row-stack"><strong>{money(needsDeposit(a) && a.status !== 'completed' ? a.deposit - depositPaid(a) : balanceDue(a))}</strong>{needsDeposit(a) && a.status !== 'completed' ? <Badge tone="orange">{L('عربون', 'Deposit')}</Badge> : <Badge status={a.status} />}</span>}
       onClick={() => (settled(a) ? setInvoice(a.id) : setOpen(a.id))} />)}</div> : <Empty icon={Check} title={L('لا شيء للتحصيل', 'Nothing to collect')} text={L('كل المواعيد المكتملة مدفوعة 👌', 'All completed appointments are paid 👌')} />)}
 
     {tab === 'paid' && (paidToday.length ? <div className="list">{paidToday.map(a => <Row key={a.id}

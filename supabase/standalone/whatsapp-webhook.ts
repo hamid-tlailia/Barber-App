@@ -215,6 +215,8 @@ Deno.serve(async req => {
   console.log('webhook', JSON.stringify(payload.entry?.[0]?.changes?.[0]?.field ?? ''), (payload.entry?.[0]?.changes?.[0]?.value?.messages ?? []).length);
   for (const entry of payload.entry ?? []) for (const change of entry.changes ?? []) {
     const value = change.value ?? {};
+    // حالة الرسائل الصادرة (تذكير/عرض): delivered/read أو failed مع السبب — للتحقق من الوصول.
+    for (const st of value.statuses ?? []) console.log('status', st.status, String(st.recipient_id ?? '').slice(-4), st.errors?.[0]?.code ?? '', st.errors?.[0]?.title ?? '');
     for (const message of value.messages ?? []) {
       if (message.type !== 'text') continue;
       try { await handle(value.metadata?.phone_number_id, message.from, message.text.body.trim(), value.contacts?.[0]?.profile?.name); }

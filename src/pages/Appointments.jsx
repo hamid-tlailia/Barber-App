@@ -116,13 +116,14 @@ export default function Appointments() {
           <strong>{client?.name || L('عميل محذوف', 'Deleted client')}</strong>
           {bookedAs(a, client) && <small>{L(`حُجز باسم «${bookedAs(a, client)}»`, `Booked as “${bookedAs(a, client)}”`)}</small>}
           <small>{serviceNames(a)}</small>
-          <span className="slot-tags">
-            <Badge status={a.status} />
-            {a.location === 'home' && <Badge tone="purple">{L('منزلي', 'Home')}</Badge>}
-            {needsDeposit(a) && <Badge tone="red">{L('عربون', 'Deposit')}</Badge>}
-            {a.source === 'online' && <Badge tone="blue">{L('أونلاين', 'Online')}</Badge>}
-            {a.status === 'completed' && !isPaid(a) && <Badge tone="red">{L('غير مدفوع', 'Unpaid')}</Badge>}
-          </span>
+        </span>
+        <span className="slot-tags">
+          <Badge status={a.status}>{a.status === 'pending' ? L('بانتظار التأكيد', 'Pending') : undefined}</Badge>
+          {a.location === 'home' && <Badge tone="purple">{L('منزلي', 'Home')}</Badge>}
+          {needsDeposit(a) && <Badge tone="red">{L('عربون', 'Deposit')}</Badge>}
+          {a.source === 'online' && <Badge tone="blue">{L('أونلاين', 'Online')}</Badge>}
+          {a.source === 'whatsapp' && <Badge tone="green">{L('واتساب', 'WhatsApp')}</Badge>}
+          {a.status === 'completed' && !isPaid(a) && <Badge tone="red">{L('غير مدفوع', 'Unpaid')}</Badge>}
         </span>
         <NextChevron size={18} className="muted" />
       </button>;
