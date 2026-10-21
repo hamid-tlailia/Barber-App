@@ -336,7 +336,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
 
     {key === 'services' && <div className="stack">
       {/* الباقات التي تجمع أكثر من خدمة: ضغطة واحدة تختار كل خدماتها */}
-      {data.packages.some(p => packageServices(p).length > 1) && <div className="chips">{data.packages.filter(p => packageServices(p).length > 1).map(p => {
+      {data.packages.some(p => packageServices(p).length > 1 && !p.endedAt) && <div className="chips">{data.packages.filter(p => packageServices(p).length > 1 && !p.endedAt && !(p.offerEndsAt && p.offerEndsAt < localISO())).map(p => {
         const ids = packageServices(p).filter(id => data.services.some(s => s.id === id));
         const on = ids.length > 0 && ids.every(id => serviceIds.includes(id));
         return <button type="button" key={p.id} className={`chip ${on ? 'active' : ''}`} onClick={() => { setServiceIds(on ? serviceIds.filter(id => !ids.includes(id)) : [...new Set([...serviceIds, ...ids])]); setBundleId(on || Number(p.sessions || 1) !== 1 ? '' : p.id); if (!walkIn) setTime(''); }}><Package size={14} /> {p.name}{Number(p.sessions || 1) === 1 ? ` · ${money(p.price)}` : ''}</button>;

@@ -1,7 +1,7 @@
 // استقبال رسائل واتساب: ردود التذكير (1 تأكيد / 2 إلغاء) + المساعد الذكي للحجز بالعربي.
 import Anthropic from 'npm:@anthropic-ai/sdk@0.133.0';
 import {
-  addDays, availableSlots, collection, conflicts, dateAr, db, digits, isoDate, isoTime, json, localNow, samePhone,
+  addDays, availableSlots, collection, conflicts, dateAr, db, digits, isStaffOff, isoDate, isoTime, json, localNow, samePhone,
   saveRecord, sendText, settingsOf, timeAr, type WaConfig, waConfigFor,
 } from '../_shared/common.ts';
 
@@ -160,7 +160,19 @@ export const tidyTimes = (text: string) => {
 
 // الباقات المعروضة أونلاين (جلسة واحدة): سعرها بدل مجموع خدماتها.
 const packageServiceIds = (p: Record<string, any>) => (Array.isArray(p?.serviceIds) && p.serviceIds.length ? p.serviceIds : p?.serviceId ? [p.serviceId] : []);
-const onlinePackages = (packages: Rec[]) => packages.filter(p => p.data.online === true && Number(p.data.sessions || 1) === 1 && packageServiceIds(p.data).length);
+const onlinePackages = (packages: Rec[]) => {
+  const today = isoDate(localNow());
+  return packages.filter(p => p.data.online === true && Number(p.data.sessions || 1) === 1 && packageServiceIds(p.data).length
+    && !p.data.endedAt && !(p.data.offerEndsAt && p.data.offerEndsAt < today));
+};
+// أكواد الخصم التي فعّلها الصالون للحجز الأونلاين وما زالت سارية.
+const codeOf = (c: string) => String(c || '').replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^A-Za-z0-9_-]/g, '').toUpperCase();
+const onlineCoupons = (coupons: Rec[]) => {
+  const today = isoDate(localNow());
+  return coupons.filter(c => c.data.active !== false && c.data.online === true && !(c.data.expiresAt && c.data.expiresAt < today)
+    && !(Number(c.data.maxUses) > 0 && Number(c.data.used || 0) >= Number(c.data.maxUses)));
+};
+const couponText = (c: Rec) => `${c.data.type === 'amount' ? `${c.data.value} ر.ق` : `${c.data.value}٪`}${c.data.expiresAt ? ` حتى ${dateAr(c.data.expiresAt)}` : ''}`;
 
 const tools: Anthropic.Tool[] = [
   { name: 'list_services', description: 'قائمة خدمات الصالون وباقاته مع الأسعار والمدة والمعرّفات، وقائمة الموظفين.', input_schema: { type: 'object', properties: {}, additionalProperties: false } },
@@ -170,7 +182,7 @@ const tools: Anthropic.Tool[] = [
   },
   {
     name: 'book_appointment', description: 'حجز موعد بعد أن يؤكد العميل صراحة الخدمة واليوم والوقت والاسم.',
-    input_schema: { type: 'object', properties: { name: { type: 'string' }, date: { type: 'string' }, time: { type: 'string', description: 'الوقت كما ظهر في find_available_times، مثل «5:00 م»' }, service_ids: { type: 'array', items: { type: 'string' } }, package_id: { type: 'string', description: 'إذا اختار العميل باقة: معرّفها، مع service_ids خدماتها' }, staff_id: { type: 'string' }, note: { type: 'string' } }, required: ['name', 'date', 'time', 'service_ids'], additionalProperties: false },
+    input_schema: { type: 'object', properties: { name: { type: 'string' }, date: { type: 'string' }, time: { type: 'string', description: 'الوقت كما ظهر في find_available_times، مثل «5:00 م»' }, service_ids: { type: 'array', items: { type: 'string' } }, package_id: { type: 'string', description: 'إذا اختار العميل باقة: معرّفها، مع service_ids خدماتها' }, coupon_code: { type: 'string', description: 'كود الخصم إذا ذكره العميل' }, staff_id: { type: 'string' }, note: { type: 'string' } }, required: ['name', 'date', 'time', 'service_ids'], additionalProperties: false },
   },
   { name: 'my_appointments', description: 'مواعيد هذا العميل القادمة (يتعرف عليه برقم الواتساب).', input_schema: { type: 'object', properties: {}, additionalProperties: false } },
   {
@@ -180,8 +192,8 @@ const tools: Anthropic.Tool[] = [
 ];
 
 async function runTool(shopId: string, from: string, name: string, input: Record<string, any>): Promise<string> {
-  const [services, staff, appointments, clients, settings, packages] = await Promise.all([
-    collection(shopId, 'services'), collection(shopId, 'staff'), collection(shopId, 'appointments'), collection(shopId, 'clients'), settingsOf(shopId), collection(shopId, 'packages'),
+  const [services, staff, appointments, clients, settings, packages, coupons] = await Promise.all([
+    collection(shopId, 'services'), collection(shopId, 'staff'), collection(shopId, 'appointments'), collection(shopId, 'clients'), settingsOf(shopId), collection(shopId, 'packages'), collection(shopId, 'coupons'),
   ]);
   const client = clients.find(c => samePhone(c.data.phone, from));
   const items = (ids: string[], staffId = '') => services.filter(s => ids?.includes(s.id)).map(s => ({
@@ -216,8 +228,20 @@ async function runTool(shopId: string, from: string, name: string, input: Record
     if (!chosen.length || !time || input.date < today) return 'بيانات الحجز غير مكتملة.';
     const existing = sameDayOf(input.date);
     if (existing) return sameDayNote(existing);
-    const candidate = { id: crypto.randomUUID(), date: input.date, time, staffId: input.staff_id || '', items: chosen, status: 'pending' };
-    if (conflicts(appointments.map(a => ({ id: a.id, ...a.data })), candidate)) return 'هذا الوقت لم يعد متاحاً. اقترح وقتاً آخر.';
+    const coupon = input.coupon_code ? onlineCoupons(coupons).find(c => codeOf(c.data.code) === codeOf(input.coupon_code)) : null;
+    if (input.coupon_code && !coupon) return 'كود الخصم غير صالح أو منتهٍ. أخبر العميل، واسأله إن كان يريد الحجز بدونه.';
+    const booked = appointments.map(a => ({ id: a.id, ...a.data }));
+    // «أي حلاق»: يُنسب للحلاق المتاح في هذا الوقت صاحب أقل مواعيد في ذلك اليوم.
+    let staffId = input.staff_id || '';
+    if (!staffId) {
+      const load = (id: string) => booked.filter(a => a.date === input.date && !['cancelled', 'no_show'].includes(a.status)
+        && (a.staffId === id || (a.items ?? []).some((i: any) => i.staffId === id))).length;
+      const free = staff.filter(m => m.data.active !== false && !isStaffOff(m.data, input.date)
+        && !conflicts(booked, { id: 'new', date: input.date, time, staffId: m.id, items: chosen.map(i => ({ ...i, staffId: m.id })), status: 'pending' }));
+      staffId = free.sort((a, b) => load(a.id) - load(b.id))[0]?.id ?? '';
+    }
+    const candidate = { id: crypto.randomUUID(), date: input.date, time, staffId, items: chosen.map(i => ({ ...i, staffId: i.staffId || staffId })), status: 'pending' };
+    if (conflicts(booked, candidate)) return 'هذا الوقت لم يعد متاحاً. اقترح وقتاً آخر.';
     let clientId = client?.id;
     if (!clientId) {
       clientId = crypto.randomUUID();
@@ -227,10 +251,13 @@ async function runTool(shopId: string, from: string, name: string, input: Record
     // باقة: الخصم = مجموع خدماتها المختارة − سعر الباقة.
     const pkg = input.package_id ? onlinePackages(packages).find(p => p.id === input.package_id) : null;
     const covered = pkg ? chosen.filter(i => packageServiceIds(pkg.data).includes(i.serviceId)).reduce((s, i) => s + i.price, 0) : 0;
-    const discount = pkg ? Math.max(0, covered - Number(pkg.data.price || 0)) : 0;
+    const bundleOff = pkg ? Math.max(0, covered - Number(pkg.data.price || 0)) : 0;
+    const couponOff = coupon ? Math.min(total - bundleOff, Math.round(coupon.data.type === 'amount' ? Number(coupon.data.value || 0) : (total - bundleOff) * Number(coupon.data.value || 0) / 100)) : 0;
+    const discount = bundleOff + couponOff;
+    if (coupon) await saveRecord(shopId, 'coupons', coupon.id, { ...coupon.data, used: Number(coupon.data.used || 0) + 1 });
     const deposit = services.filter(s => input.service_ids.includes(s.id)).reduce((s, x) => s + Number(x.data.deposit || 0), 0);
     await saveRecord(shopId, 'appointments', candidate.id, {
-      ...candidate, clientId, duration: chosen.reduce((s, i) => s + i.duration, 0), price: total, discount, bundleId: pkg?.id ?? '', deposit: Math.min(deposit, total - discount), payments: [],
+      ...candidate, clientId, duration: chosen.reduce((s, i) => s + i.duration, 0), price: total, discount, bundleId: pkg?.id ?? '', couponId: coupon?.id ?? '', couponCode: coupon?.data.code ?? '', deposit: Math.min(deposit, total - discount), payments: [],
       location: 'salon', notes: String(input.note || '').slice(0, 300), source: 'whatsapp', createdAt: today,
     });
     return JSON.stringify({ booked: true, id: candidate.id, date: input.date, time: timeAr(time), total: total - discount, deposit, status: 'pending — سيؤكده الصالون' });
@@ -250,10 +277,10 @@ async function runTool(shopId: string, from: string, name: string, input: Record
 }
 
 async function assistant(brain: Brain, shopId: string, config: WaConfig, from: string, text: string, profileName?: string) {
-  const [{ data: shop }, { data: convo }, settings, services, packages] = await Promise.all([
+  const [{ data: shop }, { data: convo }, settings, services, packages, coupons] = await Promise.all([
     db.from('shops').select('name, kind, phone').eq('id', shopId).single(),
     db.from('wa_conversations').select('messages, updated_at').eq('shop_id', shopId).eq('phone', digits(from)).maybeSingle(),
-    settingsOf(shopId), collection(shopId, 'services'), collection(shopId, 'packages'),
+    settingsOf(shopId), collection(shopId, 'services'), collection(shopId, 'packages'), collection(shopId, 'coupons'),
   ]);
   const now = localNow();
   // لغة العميل المسجلة في ملفه (عربي/إنجليزي) — وإلا نتبع لغة رسالته.
@@ -266,7 +293,8 @@ async function assistant(brain: Brain, shopId: string, config: WaConfig, from: s
   const serviceName = (id: string) => services.find(s => s.id === id)?.data.name ?? '';
   const catalog = [
     ...services.filter(s => s.data.online !== false).map(s => `• ${s.data.name} — ${s.data.price} ر.ق (${s.data.duration || 30} دقيقة)`),
-    ...onlinePackages(packages).map(p => `• باقة ${p.data.name}: ${packageServiceIds(p.data).map(serviceName).filter(Boolean).join(' + ')} — ${p.data.price} ر.ق`),
+    ...onlinePackages(packages).map(p => `• باقة ${p.data.name}: ${packageServiceIds(p.data).map(serviceName).filter(Boolean).join(' + ')} — ${p.data.price} ر.ق${p.data.offerEndsAt ? ` (العرض حتى ${dateAr(p.data.offerEndsAt)})` : ''}`),
+    ...onlineCoupons(coupons).map(c => `• كود خصم ${c.data.code}: خصم ${couponText(c)}`),
   ].join('\n');
   const system = `أنت موظف الاستقبال الرقمي لـ«${shop?.name}» (${shop?.kind === 'women' ? 'صالون نسائي' : shop?.kind === 'mixed' ? 'صالون للرجال والسيدات' : 'صالون حلاقة رجالي'}) في قطر.
 تتحدث بالعربية الخليجية المهذبة وباختصار مناسب لواتساب (٣ أسطر غالباً). العملة ريال قطري.
@@ -279,7 +307,8 @@ async function assistant(brain: Brain, shopId: string, config: WaConfig, from: s
 الخدمات والباقات المتاحة للحجز:
 ${catalog}
 ${fresh ? `هذه بداية محادثة: رحّب بالعميل باسم «${shop?.name}»، واعرض الخدمات والباقات أعلاه بأسعارها في قائمة مختصرة، ثم اسأله ماذا يختار، وهل يريد الموعد اليوم أم في يوم آخر. لا تعرض أوقاتاً قبل أن يختار الخدمة واليوم.` : ''}
-إذا اختار العميل باقة: مرّر service_ids خدماتها إلى find_available_times، ثم package_id معها إلى book_appointment.`;
+إذا اختار العميل باقة: مرّر service_ids خدماتها إلى find_available_times، ثم package_id معها إلى book_appointment.
+أكواد الخصم والعروض أعلاه قائمة الآن: لا بأس أن تخبر العميل بها، وإذا أراد استخدام كود فمرّره في coupon_code عند الحجز. لا تخترع أكواداً أو عروضاً غير المذكورة.`;
 
   const userText = `${text}\n\n[سياق النظام: اليوم ${dateAr(isoDate(now))} (${isoDate(now)}) الساعة ${now.toISOString().slice(11, 16)}. اسم العميل في واتساب: ${profileName ?? 'غير معروف'}]`;
   const call = (name: string, input: Record<string, any>) => runTool(shopId, from, name, input);

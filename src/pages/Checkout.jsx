@@ -336,10 +336,12 @@ function ClientSelect({ value, onChange }) {
 function SellPackage({ onClose }) {
   const { data, setData, toast, vocab } = useApp();
   const [clientId, setClientId] = useState('');
-  const [packageId, setPackageId] = useState(data.packages[0]?.id || '');
+  // العروض المنتهية (تاريخ «ينتهي العرض في» مضى أو أغلقها الخادم) لا تُباع.
+  const offered = data.packages.filter(p => !p.endedAt && !(p.offerEndsAt && p.offerEndsAt < localISO()));
+  const [packageId, setPackageId] = useState(offered[0]?.id || '');
   const [method, setMethod] = useState('cash');
-  const pkg = data.packages.find(p => p.id === packageId);
-  if (!data.packages.length) return <Sheet title={L('بيع باقة', 'Sell package')} onClose={onClose}><Empty icon={Package} title={L('لا توجد باقات', 'No packages')} text={L('أنشئ باقات من الإعدادات ← الباقات', 'Create packages in Settings → Packages')} /></Sheet>;
+  const pkg = offered.find(p => p.id === packageId);
+  if (!offered.length) return <Sheet title={L('بيع باقة', 'Sell package')} onClose={onClose}><Empty icon={Package} title={L('لا توجد باقات', 'No packages')} text={L('أنشئ باقات من الإعدادات ← الباقات', 'Create packages in Settings → Packages')} /></Sheet>;
   return <Sheet title={L('بيع باقة', 'Sell package')} onClose={onClose} footer={<Button block size="lg" icon={Check} disabled={!clientId || !pkg} onClick={() => {
     const today = businessDay(data.settings);
     const id = uid();
@@ -352,7 +354,7 @@ function SellPackage({ onClose }) {
   }}>{pkg ? L(`بيع بـ ${money(pkg.price)}`, `Sell for ${money(pkg.price)}`) : L('بيع', 'Sell')}</Button>}>
     <div className="stack">
       <Field label={vocab.client}><ClientSelect value={clientId} onChange={setClientId} /></Field>
-      <div className="list">{data.packages.map(p => <Row key={p.id} title={p.name} subtitle={packageServices(p).map(id => data.services.find(x => x.id === id)?.name).filter(Boolean).join(' + ') + ' · ' + L(`${num(p.sessions)} جلسات · صالحة ${num(p.validityDays)} يوم`, `${num(p.sessions)} session${Number(p.sessions) === 1 ? '' : 's'} · valid ${num(p.validityDays)} day${Number(p.validityDays) === 1 ? '' : 's'}`)} trailing={<span className="row-end"><strong>{money(p.price)}</strong>{packageId === p.id && <Check className="green" size={18} />}</span>} onClick={() => setPackageId(p.id)} />)}</div>
+      <div className="list">{offered.map(p => <Row key={p.id} title={p.name} subtitle={packageServices(p).map(id => data.services.find(x => x.id === id)?.name).filter(Boolean).join(' + ') + ' · ' + L(`${num(p.sessions)} جلسات · صالحة ${num(p.validityDays)} يوم`, `${num(p.sessions)} session${Number(p.sessions) === 1 ? '' : 's'} · valid ${num(p.validityDays)} day${Number(p.validityDays) === 1 ? '' : 's'}`)} trailing={<span className="row-end"><strong>{money(p.price)}</strong>{packageId === p.id && <Check className="green" size={18} />}</span>} onClick={() => setPackageId(p.id)} />)}</div>
       <Field label={L('طريقة الدفع', 'Payment method')}><PayMethod value={method} onChange={setMethod} /></Field>
     </div>
   </Sheet>;

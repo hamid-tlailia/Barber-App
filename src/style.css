@@ -712,3 +712,4 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 :root[data-theme='dark'] .shop-name { background-image: linear-gradient(100deg, #ffb057 0%, #ff6fae 50%, #a98bff 100%); }
 .stack-sm { display: grid; gap: 8px; justify-items: start; }
 .stack-sm > .alert { justify-self: stretch; }
+.section-label { margin: 6px 0 0; font-size: 13.5px; font-weight: 700; color: var(--muted); }

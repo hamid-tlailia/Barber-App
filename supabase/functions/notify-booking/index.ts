@@ -199,6 +199,19 @@ async function starting(sa: ServiceAccount, payload: any) {
     { kind: 'booking', appointmentId: String(a?.id ?? ''), date: String(a?.date ?? ''), shopId: String(shop_id) });
 }
 
+// أُغلق كود خصم (نفد/انتهت مدته) أو عرض باقة تلقائياً: لصاحب الصالون والمدير.
+async function offerEnded(sa: ServiceAccount, payload: any) {
+  const { shop_id, offer_type, reason, offer: o } = payload;
+  const members: { user_id: string; role: string; suspended: boolean }[] = await rest(`shop_members?select=user_id,role,suspended&shop_id=eq.${shop_id}`);
+  const users = (members ?? []).filter(m => !m.suspended && ['owner', 'manager'].includes(m.role)).map(m => m.user_id);
+  const [title, body] = offer_type === 'packages'
+    ? [`📦 انتهى عرض باقة «${o?.name ?? ''}»`, 'مضى تاريخ انتهاء العرض فأُغلق تلقائياً: لا يظهر في الحجز ولا يُباع. أعد تفعيله من الإعدادات ← الباقات']
+    : reason === 'used_up'
+      ? [`🎟️ نفد كود الخصم ${o?.code ?? ''}`, `استُخدم ${o?.used ?? ''} من ${o?.maxUses ?? ''} مرة فأُغلق تلقائياً. أعد تفعيله من الإعدادات ← أكواد الخصم`]
+      : [`🎟️ انتهى كود الخصم ${o?.code ?? ''}`, 'انتهت مدته فأُغلق تلقائياً. أعد تفعيله من الإعدادات ← أكواد الخصم'];
+  return sendTo(sa, await tokensOf(users, shop_id), title, body, { kind: 'offer', shopId: String(shop_id) });
+}
+
 // بريد لمالك التطبيق عبر Resend (اختياري): RESEND_API_KEY و ADMIN_EMAIL، و MAIL_FROM إن كان لديك نطاق موثّق.
 async function emailAdmin(subject: string, lines: string[]) {
   const key = Deno.env.get('RESEND_API_KEY');
@@ -287,6 +300,7 @@ Deno.serve(async req => {
   if (!sa) return json({ skipped: 'FCM_SERVICE_ACCOUNT not set' });
   if (payload.kind === 'activity') return json({ sent: await activity(sa, payload) });
   if (payload.kind === 'starting') return json({ sent: await starting(sa, payload) });
+  if (payload.kind === 'offer_ended') return json({ sent: await offerEnded(sa, payload) });
   if (payload.kind === 'late' || payload.kind === 'late_cancelled') return json({ sent: await late(sa, payload) });
   if (payload.kind === 'wa_reply') return json({ sent: await waReply(sa, payload) });
   if (payload.kind === 'assigned' || payload.kind === 'reassigned') return json({ sent: await assigned(sa, payload) });
