@@ -45,7 +45,7 @@ export async function notifyNow(title, body, extra = {}) {
     return false;
   }
   try {
-    const api = await alertsApi();
+    const api = (await alertsApi())?.LocalNotifications;
     if (!api) return false;
     await api.schedule({ notifications: [{ id: notifyId++, title, body, channelId: ALERT_CHANNEL, extra }] });
     return true;
@@ -61,7 +61,8 @@ async function alertsApi() {
   if (permission.display !== 'granted' && (await LocalNotifications.requestPermissions()).display !== 'granted') return null;
   channelReady ||= LocalNotifications.createChannel({ id: ALERT_CHANNEL, name: L('تنبيهات المواعيد', 'Appointment alerts'), importance: 5, visibility: 1, sound: 'default', vibration: true, lights: true, lightColor: '#D59A4E' }).catch(() => {});
   await channelReady;
-  return LocalNotifications;
+  // مغلّفة في كائن: إضافة Capacitor «وكيل» يجيب على then، فإرجاعها مباشرة من دالة async يفشل دائماً.
+  return { LocalNotifications };
 }
 
 // تنبيهات المواعيد على الجهاز (تعمل والتطبيق مغلق) — وكل تنبيه يفتح الموعد عند الضغط عليه:
@@ -96,7 +97,7 @@ export async function scheduleAppointmentAlerts(data, staffId, { payments = true
   if (signature === lastSignature) return;
   lastSignature = signature;
   try {
-    const api = await alertsApi();
+    const api = (await alertsApi())?.LocalNotifications;
     if (!api) return;
     const pending = await api.getPending();
     if (pending.notifications.length) await api.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });

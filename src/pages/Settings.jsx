@@ -21,7 +21,7 @@ const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
 export default function Settings() {
   const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh, enablePush, toast, isManager, account, data, staffMember } = useApp();
   const [push, setPush] = useState(pushState);
-  const [canLock, setCanLock] = useState(false);
+  const [canLock, setCanLock] = useState(null);
   const [locked, setLocked] = useState(lockEnabled);
   useEffect(() => { lockAvailable().then(setCanLock); }, []);
   // التجربة تمر بنفس طريق إشعار الحجز الحقيقي (الخادم ← Firebase)، وإن تعذّر نعرض إشعاراً محلياً ونوضّح السبب.
@@ -79,8 +79,8 @@ export default function Settings() {
         <Row title={L('إرسال إشعار تجريبي', 'Send a test notification')} subtitle={L('للتأكد أن الهاتف يعرض الإشعارات', 'Check that this phone shows notifications')} onClick={testNotify} />
       </div>
     </Section>}
-    {isNative && canLock && <Section title={L('الأمان', 'Security')}>
-      <Toggle checked={locked} onChange={toggleLock} label={L('قفل التطبيق بالبصمة', 'Fingerprint app lock')} hint={L('يُطلب عند فتح التطبيق وبعد تركه أكثر من دقيقة — أو برمز قفل الهاتف', 'Asked when opening the app and after leaving it for over a minute — or with the phone PIN')} />
+    {isNative && <Section title={L('الأمان', 'Security')}>
+      {canLock === false ? <Alert tone="orange">{L('فعّل البصمة أو رمز قفل الشاشة في إعدادات الهاتف أولاً، ثم ارجع هنا', 'Set up a fingerprint or screen lock in phone Settings first, then come back here')}</Alert> : <Toggle checked={locked} onChange={toggleLock} label={L('قفل التطبيق بالبصمة', 'Fingerprint app lock')} hint={L('يُطلب عند فتح التطبيق وبعد تركه أكثر من دقيقة — أو برمز قفل الهاتف', 'Asked when opening the app and after leaving it for over a minute — or with the phone PIN')} />}
     </Section>}
     {account && <Section title={L('حسابي', 'My account')}>
       <div className="list account-card">

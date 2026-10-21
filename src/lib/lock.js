@@ -8,19 +8,20 @@ const AWAY_MS = 60 * 1000;
 export const lockEnabled = () => { try { return isNative && localStorage.getItem(KEY) === '1'; } catch { return false; } };
 const store = on => { try { if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY); } catch { /* ignore */ } };
 
-const plugin = async () => (await import('@aparajita/capacitor-biometric-auth')).BiometricAuth;
+// نعيد الوحدة وليس الإضافة نفسها: إضافة Capacitor «وكيل» يبدو كـ Promise (له then)، فإرجاعه من دالة async يعلّق أو يرمي خطأ.
+const plugin = () => import('@aparajita/capacitor-biometric-auth');
 
 // هل يمكن القفل على هذا الهاتف؟ (بصمة/وجه أو على الأقل رمز قفل للشاشة)
 export async function lockAvailable() {
   if (!isNative) return false;
-  try { const r = await (await plugin()).checkBiometry(); return r.isAvailable || r.deviceIsSecure; } catch { return false; }
+  try { const r = await (await plugin()).BiometricAuth.checkBiometry(); return r.isAvailable || r.deviceIsSecure; } catch { return false; }
 }
 
 let authenticating = false;
 export async function unlock() {
   authenticating = true;
   try {
-    await (await plugin()).authenticate({
+    await (await plugin()).BiometricAuth.authenticate({
       reason: L('افتح مِقص', 'Unlock Miqass'), androidTitle: L('مِقص', 'Miqass'), androidSubtitle: L('استخدم البصمة لفتح التطبيق', 'Use your fingerprint to open the app'),
       cancelTitle: L('إلغاء', 'Cancel'), allowDeviceCredential: true, androidConfirmationRequired: false,
     });
