@@ -287,13 +287,14 @@ function Coupons({ onClose }) {
       </div>
       <Field label={L('ينتهي في (اختياري)', 'Expires on (optional)')}><input type="date" value={v.expiresAt || ''} min={localISO()} onChange={e => setEdit({ ...v, expiresAt: e.target.value })} /></Field>
       <Toggle checked={v.active !== false} onChange={active => setEdit({ ...v, active })} label={L('مفعّل', 'Active')} />
+      <Toggle checked={v.online === true} onChange={online => setEdit({ ...v, online })} label={L('يُقبل في الحجز الأونلاين', 'Accepted in online booking')} hint={L('تظهر خانة الكود في رابط الحجز فقط إذا فعّلت هذا لكود واحد على الأقل', 'The code field shows on your booking link only if at least one code has this on')} />
       <Alert>{error}</Alert>
     </div> : data.coupons.length ? <div className="list">{data.coupons.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(c => {
       const s = stats(c);
       const off = c.active === false || (c.expiresAt && c.expiresAt < localISO()) || (Number(c.maxUses) > 0 && Number(c.used || 0) >= Number(c.maxUses));
       return <Row key={c.id} leading={<span className={`dot-icon tone-${off ? 'muted' : 'green'}`}><TicketPercent size={18} /></span>}
         title={<span dir="ltr">{c.code}</span>}
-        subtitle={`${c.type === 'amount' ? money(c.value) : `${num(c.value)}٪`} · ${L(`استُخدم ${num(s.uses)}${Number(c.maxUses) > 0 ? ` من ${num(c.maxUses)}` : ''}`, `used ${num(s.uses)}${Number(c.maxUses) > 0 ? ` of ${num(c.maxUses)}` : ''}`)} · ${L(`جلب ${money(s.revenue)}`, `brought ${money(s.revenue)}`)}${c.expiresAt ? ` · ${L('حتى', 'until')} ${dateLabel(c.expiresAt, { day: 'numeric', month: 'short' })}` : ''}`}
+        subtitle={`${c.type === 'amount' ? money(c.value) : `${num(c.value)}٪`} · ${L(`استُخدم ${num(s.uses)}${Number(c.maxUses) > 0 ? ` من ${num(c.maxUses)}` : ''}`, `used ${num(s.uses)}${Number(c.maxUses) > 0 ? ` of ${num(c.maxUses)}` : ''}`)} · ${L(`جلب ${money(s.revenue)}`, `brought ${money(s.revenue)}`)}${c.expiresAt ? ` · ${L('حتى', 'until')} ${dateLabel(c.expiresAt, { day: 'numeric', month: 'short' })}` : ''}${c.online === true ? ` · ${L('أونلاين', 'online')}` : ''}`}
         trailing={off ? <Badge tone="muted">{L('منتهي', 'Inactive')}</Badge> : null}
         action={<Button size="sm" variant="secondary" icon={Share2} onClick={() => setSharing(c)}>{L('نشر', 'Share')}</Button>}
         onClick={() => setEdit(c)} />;
