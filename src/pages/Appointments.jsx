@@ -123,6 +123,7 @@ export default function Appointments() {
           {needsDeposit(a) && <Badge tone="red">{L('عربون', 'Deposit')}</Badge>}
           {a.source === 'online' && <Badge tone="blue">{L('أونلاين', 'Online')}</Badge>}
           {a.source === 'whatsapp' && <Badge tone="green">{L('واتساب', 'WhatsApp')}</Badge>}
+          {['pending', 'confirmed'].includes(a.status) && Date.now() - new Date(`${a.date}T${a.time}:00`).getTime() >= 30 * 60000 && <Badge tone="red">{L('متأخر', 'Late')}</Badge>}
           {a.status === 'completed' && !isPaid(a) && <Badge tone="red">{L('غير مدفوع', 'Unpaid')}</Badge>}
         </span>
         <NextChevron size={18} className="muted" />
@@ -153,7 +154,14 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
     if (status === 'completed' && balanceDue(a) > 0 && role !== 'staff') { setCheckout(true); return; }
     if (status !== 'completed') onClose();
   };
+  // تأخر العميل (بانتظار التأكيد أو مؤكد ولم يصل): تنبيه، ويُلغى تلقائياً بعد ساعة ما لم يُتخذ إجراء.
+  const lateBy = ['pending', 'confirmed'].includes(a.status) ? Math.floor((Date.now() - new Date(`${a.date}T${a.time}:00`).getTime()) / 60000) : 0;
+  const late = lateBy >= 30;
+  const lateText = lateBy < 60 ? L(`${num(lateBy)} دقيقة`, `${num(lateBy)} minutes`)
+    : L(`${num(Math.floor(lateBy / 60))} ساعة${lateBy % 60 ? ` و${num(lateBy % 60)} دقيقة` : ''}`, `${num(Math.floor(lateBy / 60))} h${lateBy % 60 ? ` ${num(lateBy % 60)} min` : ''}`);
+  const autoCancel = data.settings.autoCancelLate !== false && !a.lateHandled;
   const remind = () => {
+    if (late) patch('appointments', a.id, { lateHandled: true });
     openExternal(whatsappLink(client?.phone, fillTemplate(messageFor(data.settings, 'reminder', client), { ...vars, date: dateFor(client, a.date), time: timeFor(client, a.time) })));
     logMessage('reminder', a.clientId, a.id);
     patch('appointments', a.id, { reminderSentAt: localISO() });
@@ -200,6 +208,11 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
         <Avatar name={client?.name} size="lg" />
         <div><Badge status={a.status} /> {risk?.level === 'high' && <Badge tone="red">{risk.label}</Badge>}</div>
       </div>
+      {late && <div className="stack-sm">
+        <Alert tone="orange" icon={Clock3}>{L(`تأخر العميل ${lateText} عن موعده.`, `The client is ${lateText} late.`)}{autoCancel ? L(` سيُلغى الموعد تلقائياً ${lateBy >= 60 ? 'خلال دقائق' : `بعد ${num(60 - lateBy)} دقيقة تقريباً`} إن لم تتخذ إجراء.`, ` It will be cancelled automatically ${lateBy >= 60 ? 'within minutes' : `in about ${num(60 - lateBy)} minutes`} unless you act.`) : ''}</Alert>
+        {autoCancel && <Button size="sm" variant="secondary" icon={Check} onClick={() => { patch('appointments', a.id, { lateHandled: true }); toast(L('سيبقى الموعد ولن يُلغى تلقائياً', 'The appointment stays and won’t be cancelled automatically')); }}>{L('إبقاء الموعد', 'Keep the appointment')}</Button>}
+      </div>}
+      {a.status === 'cancelled' && a.cancelledVia === 'late' && <Alert tone="orange" icon={Clock3}>{L('أُلغي تلقائياً لتأخر العميل أكثر من ساعة دون إجراء.', 'Cancelled automatically: the client was over an hour late with no action taken.')}</Alert>}
       {bookedAs(a, client) && <div className="stack-sm">
         <Alert tone="blue" icon={UserPlus}>{L(`حُجز أونلاين باسم «${bookedAs(a, client)}» برقم مسجّل عندك للعميل «${client.name}».`, `Booked online as “${bookedAs(a, client)}” with a number saved for “${client.name}”.`)}</Alert>
         {role !== 'staff' && <Button size="sm" variant="secondary" icon={Pencil} onClick={() => { patch('clients', client.id, { name: bookedAs(a, client) }); toast(L('تم تحديث اسم العميل', 'Client name updated')); }}>{L(`اعتماد «${bookedAs(a, client)}» اسماً للعميل`, `Rename client to “${bookedAs(a, client)}”`)}</Button>}

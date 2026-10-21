@@ -345,6 +345,7 @@ function SmartSettings({ onClose }) {
       <Field label={L('اعتبر العميل منقطعاً بعد (يوم)', 'Mark client as lapsed after (days)')} hint={L('يُستخدم عندما لا يكون له نمط زيارات واضح', 'Used when the client has no clear visit pattern')}><NumInput min="7" value={s.recoveryDays} onChange={e => setS({ ...s, recoveryDays: Number(e.target.value) })} /></Field>
       <Field label={L('نقطة ولاء لكل (ر.ق)', 'One loyalty point per (QAR)')}><NumInput min="1" value={s.loyaltyPer} onChange={e => setS({ ...s, loyaltyPer: Number(e.target.value) })} /></Field>
       <Field label={L('إرسال التذكير قبل الموعد بـ (ساعة)', 'Send reminder before appointment (hours)')} hint={L('للإرسال التلقائي عبر واتساب للأعمال', 'For automatic sending via WhatsApp Business')}><Chips items={[2, 12, 24].map(h => ({ id: h, label: L(`${h} ساعة`, `${h} hours`) }))} value={Number(s.reminderHours)} onChange={h => setS({ ...s, reminderHours: h })} /></Field>
+      <Toggle checked={s.autoCancelLate !== false} onChange={on => setS({ ...s, autoCancelLate: on })} label={L('إلغاء تلقائي للعميل المتأخر', 'Auto-cancel late clients')} hint={L('تنبيه بعد 30 دقيقة من الموعد، ثم إلغاء بعد ساعة إن لم تتخذ إجراء', 'Alert 30 minutes after the start, then cancel after an hour if no action is taken')} />
       <Toggle checked={s.hideClientPhotosFromStaff} onChange={on => setS({ ...s, hideClientPhotosFromStaff: on })} label={L('إخفاء صور العملاء عن الموظفين', 'Hide client photos from staff')} hint={L('خصوصية مهمة للصالونات النسائية', "Important privacy for women's salons")} />
     </div>
   </Sheet>;

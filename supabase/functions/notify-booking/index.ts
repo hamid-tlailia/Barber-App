@@ -170,6 +170,21 @@ async function waReply(sa: ServiceAccount, payload: any) {
     when, { kind: 'booking', appointmentId: String(a?.id ?? ''), date: String(a?.date ?? ''), shopId: String(shop_id) });
 }
 
+// عميل متأخر 30 دقيقة (late) أو أُلغي موعده تلقائياً بعد ساعة (late_cancelled): لمن يدير المواعيد والحلاق المعيّن.
+async function late(sa: ServiceAccount, payload: any) {
+  const { shop_id, appointment: a, kind } = payload;
+  const members: { user_id: string; role: string; staff_id: string | null; suspended: boolean }[] = await rest(`shop_members?select=user_id,role,staff_id,suspended&shop_id=eq.${shop_id}`);
+  const staffId = a?.staffId || (a?.items ?? []).find((i: any) => i.staffId)?.staffId || '';
+  const users = (members ?? []).filter(m => !m.suspended && (['owner', 'manager', 'reception'].includes(m.role) || (staffId && m.staff_id === staffId))).map(m => m.user_id);
+  const [client] = a?.clientId ? await rest(`records?select=data&shop_id=eq.${shop_id}&collection=eq.clients&id=eq.${encodeURIComponent(a.clientId)}&limit=1`) : [];
+  const name = client?.data?.name ?? 'عميل';
+  const time = timeAr(String(a?.time ?? '00:00'));
+  const [title, body] = kind === 'late_cancelled'
+    ? [`🚫 أُلغي موعد ${name} تلقائياً`, `تأخر أكثر من ساعة عن موعده (${time}) ولم يُتخذ إجراء`]
+    : [`⏰ ${name} متأخر عن موعده`, `موعده ${time} — مرّ 30 دقيقة. اضغط لتذكيره أو إلغائه أو إنهائه`];
+  return sendTo(sa, await tokensOf(users, shop_id), title, body, { kind: 'booking', appointmentId: String(a?.id ?? ''), date: String(a?.date ?? ''), shopId: String(shop_id) });
+}
+
 // بريد لمالك التطبيق عبر Resend (اختياري): RESEND_API_KEY و ADMIN_EMAIL، و MAIL_FROM إن كان لديك نطاق موثّق.
 async function emailAdmin(subject: string, lines: string[]) {
   const key = Deno.env.get('RESEND_API_KEY');
@@ -257,6 +272,7 @@ Deno.serve(async req => {
   if (payload.kind === 'deletion_request') return json(await deletionRequest(sa, payload.shop_id));
   if (!sa) return json({ skipped: 'FCM_SERVICE_ACCOUNT not set' });
   if (payload.kind === 'activity') return json({ sent: await activity(sa, payload) });
+  if (payload.kind === 'late' || payload.kind === 'late_cancelled') return json({ sent: await late(sa, payload) });
   if (payload.kind === 'wa_reply') return json({ sent: await waReply(sa, payload) });
   if (payload.kind === 'assigned' || payload.kind === 'reassigned') return json({ sent: await assigned(sa, payload) });
   return json({ sent: await booking(sa, payload.shop_id, payload.appointment) });

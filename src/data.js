@@ -108,6 +108,7 @@ export const defaultSettings = (kind = 'men') => ({
   noShowDepositPercent: 30,
   bookingEnabled: true,
   hideClientPhotosFromStaff: kind !== 'men',
+  autoCancelLate: true,
   recoveryDays: kind === 'women' ? 45 : 30,
   templates: {
     reminder: L('مرحباً {name} 👋\nتذكير بموعدك في {shop} يوم {date} الساعة {time}.\nللتأكيد أرسل 1، وللإلغاء أرسل 2.', 'Hi {name} 👋\nA reminder of your appointment at {shop} on {date} at {time}.\nReply 1 to confirm or 2 to cancel.'),

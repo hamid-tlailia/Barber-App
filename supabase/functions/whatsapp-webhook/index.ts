@@ -149,15 +149,28 @@ const toHHMM = (value: string) => {
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 };
 
+// بعض النماذج تكتب «04:00 م» أو «16:30» رغم التعليمات: نصحّح الأوقات في الرد نفسه قبل إرساله.
+const timeEn = (t: string) => { const h = Number(t.slice(0, 2)); return `${h % 12 || 12}:${t.slice(3, 5)} ${h < 12 ? 'AM' : 'PM'}`; };
+export const tidyTimes = (text: string) => {
+  const en = (text.match(/[a-z]/gi) ?? []).length > (text.match(/[\u0600-\u06FF]/g) ?? []).length;
+  return text
+    .replace(/(^|[^\d:])0(\d):(\d{2})(\s*(?:ص|م|AM|PM|am|pm))/g, '$1$2:$3$4')
+    .replace(/(^|[^\d:])([01]\d|2[0-3]):([0-5]\d)(?![\d:])(?!\s*(?:ص|م|AM|PM|am|pm))/g, (_m, pre, h, mm) => pre + (en ? timeEn : timeAr)(`${h}:${mm}`));
+};
+
+// الباقات المعروضة أونلاين (جلسة واحدة): سعرها بدل مجموع خدماتها.
+const packageServiceIds = (p: Record<string, any>) => (Array.isArray(p?.serviceIds) && p.serviceIds.length ? p.serviceIds : p?.serviceId ? [p.serviceId] : []);
+const onlinePackages = (packages: Rec[]) => packages.filter(p => p.data.online === true && Number(p.data.sessions || 1) === 1 && packageServiceIds(p.data).length);
+
 const tools: Anthropic.Tool[] = [
-  { name: 'list_services', description: 'قائمة خدمات الصالون مع الأسعار والمدة والمعرّفات، وقائمة الموظفين.', input_schema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'list_services', description: 'قائمة خدمات الصالون وباقاته مع الأسعار والمدة والمعرّفات، وقائمة الموظفين.', input_schema: { type: 'object', properties: {}, additionalProperties: false } },
   {
     name: 'find_available_times', description: 'الأوقات المتاحة في يوم محدد لمجموعة خدمات. التاريخ بصيغة YYYY-MM-DD.',
     input_schema: { type: 'object', properties: { date: { type: 'string' }, service_ids: { type: 'array', items: { type: 'string' } }, staff_id: { type: 'string' } }, required: ['date', 'service_ids'], additionalProperties: false },
   },
   {
     name: 'book_appointment', description: 'حجز موعد بعد أن يؤكد العميل صراحة الخدمة واليوم والوقت والاسم.',
-    input_schema: { type: 'object', properties: { name: { type: 'string' }, date: { type: 'string' }, time: { type: 'string', description: 'الوقت كما ظهر في find_available_times، مثل «5:00 م»' }, service_ids: { type: 'array', items: { type: 'string' } }, staff_id: { type: 'string' }, note: { type: 'string' } }, required: ['name', 'date', 'time', 'service_ids'], additionalProperties: false },
+    input_schema: { type: 'object', properties: { name: { type: 'string' }, date: { type: 'string' }, time: { type: 'string', description: 'الوقت كما ظهر في find_available_times، مثل «5:00 م»' }, service_ids: { type: 'array', items: { type: 'string' } }, package_id: { type: 'string', description: 'إذا اختار العميل باقة: معرّفها، مع service_ids خدماتها' }, staff_id: { type: 'string' }, note: { type: 'string' } }, required: ['name', 'date', 'time', 'service_ids'], additionalProperties: false },
   },
   { name: 'my_appointments', description: 'مواعيد هذا العميل القادمة (يتعرف عليه برقم الواتساب).', input_schema: { type: 'object', properties: {}, additionalProperties: false } },
   {
@@ -167,8 +180,8 @@ const tools: Anthropic.Tool[] = [
 ];
 
 async function runTool(shopId: string, from: string, name: string, input: Record<string, any>): Promise<string> {
-  const [services, staff, appointments, clients, settings] = await Promise.all([
-    collection(shopId, 'services'), collection(shopId, 'staff'), collection(shopId, 'appointments'), collection(shopId, 'clients'), settingsOf(shopId),
+  const [services, staff, appointments, clients, settings, packages] = await Promise.all([
+    collection(shopId, 'services'), collection(shopId, 'staff'), collection(shopId, 'appointments'), collection(shopId, 'clients'), settingsOf(shopId), collection(shopId, 'packages'),
   ]);
   const client = clients.find(c => samePhone(c.data.phone, from));
   const items = (ids: string[], staffId = '') => services.filter(s => ids?.includes(s.id)).map(s => ({
@@ -182,6 +195,7 @@ async function runTool(shopId: string, from: string, name: string, input: Record
   if (name === 'list_services') {
     return JSON.stringify({
       services: services.filter(s => s.data.online !== false).map(s => ({ id: s.id, name: s.data.name, price: s.data.price, minutes: s.data.duration, deposit: s.data.deposit || 0 })),
+      packages: onlinePackages(packages).map(p => ({ id: p.id, name: p.data.name, price: p.data.price, service_ids: packageServiceIds(p.data) })),
       staff: staff.filter(s => s.data.active !== false).map(s => ({ id: s.id, name: s.data.name, specialty: s.data.specialty })),
       hours: settings.hours,
     });
@@ -210,12 +224,16 @@ async function runTool(shopId: string, from: string, name: string, input: Record
       await saveRecord(shopId, 'clients', clientId, { id: clientId, name: String(input.name).slice(0, 80), phone: from, notes: '', source: 'whatsapp', createdAt: today });
     }
     const total = chosen.reduce((s, i) => s + i.price, 0);
+    // باقة: الخصم = مجموع خدماتها المختارة − سعر الباقة.
+    const pkg = input.package_id ? onlinePackages(packages).find(p => p.id === input.package_id) : null;
+    const covered = pkg ? chosen.filter(i => packageServiceIds(pkg.data).includes(i.serviceId)).reduce((s, i) => s + i.price, 0) : 0;
+    const discount = pkg ? Math.max(0, covered - Number(pkg.data.price || 0)) : 0;
     const deposit = services.filter(s => input.service_ids.includes(s.id)).reduce((s, x) => s + Number(x.data.deposit || 0), 0);
     await saveRecord(shopId, 'appointments', candidate.id, {
-      ...candidate, clientId, duration: chosen.reduce((s, i) => s + i.duration, 0), price: total, discount: 0, deposit, payments: [],
+      ...candidate, clientId, duration: chosen.reduce((s, i) => s + i.duration, 0), price: total, discount, bundleId: pkg?.id ?? '', deposit: Math.min(deposit, total - discount), payments: [],
       location: 'salon', notes: String(input.note || '').slice(0, 300), source: 'whatsapp', createdAt: today,
     });
-    return JSON.stringify({ booked: true, id: candidate.id, date: input.date, time: timeAr(time), total, deposit, status: 'pending — سيؤكده الصالون' });
+    return JSON.stringify({ booked: true, id: candidate.id, date: input.date, time: timeAr(time), total: total - discount, deposit, status: 'pending — سيؤكده الصالون' });
   }
   if (name === 'my_appointments') {
     if (!client) return 'لا توجد مواعيد مسجلة لهذا الرقم.';
@@ -232,17 +250,24 @@ async function runTool(shopId: string, from: string, name: string, input: Record
 }
 
 async function assistant(brain: Brain, shopId: string, config: WaConfig, from: string, text: string, profileName?: string) {
-  const [{ data: shop }, { data: convo }, settings] = await Promise.all([
+  const [{ data: shop }, { data: convo }, settings, services, packages] = await Promise.all([
     db.from('shops').select('name, kind, phone').eq('id', shopId).single(),
-    db.from('wa_conversations').select('messages').eq('shop_id', shopId).eq('phone', digits(from)).maybeSingle(),
-    settingsOf(shopId),
+    db.from('wa_conversations').select('messages, updated_at').eq('shop_id', shopId).eq('phone', digits(from)).maybeSingle(),
+    settingsOf(shopId), collection(shopId, 'services'), collection(shopId, 'packages'),
   ]);
   const now = localNow();
   // لغة العميل المسجلة في ملفه (عربي/إنجليزي) — وإلا نتبع لغة رسالته.
   const known = (await collection(shopId, 'clients')).find(c => samePhone(c.data.phone, from));
   const prefersEn = known?.data?.lang === 'en';
   // نخزن النص فقط بين الرسائل؛ آخر ١٢ رسالة تكفي لسياق الحجز.
-  const history: { role: 'user' | 'assistant'; content: string }[] = (convo?.messages ?? []).slice(-12);
+  // محادثة جديدة (أول مرة أو بعد 12 ساعة صمت): نبدأ من جديد بترحيب وقائمة الأسعار.
+  const fresh = !convo?.updated_at || Date.now() - Date.parse(convo.updated_at) > 12 * 3600000;
+  const history: { role: 'user' | 'assistant'; content: string }[] = fresh ? [] : (convo?.messages ?? []).slice(-12);
+  const serviceName = (id: string) => services.find(s => s.id === id)?.data.name ?? '';
+  const catalog = [
+    ...services.filter(s => s.data.online !== false).map(s => `• ${s.data.name} — ${s.data.price} ر.ق (${s.data.duration || 30} دقيقة)`),
+    ...onlinePackages(packages).map(p => `• باقة ${p.data.name}: ${packageServiceIds(p.data).map(serviceName).filter(Boolean).join(' + ')} — ${p.data.price} ر.ق`),
+  ].join('\n');
   const system = `أنت موظف الاستقبال الرقمي لـ«${shop?.name}» (${shop?.kind === 'women' ? 'صالون نسائي' : shop?.kind === 'mixed' ? 'صالون للرجال والسيدات' : 'صالون حلاقة رجالي'}) في قطر.
 تتحدث بالعربية الخليجية المهذبة وباختصار مناسب لواتساب (٣ أسطر غالباً). العملة ريال قطري.
 اللغة: رد دائماً بنفس لغة رسالة العميل؛ إذا كتب بالإنجليزية فرد بإنجليزية مهذبة وبسيطة (العملة QAR).${prefersEn ? ' هذا العميل يفضّل الإنجليزية — ابدأ بالإنجليزية.' : ''}
@@ -250,7 +275,11 @@ async function assistant(brain: Brain, shopId: string, config: WaConfig, from: s
 قواعد: استخدم الأدوات دائماً للأسعار والأوقات ولا تخمّن. قبل book_appointment اعرض ملخص الحجز واطلب تأكيداً صريحاً. اقترح ٣ أوقات كحد أقصى.
 إذا طلب العميل شيئاً خارج الحجز أو اشتكى، اعتذر بلطف وأخبره أن فريق الصالون سيتواصل معه${shop?.phone ? ` أو يمكنه الاتصال على ${shop.phone}` : ''}.
 ساعات العمل: ${settings.hours?.allDay ? 'مفتوح 24 ساعة طوال الأسبوع' : `${timeAr(settings.hours?.open ?? '09:00')} – ${timeAr(settings.hours?.close ?? '22:00')}`}.
-الأوقات: انسخها كما تعيدها الأدوات بالضبط (مثل «5:00 م»)، ولا تكتب «17:00» أو «05:00» أبداً.`;
+الأوقات: انسخها كما تعيدها الأدوات بالضبط (مثل «5:00 م»)، ولا تكتب «17:00» أو «05:00» أبداً.
+الخدمات والباقات المتاحة للحجز:
+${catalog}
+${fresh ? `هذه بداية محادثة: رحّب بالعميل باسم «${shop?.name}»، واعرض الخدمات والباقات أعلاه بأسعارها في قائمة مختصرة، ثم اسأله ماذا يختار، وهل يريد الموعد اليوم أم في يوم آخر. لا تعرض أوقاتاً قبل أن يختار الخدمة واليوم.` : ''}
+إذا اختار العميل باقة: مرّر service_ids خدماتها إلى find_available_times، ثم package_id معها إلى book_appointment.`;
 
   const userText = `${text}\n\n[سياق النظام: اليوم ${dateAr(isoDate(now))} (${isoDate(now)}) الساعة ${now.toISOString().slice(11, 16)}. اسم العميل في واتساب: ${profileName ?? 'غير معروف'}]`;
   const call = (name: string, input: Record<string, any>) => runTool(shopId, from, name, input);
@@ -258,10 +287,11 @@ async function assistant(brain: Brain, shopId: string, config: WaConfig, from: s
     ? await askOpenAI(brain.key, system, history, userText, call)
     : await askClaude(brain.key, system, history, userText, call);
   if (!reply) return;
-  await sendText(config, from, reply);
+  const tidy = tidyTimes(reply);
+  await sendText(config, from, tidy);
   await db.from('wa_conversations').upsert({
     shop_id: shopId, phone: digits(from), updated_at: new Date().toISOString(),
-    messages: [...history, { role: 'user', content: text }, { role: 'assistant', content: reply }].slice(-12),
+    messages: [...history, { role: 'user', content: text }, { role: 'assistant', content: tidy }].slice(-12),
   });
 }
 
