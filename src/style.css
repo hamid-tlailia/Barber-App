@@ -501,6 +501,9 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .roi-lines { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--ink-2); font-size: 13px; }
 
 /* ───────── الدخول والقفل والحجز العام ───────── */
+/* قفل البصمة: يغطي كل شيء حتى الإشعارات المنبثقة داخل التطبيق. */
+.app-lock { position: fixed; inset: 0; z-index: 1000; background: var(--bg); padding-top: var(--safe-t); display: grid; place-content: center; justify-items: center; gap: 16px; font-family: 'Tajawal', 'IBM Plex Sans Arabic', sans-serif; font-size: 22px; font-weight: 800; }
+.app-lock .btn { margin-top: 12px; font-family: inherit; }
 .splash { min-height: 100vh; padding-top: var(--safe-t); display: grid; place-content: center; justify-items: center; gap: 14px; font-family: 'Tajawal', 'IBM Plex Sans Arabic', sans-serif; font-size: 22px; font-weight: 800; }
 .loader { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line-strong); border-top-color: var(--accent); animation: spin .8s linear infinite; margin: 20px auto; }
 .auth { min-height: 100vh; display: grid; place-items: center; padding: calc(24px + var(--safe-t)) 16px calc(24px + var(--safe-b)); background: radial-gradient(circle at 80% 0%, var(--accent-soft), transparent 50%), var(--bg); }

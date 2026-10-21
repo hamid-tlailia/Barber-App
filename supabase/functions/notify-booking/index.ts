@@ -298,6 +298,7 @@ Deno.serve(async req => {
   if (payload.kind === 'expiring') return json(await expiring(sa));
   if (payload.kind === 'deletion_request') return json(await deletionRequest(sa, payload.shop_id));
   if (!sa) return json({ skipped: 'FCM_SERVICE_ACCOUNT not set' });
+  if (payload.kind === 'test') return json({ sent: await sendTo(sa, await tokensOf([payload.user_id], payload.shop_id), '📅 إشعار تجريبي', 'هكذا سيظهر الحجز الجديد', { kind: 'test' }) });
   if (payload.kind === 'activity') return json({ sent: await activity(sa, payload) });
   if (payload.kind === 'starting') return json({ sent: await starting(sa, payload) });
   if (payload.kind === 'offer_ended') return json({ sent: await offerEnded(sa, payload) });

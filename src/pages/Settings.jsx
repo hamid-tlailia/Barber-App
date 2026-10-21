@@ -9,7 +9,8 @@ import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { OfferShare } from './Offer.jsx';
-import { notifyNow, pushState, pushSupported } from '../lib/native.js';
+import { isNative, notifyNow, pushState, pushSupported } from '../lib/native.js';
+import { lockAvailable, lockEnabled, setLock } from '../lib/lock.js';
 import { L, LANG, isEn, setLang } from '../i18n.js';
 
 const weekdays = isEn
@@ -20,6 +21,22 @@ const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
 export default function Settings() {
   const { intent, setIntent, shop, shops, switchShop, addBranch, role, theme, refresh, enablePush, toast, isManager, account, data, staffMember } = useApp();
   const [push, setPush] = useState(pushState);
+  const [canLock, setCanLock] = useState(false);
+  const [locked, setLocked] = useState(lockEnabled);
+  useEffect(() => { lockAvailable().then(setCanLock); }, []);
+  // التجربة تمر بنفس طريق إشعار الحجز الحقيقي (الخادم ← Firebase)، وإن تعذّر نعرض إشعاراً محلياً ونوضّح السبب.
+  const testNotify = async () => {
+    const title = L('📅 إشعار تجريبي', '📅 Test notification'), body = L('هكذا سيظهر الحجز الجديد', 'This is how a new booking will appear');
+    let devices = 0;
+    if (cloudEnabled && push.status === 'registered') devices = await api.testPush(shop.id).catch(() => 0);
+    if (devices > 0) { toast(L('أُرسل عبر الخادم — سيظهر خلال ثوانٍ', 'Sent via the server — it will appear in a few seconds')); return; }
+    if (await notifyNow(title, body)) toast(push.status === 'registered' ? L('أُرسل — انظر شريط الإشعارات', 'Sent — check your notification bar') : L('ظهر الإشعار المحلي، لكن الهاتف غير مسجّل لإشعارات الحجوزات — اضغط «تفعيل»', 'The local notification works, but this phone is not registered for booking alerts — tap "Enable"'));
+    else toast(L('الإشعارات موقوفة لمِقص — فعّلها من إعدادات الهاتف ← التطبيقات ← مِقص ← الإشعارات', 'Notifications are off for Miqass — enable them in phone Settings → Apps → Miqass → Notifications'), 'error');
+  };
+  const toggleLock = async on => {
+    if (await setLock(on)) { setLocked(on); toast(on ? L('سيُطلب التحقق بالبصمة عند فتح التطبيق', 'Fingerprint will be required when opening the app') : L('أُلغي قفل البصمة', 'Fingerprint lock turned off')); }
+    else toast(L('لم يتم التحقق — لم يتغير شيء', 'Not verified — nothing changed'), 'error');
+  };
   const [open, setOpen] = useState(null);
   useEffect(() => { if (intent?.open) setOpen(intent.open); if (intent) setIntent(null); }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
   const owner = role === 'owner';
@@ -59,8 +76,11 @@ export default function Settings() {
           title={L('إشعار الحجوزات الجديدة', 'New booking alerts')}
           subtitle={{ registered: L('مفعّلة على هذا الهاتف ✓', 'Enabled on this phone ✓'), registering: L('جارٍ التسجيل...', 'Registering...'), denied: L('مرفوضة — فعّلها من إعدادات الهاتف ← التطبيقات ← مِقص ← الإشعارات', 'Blocked — enable it in phone Settings → Apps → Miqass → Notifications'), 'not-granted': L('لم يُمنح الإذن بعد', 'Permission not granted yet'), error: L(`خطأ: ${push.error}`, `Error: ${push.error}`), unknown: L('غير مفعّلة', 'Not enabled') }[push.status] || push.status}
           trailing={<Button size="sm" variant={push.status === 'registered' ? 'ghost' : 'primary'} onClick={async () => { setPush({ status: 'registering' }); const r = await enablePush(); setTimeout(() => setPush({ ...pushState }), 1500); setPush({ ...r }); }}>{push.status === 'registered' ? L('إعادة', 'Retry') : L('تفعيل', 'Enable')}</Button>} />
-        <Row title={L('إرسال إشعار تجريبي', 'Send a test notification')} subtitle={L('للتأكد أن الهاتف يعرض الإشعارات', 'Check that this phone shows notifications')} onClick={() => { notifyNow(L('📅 إشعار تجريبي', '📅 Test notification'), L('هكذا سيظهر الحجز الجديد', 'This is how a new booking will appear')); toast(L('أُرسل — انظر شريط الإشعارات', 'Sent — check your notification bar')); }} />
+        <Row title={L('إرسال إشعار تجريبي', 'Send a test notification')} subtitle={L('للتأكد أن الهاتف يعرض الإشعارات', 'Check that this phone shows notifications')} onClick={testNotify} />
       </div>
+    </Section>}
+    {isNative && canLock && <Section title={L('الأمان', 'Security')}>
+      <Toggle checked={locked} onChange={toggleLock} label={L('قفل التطبيق بالبصمة', 'Fingerprint app lock')} hint={L('يُطلب عند فتح التطبيق وبعد تركه أكثر من دقيقة — أو برمز قفل الهاتف', 'Asked when opening the app and after leaving it for over a minute — or with the phone PIN')} />
     </Section>}
     {account && <Section title={L('حسابي', 'My account')}>
       <div className="list account-card">

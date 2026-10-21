@@ -168,6 +168,7 @@ export const api = {
       .select('owner_whatsapp,reminders_enabled,assistant_enabled,daily_report_enabled,wa_addon,ai_addon').eq('shop_id', shop).maybeSingle();
     return data;
   },
+  testPush: shop => rpc('send_test_push', { p_shop: shop }),
   saveIntegration: (shop, v) => rpc('save_integration', {
     p_shop: shop, p_owner_whatsapp: v.ownerWhatsapp || '', p_reminders: Boolean(v.reminders), p_assistant: Boolean(v.assistant), p_daily: Boolean(v.daily),
   }),

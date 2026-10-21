@@ -39,15 +39,17 @@ export async function deviceId() {
 // إشعار فوري على الجهاز (حجز جديد مثلاً).
 let notifyId = 1000;
 export async function notifyNow(title, body, extra = {}) {
+  // يعيد true إذا عُرض الإشعار، حتى يعرف زر التجربة إن كان الإذن مرفوضاً.
   if (!isNative) {
-    try { if (window.Notification?.permission === 'granted') new Notification(title, { body }); } catch { /* ignore */ }
-    return;
+    try { if (window.Notification?.permission === 'granted') { new Notification(title, { body }); return true; } } catch { /* ignore */ }
+    return false;
   }
   try {
     const api = await alertsApi();
-    if (!api) return;
+    if (!api) return false;
     await api.schedule({ notifications: [{ id: notifyId++, title, body, channelId: ALERT_CHANNEL, extra }] });
-  } catch { /* الإشعارات اختيارية */ }
+    return true;
+  } catch { return false; /* الإشعارات اختيارية */ }
 }
 
 // قناة تنبيهات بأولوية عالية: تظهر منبثقة أعلى الشاشة مع صوت واهتزاز (أندرويد 8+).
@@ -139,6 +141,8 @@ export async function registerPush(saveToken, onOpen, { ask = true } = {}) {
       await PushNotifications.createChannel({ id: 'bookings', name: L('الحجوزات الجديدة', 'New bookings'), importance: 5, sound: 'default', vibration: true }).catch(() => {});
       await PushNotifications.addListener('registration', ({ value }) => { pushState = { status: 'registered', error: '' }; saveToken(value); });
       await PushNotifications.addListener('registrationError', ({ error }) => { pushState = { status: 'error', error: String(error) }; });
+      // أندرويد لا يعرض إشعار Firebase والتطبيق مفتوح؛ نعرض الإشعار التجريبي محلياً.
+      await PushNotifications.addListener('pushNotificationReceived', n => { if (n.data?.kind === 'test') notifyNow(n.title || '', n.body || ''); });
       await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => onOpen?.(notification.data || {}));
     }
     pushState = { status: 'registering', error: '' };

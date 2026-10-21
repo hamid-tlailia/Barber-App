@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client';
 import {
   BarChart3, Boxes, CalendarDays, Cloud, CloudOff, House, LayoutGrid, LogOut, MessageCircle, Moon, RefreshCw,
-  Scissors, Settings2, Sun, UsersRound, WalletCards, ShieldCheck, Crown,
+  Fingerprint, Scissors, Settings2, Sun, UsersRound, WalletCards, ShieldCheck, Crown,
 } from 'lucide-react';
 import '@fontsource/ibm-plex-sans-arabic/arabic-400.css';
 import '@fontsource/ibm-plex-sans-arabic/arabic-500.css';
@@ -37,6 +37,7 @@ import { AuthScreen, Onboarding, ShopPicker, Splash } from './pages/Access.jsx';
 import Lock, { SubscriptionBanner, TrialBanner } from './pages/Lock.jsx';
 import Admin from './pages/Admin.jsx';
 import PublicBooking from './pages/PublicBooking.jsx';
+import { lockEnabled, unlock, watchBackground } from './lib/lock.js';
 
 // من يرى ماذا: الموظف يرى مواعيده فقط، والاستقبال لا يرى التقارير والإعدادات.
 const ACCESS = {
@@ -86,7 +87,23 @@ function useTheme() {
 function Root() {
   const bookSlug = new URLSearchParams(window.location.search).get('book') || window.location.hash.match(/^#\/book\/([\w-]+)/)?.[1];
   if (bookSlug) return <PublicBooking slug={bookSlug} />;
-  return <Gate />;
+  return <BiometricGate><Gate /></BiometricGate>;
+}
+
+// قفل البصمة: يغطي التطبيق عند الفتح وبعد غياب دقيقة، ويبقى التطبيق محمّلاً خلفه.
+function BiometricGate({ children }) {
+  const [locked, setLocked] = useState(lockEnabled);
+  const tryUnlock = useCallback(async () => { if (await unlock()) setLocked(false); }, []);
+  useEffect(() => { let stop = () => {}; watchBackground(() => setLocked(true)).then(fn => { stop = fn; }); return () => stop(); }, []);
+  useEffect(() => { if (locked) tryUnlock(); }, [locked, tryUnlock]);
+  return <>
+    {children}
+    {locked && <div className="app-lock">
+      <span className="brand-mark brand-mark-lg"><Scissors size={30} /></span>
+      <strong>{L('مِقص', 'Miqass')}</strong>
+      <button type="button" className="btn btn-primary" onClick={tryUnlock}><Fingerprint size={20} /> {L('افتح بالبصمة', 'Unlock with fingerprint')}</button>
+    </div>}
+  </>;
 }
 
 // البوابة: الحساب ← الصالون ← الترخيص ← التطبيق.
