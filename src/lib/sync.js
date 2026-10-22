@@ -186,7 +186,11 @@ export const api = {
   // الهاتف الواحد قد يُستخدم بأكثر من حساب (المالك ثم الموظف): الرمز ينتقل لمن سجّل الدخول الآن.
   saveDeviceToken: async (shop, token) => {
     try { localStorage.setItem('miqass-push-token', token); } catch { /* ignore */ }
-    await rpc('claim_device_token', { p_token: token, p_shop: shop });
+    const { error } = await supabase.rpc('claim_device_token', { p_token: token, p_shop: shop });
+    if (!error) return;
+    // قبل تشغيل ملف 0021 على الخادم: الطريقة القديمة.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) await supabase.from('device_tokens').upsert({ token, user_id: user.id, shop_id: shop, platform: 'android', updated_at: new Date().toISOString() });
   },
   releaseDeviceToken: async () => {
     let token = ''; try { token = localStorage.getItem('miqass-push-token') || ''; } catch { /* ignore */ }
