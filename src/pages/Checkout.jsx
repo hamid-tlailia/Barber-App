@@ -40,8 +40,8 @@ export default function Checkout() {
   const today = localISO();
   const day = businessDay(data.settings); // يوم الحسابات (قد يمتد بعد منتصف الليل)
   const settled = a => isPaid(a) && !needsDeposit(a);
-  // مواعيد اليوم المؤكدة تظهر هنا حتى بعد دفعها (بعلامة «مدفوع»)، لكنها لا تُحسب في عدد ما يجب تحصيله.
-  const due = data.appointments.filter(a => (a.status === 'completed' && !isPaid(a)) || (a.date === today && ['arrived', 'confirmed'].includes(a.status)) || needsDeposit(a))
+  // للتحصيل: المواعيد المكتملة غير المدفوعة فقط (والعربون المطلوب قبل الموعد). الموعد لا يُدفع قبل أن يُنهى.
+  const due = data.appointments.filter(a => (a.status === 'completed' && !isPaid(a)) || needsDeposit(a))
     .sort((a, b) => Number(settled(a)) - Number(settled(b)) || a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
   const nameOf = a => clients[a.clientId]?.name || (a.clientId ? deletedName : L('عميل', 'Client'));
   const paidToday = data.appointments.filter(a => (a.payments || []).some(p => p.at === day));
@@ -119,6 +119,8 @@ export function CheckoutSheet({ appointment: a, onClose, onPaid }) {
 
   const pay = () => {
     const value = Number(amount);
+    // الدفع الكامل بعد إنهاء الموعد فقط؛ قبله يُقبل العربون وحده.
+    if (!depositMode && a.status !== 'completed') { setError(L('أنهِ الموعد أولاً من صفحة المواعيد، ثم حصّل المبلغ', 'Complete the appointment first, then collect payment')); return; }
     if (!(value >= 0) || value > due + 0.001) { setError(L('المبلغ أكبر من المستحق', 'Amount exceeds the amount due')); return; }
     if (method === 'gift') {
       if (!gift) { setError(L('رمز بطاقة الهدية غير صحيح', 'Invalid gift card code')); return; }
