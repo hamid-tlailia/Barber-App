@@ -17,7 +17,9 @@ const initials = name => [...(name || L('؟', '?')).trim()][0] || L('؟', '?');
 const hue = text => [...String(text || '')].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 6;
 
 export function Avatar({ name, size = 'md', color }) {
-  return <span className={`avatar avatar-${size} avatar-${hue(name)}`} style={color ? { background: color, color: '#fff' } : undefined} aria-hidden="true">{initials(name)}</span>;
+  const text = initials(name);
+  // خط Tajawal عربي: الحروف اللاتينية تُرسم أعلى من المنتصف، فنعدّلها بصرياً لتتوسط الدائرة.
+  return <span className={`avatar avatar-${size} avatar-${hue(name)}`} style={color ? { background: color, color: '#fff' } : undefined} aria-hidden="true"><span className={/^[A-Za-z0-9]/.test(text) ? 'avatar-text latin' : 'avatar-text'}>{text}</span></span>;
 }
 
 export function Badge({ status, children, tone }) {

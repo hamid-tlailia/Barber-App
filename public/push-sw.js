@@ -8,8 +8,9 @@ self.addEventListener('push', event => {
   const data = payload.data || {};
   event.waitUntil(self.registration.showNotification(payload.title || 'مِقص', {
     body: payload.body || '',
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    // أندرويد يحتاج شارة PNG أحادية اللون على خلفية شفافة (SVG يظهر مربعاً أبيض).
+    icon: '/icon-192.png',
+    badge: '/notify-badge.png',
     dir: 'auto',
     tag: data.appointmentId || undefined,
     data,

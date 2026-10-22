@@ -288,6 +288,8 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .badge-muted { background: var(--surface-3); color: var(--muted); }
 
 .avatar { display: inline-grid; place-items: center; flex: none; border-radius: 50%; font-weight: 700; font-family: 'Tajawal', 'IBM Plex Sans Arabic', sans-serif; }
+.avatar-text { display: block; line-height: 1; transform: translateY(-0.08em); }
+.avatar-text.latin { transform: translateY(0.19em); }
 .avatar-sm { width: 30px; height: 30px; font-size: 12px; }
 .avatar-md { width: 42px; height: 42px; font-size: 15px; }
 .avatar-lg { width: 54px; height: 54px; font-size: 19px; }
@@ -731,3 +733,6 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 /* أيقونة مصدر الحجز في بطاقة الموعد */
 .src-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: var(--tone-soft, var(--surface-3)); color: var(--tone, var(--muted)); }
 .tone-muted { --tone: var(--muted); --tone-soft: var(--surface-3); }
+
+/* السعر قبل الخصم في ملخص الحجز: أصغر من السعر النهائي */
+.confirm-card b s { font-size: .62em; font-weight: 600; margin-inline-end: 6px; }

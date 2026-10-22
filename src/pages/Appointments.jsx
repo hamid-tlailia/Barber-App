@@ -3,7 +3,7 @@ import {
   ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
   Globe, Hourglass, ListPlus, MapPin, MessageCircle, Smartphone, Package, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { CLIENT_SOURCES, activeBookingOf, bookedAs, canModifyAppointment, PHONE_ERROR, validPhone,
+import { CLIENT_SOURCES, activeBookingOf, bookedAs, canModifyAppointment, checkCoupon, couponDiscount, PHONE_ERROR, validPhone,
   addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, packageServices, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortForDay, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
@@ -286,7 +286,12 @@ export function BookingWizard({ initial, onClose, onDone }) {
   const bundle = data.packages.find(p => p.id === bundleId);
   const bundleOn = Boolean(bundle) && packageServices(bundle).every(id => serviceIds.includes(id));
   const bundleDiscount = bundleOn ? Math.max(0, packageServices(bundle).reduce((sum, id) => sum + Number(items.find(i => i.serviceId === id)?.price || 0), 0) - Number(bundle.price || 0)) : 0;
-  const total = Math.max(0, gross - bundleDiscount);
+  // كود الخصم عند الحجز (مثل الباقة): الأكواد السارية فقط، ويُحسب الخصم بعد خصم الباقة.
+  const [couponId, setCouponId] = useState(edit?.couponId || '');
+  const usableCoupons = (data.coupons || []).filter(c => c.id === edit?.couponId || (!c.endedAt && checkCoupon(data.coupons, c.code, localISO()).coupon));
+  const coupon = usableCoupons.find(c => c.id === couponId) || null;
+  const couponOff = coupon ? couponDiscount(coupon, Math.max(0, gross - bundleDiscount)) : 0;
+  const total = Math.max(0, gross - bundleDiscount - couponOff);
   const duration = items.reduce((s, i) => s + i.duration, 0);
   const risk = client ? noShowRisk(client.id, data.appointments) : null;
   const serviceDeposit = buildItems(data.services, serviceIds).reduce((s, i) => s + Number(data.services.find(x => x.id === i.serviceId)?.deposit || 0), 0);
@@ -321,13 +326,19 @@ export function BookingWizard({ initial, onClose, onDone }) {
     const record = {
       ...(edit || {}), id: edit?.id || uid(), clientId, items, staffId, date, time, duration, price: gross, location,
       address: location === 'home' ? address : '', travel: location === 'home' ? 30 : 0, notes: notes.trim(), deposit: finalDeposit,
-      status: edit?.status || (walkIn ? 'arrived' : 'confirmed'), payments: edit?.payments || [], discount: bundleOn ? bundleDiscount : (edit?.bundleId ? 0 : edit?.discount || 0), bundleId: bundleOn ? bundle.id : '', source: edit?.source || (walkIn ? 'walkin' : 'app'), createdAt: edit?.createdAt || localISO(), ...(edit ? {} : { createdBy: account?.id || '' }),
+      status: edit?.status || (walkIn ? 'arrived' : 'confirmed'), payments: edit?.payments || [], discount: (bundleOn ? bundleDiscount : (edit?.bundleId || edit?.couponId ? 0 : edit?.discount || 0)) + couponOff, bundleId: bundleOn ? bundle.id : '', couponId: coupon?.id || '', couponCode: coupon?.code || '', source: edit?.source || (walkIn ? 'walkin' : 'app'), createdAt: edit?.createdAt || localISO(), ...(edit ? {} : { createdBy: account?.id || '' }),
       ...(walkIn ? { arrivedAt: new Date().toISOString() } : {}),
     };
     // الصالون فيه أكثر من موظف: التعارض يُعرض فقط إذا لم يبق أحد متاح، مع خيار التعديل أو التجاهل.
     const check = bookingClash(others, record, data.staff);
     if (check.blocking && !force) { setClash({ ...check, candidate: record }); setError(''); return; }
-    setData(prev => ({ ...prev, appointments: edit ? prev.appointments.map(a => a.id === edit.id ? record : a) : [...prev.appointments, record] }));
+    // يُحسب استخدام الكود مرة واحدة لكل موعد، ويُرجَع إذا أُزيل أو استُبدل.
+    const changedCoupon = (coupon?.id || '') !== (edit?.couponId || '');
+    setData(prev => ({
+      ...prev,
+      appointments: edit ? prev.appointments.map(a => a.id === edit.id ? record : a) : [...prev.appointments, record],
+      coupons: !changedCoupon ? prev.coupons : prev.coupons.map(c => c.id === coupon?.id ? { ...c, used: Number(c.used || 0) + 1 } : c.id === edit?.couponId ? { ...c, used: Math.max(0, Number(c.used || 0) - 1) } : c),
+    }));
     toast(edit ? L('تم تحديث الموعد', 'Appointment updated') : walkIn ? L('تم تسجيل الزبون الحاضر ✓', 'Walk-in checked in ✓') : L('تم الحجز ✓', 'Booked ✓'));
     onDone(record);
   };
@@ -364,7 +375,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
           <strong>{s.name}</strong><small>{num(s.duration)} {L('دقيقة', 'min')}</small><b>{money(s.price)}</b>
         </button>;
       })}</div>
-      {items.length > 0 && <div className="summary-bar"><span>{L(items.length === 1 ? 'خدمة واحدة' : items.length === 2 ? 'خدمتان' : `${num(items.length)} خدمات`, `${items.length} ${items.length === 1 ? 'service' : 'services'}`)} · {num(duration)} {L('دقيقة', 'min')}</span><strong>{bundleDiscount > 0 && <s className="muted">{money(gross)}</s>} {money(total)}</strong></div>}
+      {items.length > 0 && <div className="summary-bar"><span>{L(items.length === 1 ? 'خدمة واحدة' : items.length === 2 ? 'خدمتان' : `${num(items.length)} خدمات`, `${items.length} ${items.length === 1 ? 'service' : 'services'}`)} · {num(duration)} {L('دقيقة', 'min')}</span><strong>{bundleDiscount + couponOff > 0 && <s className="muted">{money(gross)}</s>} {money(total)}</strong></div>}
       {pkg && <Alert tone="green" icon={Check}>{L(<>لدى {client.name} باقة «{pkg.name}» — متبقٍ {pkg.total - pkg.used} جلسات (تُخصم عند الدفع)</>, <>{client.name} has the “{pkg.name}” package — {pkg.total - pkg.used} {pkg.total - pkg.used === 1 ? 'session' : 'sessions'} left (deducted at checkout)</>)}</Alert>}
     </div>}
 
@@ -388,8 +399,11 @@ export function BookingWizard({ initial, onClose, onDone }) {
         <strong>{client?.name}</strong>
         <span>{dateLabel(date)} · {timeLabel(time)}</span>
         <small>{items.map(i => i.name).join(' + ')} · {num(duration)} {L('دقيقة', 'min')}</small>
-        <b>{money(total)}</b>
+        <b>{total < gross && <s className="muted">{money(gross)}</s>} {money(total)}</b>
       </div>
+      {usableCoupons.length > 0 && <Field label={L('كود خصم (اختياري)', 'Discount code (optional)')} hint={coupon ? L(`خصم ${money(couponOff)} بكود ${coupon.code}`, `${money(couponOff)} off with ${coupon.code}`) : ''}>
+        <Chips items={[{ id: '', label: L('بدون', 'None') }, ...usableCoupons.map(c => ({ id: c.id, label: `${c.code} · ${c.type === 'amount' ? money(c.value) : L(`${num(c.value)}٪`, `${num(c.value)}%`)}` }))]} value={couponId} onChange={setCouponId} />
+      </Field>}
       {risk?.level === 'high' && <Alert tone="orange" icon={ShieldAlert}>{L(<>{client.name} لم يحضر {risk.stats.noShows} مرات سابقاً — ننصح بعربون</>, <>{client.name} has missed {risk.stats.noShows} {risk.stats.noShows === 1 ? 'appointment' : 'appointments'} before — a deposit is recommended</>)}</Alert>}
       {!walkIn && <Field label={L('العربون المطلوب', 'Deposit required')} hint={finalDeposit ? L('يُسجَّل عند الاستلام من شاشة الموعد', 'Record it from the appointment screen once received') : L('بدون عربون', 'No deposit')}><div className="money-input"><NumInput min="0" inputMode="decimal" value={finalDeposit} onChange={e => setDeposit(Number(e.target.value))} /><span>{L('ر.ق', 'QAR')}</span></div></Field>}
       <Field label={L('ملاحظات (اختياري)', 'Notes (optional)')}><textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} placeholder={L('أي تفاصيل للفريق...', 'Any details for the team...')} /></Field>

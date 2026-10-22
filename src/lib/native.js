@@ -41,7 +41,7 @@ let notifyId = 1000;
 export async function notifyNow(title, body, extra = {}) {
   // يعيد true إذا عُرض الإشعار، حتى يعرف زر التجربة إن كان الإذن مرفوضاً.
   if (!isNative) {
-    try { if (window.Notification?.permission === 'granted') { new Notification(title, { body }); return true; } } catch { /* ignore */ }
+    try { if (window.Notification?.permission === 'granted') { new Notification(title, { body, icon: '/icon-192.png' }); return true; } } catch { /* ignore */ }
     return false;
   }
   try {
