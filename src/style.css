@@ -166,6 +166,7 @@ input[type='checkbox'] { width: auto; min-height: 0; }
 .tone-purple { --tone: var(--purple); --tone-soft: var(--purple-soft); }
 .tone-orange { --tone: var(--orange); --tone-soft: var(--orange-soft); }
 .tone-muted { --tone: var(--muted); --tone-soft: var(--surface-3); }
+.tone-whatsapp { --tone: #25d366; --tone-soft: color-mix(in srgb, #25d366 16%, transparent); }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; }
 .stats-3 { grid-template-columns: repeat(3, 1fr); }

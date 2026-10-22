@@ -8,7 +8,7 @@ import { CLIENT_SOURCES, activeBookingOf, bookedAs, canModifyAppointment, PHONE_
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { noShowRisk, waitlistMatches } from '../smart.js';
-import { Alert, Avatar, Badge, Button, Chips, Empty, Field, IconButton, Row, SearchBox, Sheet, Steps, openExternal, useApp, NumInput } from '../ui.jsx';
+import { Alert, Avatar, Badge, Button, Chips, Empty, Field, IconButton, Row, SearchBox, Sheet, Steps, WhatsAppIcon, openExternal, useApp, NumInput } from '../ui.jsx';
 import { CheckoutSheet } from './Checkout.jsx';
 import { L, isEn } from '../i18n.js';
 
@@ -139,7 +139,7 @@ export default function Appointments() {
 
 // مصدر الحجز كأيقونة صغيرة بدل شارة نصية: واتساب، أونلاين، قائمة الانتظار، أو من التطبيق.
 const SOURCES = {
-  whatsapp: { icon: MessageCircle, tone: 'green', label: L('حجز عبر واتساب', 'Booked via WhatsApp') },
+  whatsapp: { icon: WhatsAppIcon, tone: 'whatsapp', label: L('حجز عبر واتساب', 'Booked via WhatsApp') },
   online: { icon: Globe, tone: 'blue', label: L('حجز أونلاين', 'Online booking') },
   waitlist: { icon: Hourglass, tone: 'purple', label: L('من قائمة الانتظار', 'From waitlist') },
 };
