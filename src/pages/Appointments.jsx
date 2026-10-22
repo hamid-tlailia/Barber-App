@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { CLIENT_SOURCES, activeBookingOf, bookedAs, canModifyAppointment, PHONE_ERROR, validPhone,
   addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, packageServices, timeFor,
-  localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
+  localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortForDay, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
 import { noShowRisk, waitlistMatches } from '../smart.js';
 import { Alert, Avatar, Badge, Button, Chips, Empty, Field, IconButton, Row, SearchBox, Sheet, Steps, WhatsAppIcon, openExternal, useApp, NumInput } from '../ui.jsx';
@@ -76,13 +76,9 @@ export default function Appointments() {
   }, [pendingOpen, data.appointments]);
 
   const clients = useMemo(() => Object.fromEntries(data.clients.map(c => [c.id, c])), [data.clients]);
-  // الترتيب: من في الصالون الآن، ثم القادم حسب الأقرب وقتاً، ثم المنتهي (مكتمل/ملغي/غائب أو تأخر أكثر من ساعة).
-  const now = Date.now();
-  const rank = a => a.status === 'arrived' || a.status === 'in_service' ? 0
-    : ['pending', 'confirmed'].includes(a.status) && new Date(`${a.date}T${a.time}:00`).getTime() > now - 60 * 60000 ? 1 : 2;
   const list = data.appointments
     .filter(a => a.date === date && (staffFilter === 'all' || a.staffId === staffFilter || (a.items || []).some(i => i.staffId === staffFilter)))
-    .sort((a, b) => rank(a) - rank(b) || sortAppointments(a, b));
+    .sort(sortForDay());
   const active = list.filter(a => a.status !== 'cancelled');
   const days = dayStrip(startDay);
   const counts = useMemo(() => {

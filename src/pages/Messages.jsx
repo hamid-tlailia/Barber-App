@@ -28,7 +28,9 @@ export default function Messages() {
   const sent = (kind, clientId, appointmentId, withinDays = 0) => data.messages.some(m => m.kind === kind && m.clientId === clientId && (!appointmentId || m.appointmentId === appointmentId) && (!withinDays || daysBetween(m.at, today) < withinDays));
   const link = bookingUrl(shop.slug);
 
-  const reminders = data.appointments.filter(a => (a.date === tomorrow || a.date === today) && ['pending', 'confirmed'].includes(a.status)).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  // تذكير لمن موعده قادم فقط (اليوم بعد الآن أو غداً) — لا معنى لتذكير موعد فات وقته.
+  const nowHM = new Date().toTimeString().slice(0, 5);
+  const reminders = data.appointments.filter(a => (a.date === tomorrow || (a.date === today && a.time > nowHM)) && ['pending', 'confirmed'].includes(a.status)).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
   const lapsed = lapsedClients(data.clients, data.appointments, data.settings, today);
   const due = dueSoon(data.clients, data.appointments, today);
   const birthdays = birthdaysToday(data.clients, today);
@@ -42,10 +44,11 @@ export default function Messages() {
   };
 
   const tabs = [
-    { id: 'reminders', label: `${L('تذكير', 'Reminders')} ${reminders.filter(a => !sent('reminder', a.clientId, a.id)).length || ''}` },
-    { id: 'recovery', label: `${L('استرجاع', 'Win-back')} ${lapsed.length + due.length || ''}` },
-    { id: 'birthday', label: `${L('ميلاد', 'Birthdays')} ${birthdays.length || ''}` },
-    { id: 'waitlist', label: `${L('انتظار', 'Waitlist')} ${waiting.length || ''}` },
+    // العدد = ما ينتظر إجراءً فقط (ما أُرسل لا يُحسب)، ويظهر داخل شارة.
+    { id: 'reminders', label: L('تذكير', 'Reminders'), count: reminders.filter(a => !sent('reminder', a.clientId, a.id)).length },
+    { id: 'recovery', label: L('استرجاع', 'Win-back'), count: due.filter(({ client: c }) => !sent('recovery', c.id, '', 14)).length + lapsed.filter(({ client: c }) => !sent('recovery', c.id, '', 21)).length },
+    { id: 'birthday', label: L('ميلاد', 'Birthdays'), count: birthdays.filter(c => !sent('birthday', c.id, '', 300)).length },
+    { id: 'waitlist', label: L('انتظار', 'Waitlist'), count: waiting.length },
   ];
 
   return <div className="stack">

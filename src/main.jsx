@@ -22,7 +22,7 @@ import { prefs } from './lib/store.js';
 import { api, auth, cloudEnabled } from './lib/sync.js';
 import { licenseState, localShop } from './lib/license.js';
 import { useShopData } from './useShopData.js';
-import { deviceId, initNative, notifyNow, onAlertTap, registerPush, scheduleAppointmentAlerts, setSystemBarsTheme } from './lib/native.js';
+import { deviceId, initNative, isNative, notifyNow, onAlertTap, pushState, registerPush, scheduleAppointmentAlerts, setSystemBarsTheme, webPush } from './lib/native.js';
 import Home from './pages/Home.jsx';
 import Appointments from './pages/Appointments.jsx';
 import Clients from './pages/Clients.jsx';
@@ -121,9 +121,20 @@ function Gate() {
   useEffect(() => {
     initNative();
     if (!cloudEnabled) return undefined;
-    auth.session().then(setSession).catch(() => setSession(null));
-    const subscription = auth.onChange(setSession);
-    return () => subscription.unsubscribe();
+    // بدون إنترنت قد يتعذّر تجديد الجلسة: نبقى داخل التطبيق بآخر حساب معروف بدل إرجاعه لتسجيل الدخول.
+    const remember = s => { if (s?.user) prefs.set('last-user', { id: s.user.id, email: s.user.email, user_metadata: s.user.user_metadata }); return s; };
+    const offlineSession = () => { const user = prefs.get('last-user', null); return user ? { user, offline: true } : null; };
+    const check = () => auth.session().then(({ session: s, offline }) => setSession(remember(s) || (offline ? offlineSession() : null))).catch(() => setSession(offlineSession()));
+    check();
+    const subscription = auth.onChange((next, event) => {
+      if (event === 'INITIAL_SESSION') return;
+      if (next) setSession(remember(next));
+      else if (event === 'SIGNED_OUT') { prefs.set('last-user', null); setSession(null); }
+    });
+    // عاد الاتصال: نجدد الجلسة الحقيقية (وتُرفع التغييرات المحفوظة).
+    const online = () => auth.session().then(({ session: s }) => { if (s) setSession(remember(s)); }).catch(() => {});
+    window.addEventListener('online', online);
+    return () => { subscription.unsubscribe(); window.removeEventListener('online', online); };
   }, []);
 
   const loadShops = useCallback(async () => {
@@ -170,7 +181,8 @@ function Shell({ account, shop, shops, license, admin, theme, notice, reloadShop
     const a = list[0];
     const name = a.clientName || L('عميل جديد', 'New client');
     const text = list.length > 1 ? L(`${list.length} حجوزات جديدة أونلاين`, `${list.length} new online bookings`) : L(`حجز جديد: ${name} — ${dateLabel(a.date, { weekday: 'long' })} ${timeLabel(a.time)}`, `New booking: ${name} — ${dateLabel(a.date, { weekday: 'long' })} ${timeLabel(a.time)}`);
-    if (!(import.meta.env.VITE_PUSH === '1' && document.hidden)) notifyNow(L('📅 حجز جديد', '📅 New booking'), text, { appointmentId: a.id, date: a.date }); // في الخلفية يصل إشعار Firebase بدلاً منه
+    // أندرويد: Firebase لا يُعرض والتطبيق مفتوح فنعرضه محلياً. الويب: عامل الخدمة يعرضه دائماً فلا نكرره.
+    if (!(import.meta.env.VITE_PUSH === '1' && document.hidden) && !(webPush && pushState.status === 'registered')) notifyNow(L('📅 حجز جديد', '📅 New booking'), text, { appointmentId: a.id, date: a.date }); // في الخلفية يصل إشعار Firebase بدلاً منه
     toastRef.current?.(text, 'success', { label: L('فتح', 'Open'), run: () => goRef.current?.('appointments', { open: a.id }) });
   }, []);
   // تغييرات رفضها الخادم (صلاحيات) لا تبقى عالقة: نُبلغ بها مرة واحدة.
@@ -227,12 +239,23 @@ function Shell({ account, shop, shops, license, admin, theme, notice, reloadShop
   }, [Boolean(data)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // تسجيل الجهاز لإشعارات Firebase (حجز جديد حتى والتطبيق مغلق).
-  const enablePush = useCallback(() => registerPush(
+  // «أنهى الموظف موعداً» يفتح شاشة الدفع لذلك الموعد مباشرة، وباقي الإشعارات تفتح الموعد.
+  const openFromPush = useCallback(payload => { if (payload.kind === 'collect' && payload.appointmentId) goRef.current?.('checkout', { open: payload.appointmentId }); else if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId, date: payload.date }); }, []);
+  const enablePush = useCallback((options = {}) => registerPush(
     token => api.saveDeviceToken(shop.id, token).catch(() => {}),
-    // «أنهى الموظف موعداً» يفتح شاشة الدفع لذلك الموعد مباشرة، وباقي الإشعارات تفتح الموعد.
-    payload => { if (payload.kind === 'collect' && payload.appointmentId) goRef.current?.('checkout', { open: payload.appointmentId }); else if (payload.appointmentId) goRef.current?.('appointments', { open: payload.appointmentId, date: payload.date }); },
-  ), [shop.id]);
-  useEffect(() => { if (cloudEnabled && shop.id !== 'local') enablePush(); }, [enablePush]);
+    openFromPush,
+    { publicKey: () => api.vapidPublicKey().catch(() => ''), ...options },
+  ), [shop.id, openFromPush]);
+  // في المتصفح لا نطلب الإذن تلقائياً عند الفتح (يُطلب من الإعدادات بضغطة)، ونجدد الاشتراك إن كان مسموحاً.
+  useEffect(() => { if (cloudEnabled && shop.id !== 'local') enablePush({ ask: isNative }); }, [enablePush]);
+  // فتح التطبيق من إشعار ويب والتطبيق مغلق: ‎?open=موعد
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('open');
+    if (!id) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    setTimeout(() => openFromPush({ appointmentId: id, kind: params.get('kind') || '' }), 300);
+  }, [openFromPush]);
   useEffect(() => { if (cloudEnabled && role === 'owner' && shop.id !== 'local') deviceId().then(id => id && api.registerDevice(shop.id, id).catch(() => {})); }, [shop.id, role]);
 
   // تنبيهات الدفع لمن يملك صلاحية التحصيل فقط.

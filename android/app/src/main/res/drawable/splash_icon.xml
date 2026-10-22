@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- أيقونة شاشة الإقلاع: مقص أبيض واضح (مثل شعار التطبيق) فوق الدائرة الذهبية، في الوضعين الفاتح والداكن. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="32" android:translateY="32" android:scaleX="1.8333" android:scaleY="1.8333">
+        <path android:strokeColor="#FFFFFF" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M3,6a3,3 0,1 0,6 0a3,3 0,1 0,-6 0z" />
+        <path android:strokeColor="#FFFFFF" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M3,18a3,3 0,1 0,6 0a3,3 0,1 0,-6 0z" />
+        <path android:strokeColor="#FFFFFF" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M20,4L8.12,15.88M14.47,14.48L20,20M8.12,8.12L12,12" />
+    </group>
+</vector>

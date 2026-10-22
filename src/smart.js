@@ -51,9 +51,12 @@ export function lapsedClients(clients, appointments, settings, today = localISO(
 }
 
 // عملاء حان موعدهم المعتاد هذا الأسبوع (تذكير لطيف قبل أن ينقطعوا).
+// لا يدخلها من زار الصالون مؤخراً: يلزم مرور ٧٠٪ من فترته المعتادة (٧ أيام على الأقل)، والنمط نفسه أسبوع فأكثر.
 export function dueSoon(clients, appointments, today = localISO()) {
   return clients.filter(c => c.id !== 'walk-in' && c.phone).map(client => ({ client, stats: clientStats(client.id, appointments, today) }))
-    .filter(({ stats }) => stats.avgInterval && stats.nextDue && !stats.upcoming && stats.nextDue >= addDays(today, -3) && stats.nextDue <= addDays(today, 7));
+    .filter(({ stats }) => stats.avgInterval >= 7 && stats.nextDue && !stats.upcoming
+      && stats.daysSince >= Math.max(7, Math.round(stats.avgInterval * 0.7))
+      && stats.nextDue >= addDays(today, -3) && stats.nextDue <= addDays(today, 3));
 }
 
 export const birthdaysToday = (clients, today = localISO()) => clients.filter(c => c.birthday && c.birthday.slice(5) === today.slice(5));

@@ -9,7 +9,7 @@ import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { OfferShare } from './Offer.jsx';
-import { isNative, notifyNow, pushState, pushSupported } from '../lib/native.js';
+import { isNative, notifyNow, pushState, pushSupported, webPush } from '../lib/native.js';
 import { lockAvailable, lockEnabled, setLock } from '../lib/lock.js';
 import { L, LANG, isEn, setLang } from '../i18n.js';
 
@@ -74,7 +74,7 @@ export default function Settings() {
       <div className="list">
         <Row leading={<span className={`dot-icon tone-${push.status === 'registered' ? 'green' : 'orange'}`}><Bell size={18} /></span>}
           title={L('إشعار الحجوزات الجديدة', 'New booking alerts')}
-          subtitle={{ registered: L('مفعّلة على هذا الهاتف ✓', 'Enabled on this phone ✓'), registering: L('جارٍ التسجيل...', 'Registering...'), denied: L('مرفوضة — فعّلها من إعدادات الهاتف ← التطبيقات ← مِقص ← الإشعارات', 'Blocked — enable it in phone Settings → Apps → Miqass → Notifications'), 'not-granted': L('لم يُمنح الإذن بعد', 'Permission not granted yet'), error: L(`خطأ: ${push.error}`, `Error: ${push.error}`), unknown: L('غير مفعّلة', 'Not enabled') }[push.status] || push.status}
+          subtitle={{ registered: L('مفعّلة على هذا الجهاز ✓', 'Enabled on this device ✓'), registering: L('جارٍ التسجيل...', 'Registering...'), denied: webPush ? L('مرفوضة في المتصفح — اضغط القفل بجانب العنوان ← الإشعارات ← سماح', 'Blocked in the browser — tap the lock next to the address → Notifications → Allow') : L('مرفوضة — فعّلها من إعدادات الهاتف ← التطبيقات ← مِقص ← الإشعارات', 'Blocked — enable it in phone Settings → Apps → Miqass → Notifications'), 'not-granted': webPush ? L('اضغط «تفعيل» ثم «سماح» — على آيفون أضف الموقع للشاشة الرئيسية أولاً', 'Tap “Enable” then “Allow” — on iPhone, add the site to the Home Screen first') : L('لم يُمنح الإذن بعد', 'Permission not granted yet'), error: L(`خطأ: ${push.error}`, `Error: ${push.error}`), unknown: webPush ? L('غير مفعّلة على هذا المتصفح — اضغط «تفعيل»', 'Not enabled in this browser — tap “Enable”') : L('غير مفعّلة', 'Not enabled') }[push.status] || push.status}
           trailing={<Button size="sm" variant={push.status === 'registered' ? 'ghost' : 'primary'} onClick={async () => { setPush({ status: 'registering' }); const r = await enablePush(); setTimeout(() => setPush({ ...pushState }), 1500); setPush({ ...r }); }}>{push.status === 'registered' ? L('إعادة', 'Retry') : L('تفعيل', 'Enable')}</Button>} />
         <Row title={L('إرسال إشعار تجريبي', 'Send a test notification')} subtitle={L('للتأكد أن الهاتف يعرض الإشعارات', 'Check that this phone shows notifications')} onClick={testNotify} />
       </div>

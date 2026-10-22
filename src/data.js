@@ -247,6 +247,10 @@ export const timeLabel = time => {
   return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours < 12 ? L('ص', 'AM') : L('م', 'PM')}`;
 };
 export const sortAppointments = (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
+// ترتيب قائمة اليوم: من في الصالون الآن، ثم القادم حسب الأقرب وقتاً، ثم المنتهي (مكتمل/ملغي/غائب أو تأخر أكثر من ساعة).
+export const dayRank = (a, now = Date.now()) => a.status === 'arrived' || a.status === 'in_service' ? 0
+  : ['pending', 'confirmed'].includes(a.status) && new Date(`${a.date}T${a.time}:00`).getTime() > now - 60 * 60000 ? 1 : 2;
+export const sortForDay = (now = Date.now()) => (a, b) => dayRank(a, now) - dayRank(b, now) || sortAppointments(a, b);
 
 // اسم العميل للعرض: العميل المحذوف يبقى ظاهراً في السجلات القديمة بعبارة «عميل محذوف».
 // حجز أونلاين باسم مختلف عن اسم العميل المسجّل بنفس الرقم (الرقم هو الهوية، والاسم المكتوب يُعرض للتوضيح).

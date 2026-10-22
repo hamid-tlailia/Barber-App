@@ -124,8 +124,12 @@ export function subscribe(shopId, onChange) {
 /* ───────────── الحسابات والصالونات ───────────── */
 
 export const auth = {
-  session: async () => (await supabase.auth.getSession()).data.session,
-  onChange: callback => supabase.auth.onAuthStateChange((_event, session) => callback(session)).data.subscription,
+  // offline: تعذّر تجديد الجلسة بسبب الشبكة (وليس خروجاً حقيقياً) — يعمل التطبيق بآخر بيانات محفوظة.
+  session: async () => {
+    const { data, error } = await supabase.auth.getSession();
+    return { session: data.session, offline: Boolean(error) || (typeof navigator !== 'undefined' && navigator.onLine === false) };
+  },
+  onChange: callback => supabase.auth.onAuthStateChange((event, session) => callback(session, event)).data.subscription,
   signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
   signUp: (email, password, name) => supabase.auth.signUp({ email, password, options: { data: { name } } }),
   reset: email => supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin }),
@@ -180,6 +184,7 @@ export const api = {
     return data;
   },
   testPush: shop => rpc('send_test_push', { p_shop: shop }),
+  vapidPublicKey: () => rpc('vapid_public_key'),
   saveIntegration: (shop, v) => rpc('save_integration', {
     p_shop: shop, p_owner_whatsapp: v.ownerWhatsapp || '', p_reminders: Boolean(v.reminders), p_assistant: Boolean(v.assistant), p_daily: Boolean(v.daily),
   }),

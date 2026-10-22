@@ -16,7 +16,8 @@ const dateAr = (d: string) => new Intl.DateTimeFormat('ar-QA-u-nu-latn', { weekd
 async function rest(path: string, init: RequestInit = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...init, headers: { apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}`, 'content-type': 'application/json', ...(init.headers || {}) } });
   if (!res.ok) throw new Error(`rest ${res.status}: ${await res.text()}`);
-  return res.status === 204 ? null : res.json();
+  const text = await res.text(); // الإضافة مع ignore-duplicates تعيد 201 بلا محتوى
+  return text ? JSON.parse(text) : null;
 }
 
 type ServiceAccount = { project_id: string; client_email: string; private_key: string };
@@ -49,12 +50,85 @@ async function accessToken(sa: ServiceAccount) {
   return cached.token;
 }
 
+// ── Web Push (RFC 8291 aes128gcm + VAPID RFC 8292) بـ WebCrypto فقط — لمن يستخدم التطبيق من المتصفح ──
+const enc = new TextEncoder();
+const b64uEnc = (data: ArrayBuffer | Uint8Array) => { const bytes = new Uint8Array(data); let s = ''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const b64uDec = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+const concat = (...parts: Uint8Array[]) => { const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out; };
+const hkdf = async (salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number) => new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']), length * 8));
+
+type PushKeys = { public_key: string; private_d: string };
+let pushKeys: PushKeys | null = null;
+// مفتاح VAPID يولّده الخادم مرة واحدة ويحفظه في جدول لا يصله إلا الخادم.
+async function vapidKeys(): Promise<PushKeys> {
+  if (pushKeys) return pushKeys;
+  const [row] = await rest('push_keys?select=public_key,private_d&id=eq.1');
+  if (row) return (pushKeys = row);
+  const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const jwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+  const fresh = { public_key: b64uEnc(new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey))), private_d: jwk.d! };
+  await rest('push_keys', { method: 'POST', headers: { prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ id: 1, ...fresh }) });
+  const [saved] = await rest('push_keys?select=public_key,private_d&id=eq.1');
+  return (pushKeys = saved ?? fresh);
+}
+
+async function vapidAuth(endpoint: string, keys: PushKeys) {
+  const pub = b64uDec(keys.public_key);
+  const key = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', d: keys.private_d, x: b64uEnc(pub.slice(1, 33)), y: b64uEnc(pub.slice(33, 65)), ext: true }, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const header = b64uEnc(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+  const subject = `mailto:${(Deno.env.get('ADMIN_EMAIL') || 'admin@miqass.app').split(',')[0].trim()}`;
+  const claims = b64uEnc(enc.encode(JSON.stringify({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: subject })));
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, enc.encode(`${header}.${claims}`));
+  return `vapid t=${header}.${claims}.${b64uEnc(sig)}, k=${keys.public_key}`;
+}
+
+async function encryptPayload(sub: { keys: { p256dh: string; auth: string } }, payload: string) {
+  const uaPublic = b64uDec(sub.keys.p256dh); const authSecret = b64uDec(sub.keys.auth);
+  const local = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']) as CryptoKeyPair;
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey('raw', local.publicKey));
+  const uaKey = await crypto.subtle.importKey('raw', uaPublic, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const secret = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, local.privateKey, 256));
+  const ikm = await hkdf(authSecret, secret, concat(enc.encode('WebPush: info\0'), uaPublic, asPublic), 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const cek = await hkdf(salt, ikm, enc.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdf(salt, ikm, enc.encode('Content-Encoding: nonce\0'), 12);
+  const key = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, concat(enc.encode(payload), new Uint8Array([2]))));
+  return concat(salt, new Uint8Array([0, 0, 16, 0]), new Uint8Array([asPublic.length]), asPublic, cipher);
+}
+
+// يعيد حالة HTTP: 201 نجاح، 404/410 اشتراك انتهى.
+async function sendWebPush(subscription: string, title: string, body: string, data: Record<string, string>) {
+  const sub = JSON.parse(subscription);
+  const keys = await vapidKeys();
+  const res = await fetch(sub.endpoint, {
+    method: 'POST',
+    headers: { authorization: await vapidAuth(sub.endpoint, keys), 'content-encoding': 'aes128gcm', 'content-type': 'application/octet-stream', ttl: '86400', urgency: 'high' },
+    body: await encryptPayload(sub, JSON.stringify({ title, body, data })),
+  });
+  if (!res.ok) console.error('webpush', res.status, (await res.text()).slice(0, 200));
+  return res.status;
+}
+
 // يرسل لأجهزة محددة ويحذف الأجهزة التي ألغت التثبيت.
 async function sendTo(sa: ServiceAccount, tokens: string[], title: string, body: string, data: Record<string, string> = {}) {
   if (!tokens.length) return 0;
-  const token = await accessToken(sa);
   let sent = 0; const stale: string[] = [];
-  for (const device of tokens) {
+  // اشتراكات المتصفح محفوظة كنص JSON؛ أجهزة أندرويد رموز Firebase.
+  for (const device of tokens.filter(t => t.startsWith('{'))) {
+    try {
+      const status = await sendWebPush(device, title, body, data);
+      if (status >= 200 && status < 300) sent++;
+      else if (status === 404 || status === 410) stale.push(device);
+    } catch (e) { console.error('webpush failed', e); }
+  }
+  const native = tokens.filter(t => !t.startsWith('{'));
+  if (!native.length) {
+    for (const t of stale) await rest(`device_tokens?token=eq.${encodeURIComponent(t)}`, { method: 'DELETE' });
+    return sent;
+  }
+  const token = await accessToken(sa);
+  for (const device of native) {
     const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
       method: 'POST',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
@@ -68,7 +142,7 @@ async function sendTo(sa: ServiceAccount, tokens: string[], title: string, body:
     if (res.ok) sent++;
     else if (res.status === 404 || res.status === 400) stale.push(device); // جهاز ألغى التثبيت
   }
-  if (stale.length) await rest(`device_tokens?token=in.(${stale.map(t => `"${t}"`).join(',')})`, { method: 'DELETE' });
+  for (const t of stale) await rest(`device_tokens?token=eq.${encodeURIComponent(t)}`, { method: 'DELETE' });
   return sent;
 }
 
@@ -297,6 +371,8 @@ Deno.serve(async req => {
   if (payload.kind === 'new_shop') return json(await newShop(sa, payload.shop_id));
   if (payload.kind === 'expiring') return json(await expiring(sa));
   if (payload.kind === 'deletion_request') return json(await deletionRequest(sa, payload.shop_id));
+  // تجهيز مفتاح إشعارات الويب (مرة واحدة).
+  if (payload.kind === 'vapid_init') return json({ public_key: (await vapidKeys()).public_key });
   if (!sa) return json({ skipped: 'FCM_SERVICE_ACCOUNT not set' });
   if (payload.kind === 'test') return json({ sent: await sendTo(sa, await tokensOf([payload.user_id], payload.shop_id), '📅 إشعار تجريبي', 'هكذا سيظهر الحجز الجديد', { kind: 'test' }) });
   if (payload.kind === 'activity') return json({ sent: await activity(sa, payload) });

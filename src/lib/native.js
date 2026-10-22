@@ -124,13 +124,44 @@ export async function onAlertTap(handler) {
   } catch { /* ignore */ }
 }
 
-// إشعارات Firebase (تصل حتى والتطبيق مغلق). تُفعَّل فقط عند بناء التطبيق مع google-services.json.
-export const pushSupported = isNative && import.meta.env?.VITE_PUSH === '1';
+// إشعارات Firebase على أندرويد (تُفعَّل عند البناء مع google-services.json)، وإشعارات الويب (Web Push) في المتصفح.
+const nativePush = isNative && import.meta.env?.VITE_PUSH === '1';
+export const webPush = !isNative && typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+export const pushSupported = nativePush || webPush;
 let pushListeners = false;
 export let pushState = { status: pushSupported ? 'unknown' : 'unsupported', error: '' };
 
-export async function registerPush(saveToken, onOpen, { ask = true } = {}) {
+const keyBytes = key => { const b = atob(key.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((key.length + 3) % 4)); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+// المتصفح: اشتراك Web Push بمفتاح الخادم العام، ويُحفظ الاشتراك كاملاً (JSON) بدل رمز Firebase.
+async function registerWebPush(saveToken, onOpen, { ask, publicKey }) {
+  try {
+    if (Notification.permission === 'denied') return (pushState = { status: 'denied', error: '' });
+    if (Notification.permission !== 'granted') {
+      if (!ask) return (pushState = { status: 'not-granted', error: '' });
+      const answer = await Notification.requestPermission();
+      if (answer !== 'granted') return (pushState = { status: answer === 'denied' ? 'denied' : 'not-granted', error: '' });
+    }
+    const key = await publicKey();
+    if (!key) return (pushState = { status: 'error', error: L('مفتاح الإشعارات غير جاهز على الخادم', 'Push key not ready on the server') });
+    const reg = await navigator.serviceWorker.register('/push-sw.js');
+    await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    // اشتراك قديم بمفتاح مختلف لا يصله شيء: نجدده.
+    if (sub && sub.options?.applicationServerKey && btoa(String.fromCharCode(...new Uint8Array(sub.options.applicationServerKey))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') !== key) { await sub.unsubscribe(); sub = null; }
+    sub ||= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
+    if (!pushListeners) {
+      pushListeners = true;
+      navigator.serviceWorker.addEventListener('message', event => { if (event.data?.type === 'push-open') onOpen?.(event.data.data || {}); });
+    }
+    await saveToken(JSON.stringify(sub));
+    pushState = { status: 'registered', error: '' };
+  } catch (error) { pushState = { status: 'error', error: String(error?.message || error) }; }
+  return pushState;
+}
+
+export async function registerPush(saveToken, onOpen, { ask = true, publicKey } = {}) {
   if (!pushSupported) return pushState;
+  if (webPush) return registerWebPush(saveToken, onOpen, { ask, publicKey });
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
     let permission = await PushNotifications.checkPermissions();

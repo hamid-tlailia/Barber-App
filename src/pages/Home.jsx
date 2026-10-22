@@ -3,7 +3,7 @@ import {
   BellRing, Boxes, CalendarCheck2, CalendarOff, CalendarPlus, Cake, CircleDollarSign, Clock3, Lightbulb, ListChecks,
   ListPlus, MessageCircle, Receipt, Share2, UsersRound, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { canModifyAppointment, clientName, addDays, businessDay, shortName, staffOnDay, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
+import { canModifyAppointment, clientName, addDays, businessDay, shortName, staffOnDay, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, sortForDay, timeLabel, uid } from '../data.js';
 import { incomeIn, todayInsights } from '../smart.js';
 import { Avatar, Badge, Button, Empty, Row, Section, Stat, Tile, useApp } from '../ui.jsx';
 import { AppointmentSheet, BookingWizard } from './Appointments.jsx';
@@ -107,7 +107,7 @@ export default function Home() {
     </Section>}
 
     {role === 'staff' && <Section title={L('مواعيدي اليوم', 'My appointments today')}>
-      {todays.length ? <div className="list">{todays.map(a => <Row key={a.id} leading={<span className="time-chip">{timeLabel(a.time)}</span>} title={clientName(data.clients, a.clientId)} subtitle={serviceNames(a)} trailing={<Badge status={a.status} />} onClick={() => setOpenId(a.id)} />)}</div>
+      {todays.length ? <div className="list">{[...todays].sort(sortForDay()).map(a => <Row key={a.id} leading={<span className="time-chip">{timeLabel(a.time)}</span>} title={clientName(data.clients, a.clientId)} subtitle={serviceNames(a)} trailing={<Badge status={a.status} />} onClick={() => setOpenId(a.id)} />)}</div>
         : <Empty icon={CalendarOff} title={L('لا توجد مواعيد اليوم', 'No appointments today')} />}
     </Section>}
 

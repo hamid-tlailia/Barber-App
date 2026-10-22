@@ -2,7 +2,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Search, TriangleAlert, X } from 'lucide-react';
-import { statusText } from './data.js';
+import { num, statusText } from './data.js';
 import { L, isEn } from './i18n.js';
 import { saveFile } from './lib/files.js';
 
@@ -206,7 +206,7 @@ export function Field({ label, hint, required, children }) {
 }
 
 export function Segmented({ items, value, onChange, size }) {
-  return <div className={`segmented ${size === 'sm' ? 'segmented-sm' : ''}`} role="tablist">{items.map(item => <button type="button" role="tab" aria-selected={value === item.id} key={item.id} className={value === item.id ? 'active' : ''} onClick={() => onChange(item.id)}>{item.icon && <item.icon size={16} />}{item.label}</button>)}</div>;
+  return <div className={`segmented ${size === 'sm' ? 'segmented-sm' : ''}`} role="tablist">{items.map(item => <button type="button" role="tab" aria-selected={value === item.id} key={item.id} className={value === item.id ? 'active' : ''} onClick={() => onChange(item.id)}>{item.icon && <item.icon size={16} />}{item.label}{item.count > 0 && <b className="seg-count">{num(item.count)}</b>}</button>)}</div>;
 }
 
 export function Chips({ items, value, onChange, multiple }) {
