@@ -200,9 +200,9 @@ async function runTool(shopId: string, from: string, name: string, input: Record
     serviceId: s.id, name: s.data.name, price: Number(s.data.price || 0), duration: Number(s.data.duration || 30), processing: Number(s.data.processing || 0), staffId,
   }));
   const today = isoDate(localNow());
-  // نفس العميل لديه موعد قائم في ذلك اليوم: لا حجز ثانٍ (مثل رابط الحجز).
-  const sameDayOf = (date: string) => client && appointments.find(a => a.data.clientId === client.id && a.data.date === date && ['pending', 'confirmed', 'arrived'].includes(a.data.status));
-  const sameDayNote = (a: Rec) => `لدى العميل موعد قائم في هذا اليوم الساعة ${timeAr(a.data.time)} (${(a.data.items ?? []).map((i: any) => i.name).join(' + ')}). لا يمكن حجز موعد ثانٍ في نفس اليوم: أخبره بموعده الحالي، واقترح يوماً آخر، أو أن يتواصل مع الصالون لتعديله.`;
+  // العميل لديه موعد قائم (اليوم أو لاحقاً): لا حجز ثانٍ (مثل التطبيق ورابط الحجز؛ والخادم يفرض ذلك أيضاً).
+  const sameDayOf = (_date?: string) => client && appointments.find(a => a.data.clientId === client.id && a.data.date >= today && ['pending', 'confirmed', 'arrived', 'in_service'].includes(a.data.status));
+  const sameDayNote = (a: Rec) => `لدى العميل موعد قائم ${a.data.date === today ? 'اليوم' : `يوم ${a.data.date}`} الساعة ${timeAr(a.data.time)} (${(a.data.items ?? []).map((i: any) => i.name).join(' + ')}). لا يمكن حجز موعد ثانٍ قبل انتهاء موعده الحالي: أخبره بموعده، وإن أراد تغييره فليتواصل مع الصالون لتعديله أو إلغائه.`;
 
   if (name === 'list_services') {
     return JSON.stringify({

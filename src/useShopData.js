@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { defaultData, defaultSettings, loadLegacyData, normalizeData } from './data.js';
 import { getItem, setItem } from './lib/store.js';
-import { cloudEnabled, diffData, mergeRows, pullChanges, pushChanges, subscribe } from './lib/sync.js';
+import { cloudEnabled, diffData, mergeRows, pullChanges, pushChanges, restoreRows, subscribe } from './lib/sync.js';
 
 const keyFor = shopId => `shop:${shopId}`;
 
@@ -33,7 +33,12 @@ export function useShopData(shop, onRemoteBookings) {
         const { rejected } = await pushChanges(shopId, dataRef.current, pending);
         // تُحذف فقط التغييرات التي رُفعت؛ ما أُضيف أثناء الرفع يبقى للدورة التالية.
         meta.current.pending = meta.current.pending.filter(change => !pending.includes(change));
-        if (rejected.length) setTimeout(() => remoteCb.current?.rejected?.(rejected), 0);
+        if (rejected.length) {
+          setTimeout(() => remoteCb.current?.rejected?.(rejected), 0);
+          const restored = await restoreRows(shopId, rejected);
+          dataRef.current = mergeRows(dataRef.current, restored, meta.current.pending);
+          setDataState(dataRef.current);
+        }
       }
       const firstPull = !meta.current.cursor;
       const { rows, cursor } = await pullChanges(shopId, meta.current.cursor);

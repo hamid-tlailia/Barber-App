@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, businessDay, findDuplicate, normalCode, phoneDigits, validPhone, shortName, defaultData, defaultSettings, hasAppointmentConflict,
+  activeBookingOf, canModifyAppointment, addDays, amountPaid, appointmentTotal, availableSlots, balanceDue, bookingClash, buildItems, clientName, businessDay, findDuplicate, normalCode, phoneDigits, validPhone, shortName, defaultData, defaultSettings, hasAppointmentConflict,
   importClients, isPaid, localISO, migrateAppointment, normalizeData, parseCSV, fillTemplate, fillLines, salonTemplate, whatsappNumber,
 } from './data.js';
 import { clientStats, commissions, dailyReport, expectedCash, incomeIn, lapsedClients, noShowRisk, roi, stockForecast, waitlistMatches } from './smart.js';
@@ -233,4 +233,25 @@ test('offer templates drop lines whose variable is empty', () => {
   assert.equal(fillLines(t, { title: 'خصم 20٪', offer: 'استخدم الكود EID20', link: '' }), '🎁 خصم 20٪\nاستخدم الكود EID20');
   assert.equal(fillLines(salonTemplate({}, 'coupon'), { code: 'EID20', discount: '20٪', until: '' }), 'استخدم الكود EID20 عند الدفع واحصل على خصم 20٪.');
   assert.equal(fillLines(salonTemplate({ templates: { coupon: 'كود {code}' } }, 'coupon'), { code: 'X' }), 'كود X');
+});
+
+test('activeBookingOf: blocks a second booking while one is upcoming', () => {
+  const today = localISO();
+  const list = [
+    { id: 'a', clientId: 'c1', status: 'confirmed', date: today },
+    { id: 'b', clientId: 'c2', status: 'completed', date: today },
+    { id: 'c', clientId: 'c3', status: 'pending', date: addDays(today, -1) },
+  ];
+  assert.equal(activeBookingOf(list, 'c1')?.id, 'a');
+  assert.equal(activeBookingOf(list, 'c1', 'a'), null); // تعديل نفس الموعد
+  assert.equal(activeBookingOf(list, 'c2'), null);
+  assert.equal(activeBookingOf(list, 'c3'), null); // موعد أمس لا يمنع
+  assert.equal(activeBookingOf(list, 'walk-in'), null);
+});
+
+test('canModifyAppointment: staff only for appointments they created', () => {
+  assert.equal(canModifyAppointment({ createdBy: 'u1' }, 'owner', 'u2'), true);
+  assert.equal(canModifyAppointment({ createdBy: 'u1' }, 'staff', 'u1'), true);
+  assert.equal(canModifyAppointment({ createdBy: 'u1' }, 'staff', 'u2'), false);
+  assert.equal(canModifyAppointment({}, 'staff', 'u2'), false);
 });

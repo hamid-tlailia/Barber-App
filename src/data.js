@@ -331,6 +331,11 @@ export const conflicts = (appointments, candidate) => {
 };
 // التعارض مع مراعاة عدد الموظفين: موعد بدون موظف محدد لا يتعارض ما دام هناك موظف متاح في نفس الوقت.
 // يعيد المواعيد المتداخلة زمنياً، والموظفين غير المشغولين فيها، وهل التعارض حقيقي.
+// الموظف (حلاق) يعدّل ويلغي فقط ما حجزه بنفسه؛ في مواعيد غيره يسجّل الوصول والإنهاء فقط (والخادم يفرض ذلك أيضاً).
+export const canModifyAppointment = (a, role, userId) => role !== 'staff' || (Boolean(userId) && a?.createdBy === userId);
+// موعد قائم للعميل (اليوم أو لاحقاً): لا يُحجز له موعد ثانٍ حتى يُنهى أو يُلغى أو يُعدَّل.
+export const activeBookingOf = (appointments, clientId, exceptId) => !clientId || clientId === 'walk-in' ? null
+  : appointments.find(a => a.id !== exceptId && a.clientId === clientId && ['pending', 'confirmed', 'arrived', 'in_service'].includes(a.status) && a.date >= localISO()) || null;
 export const appointmentOwner = a => a.staffId || (a.items || []).find(i => i.staffId)?.staffId || '';
 export const bookingClash = (appointments, candidate, staff = []) => {
   const clash = conflicts(appointments, { ...candidate, staffId: '', items: (candidate.items || []).map(i => ({ ...i, staffId: '' })) });

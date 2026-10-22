@@ -82,6 +82,16 @@ export async function pullChanges(shopId, since) {
   return { rows, cursor: rows.at(-1)?.updated_at || since };
 }
 
+// التغييرات التي رفضها الخادم: نعيد نسختها من الخادم (أو نحذفها محلياً إن لم تكن موجودة) حتى لا يبقى الجهاز مخالفاً.
+export async function restoreRows(shopId, changes) {
+  const rows = [];
+  for (const c of changes) {
+    const { data } = await supabase.from('records').select('collection,id,data,deleted').eq('shop_id', shopId).eq('collection', c.collection).eq('id', c.id).maybeSingle();
+    rows.push(data || { collection: c.collection, id: c.id, deleted: true });
+  }
+  return rows;
+}
+
 // يدمج السجلات المسحوبة، مع إبقاء التعديلات المحلية التي لم تُرفع بعد.
 export function mergeRows(data, rows, pending = []) {
   if (!rows.length) return data;
@@ -120,7 +130,8 @@ export const auth = {
   signUp: (email, password, name) => supabase.auth.signUp({ email, password, options: { data: { name } } }),
   reset: email => supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin }),
   updatePassword: password => supabase.auth.updateUser({ password }),
-  signOut: () => supabase.auth.signOut(),
+  // نفصل الإشعارات عن هذا الهاتف قبل الخروج حتى لا تصل إشعارات الحساب لمن يستخدمه بعده.
+  signOut: async () => { await api.releaseDeviceToken().catch(() => {}); return supabase.auth.signOut(); },
 };
 
 const rpc = async (name, args) => {
@@ -172,10 +183,14 @@ export const api = {
   saveIntegration: (shop, v) => rpc('save_integration', {
     p_shop: shop, p_owner_whatsapp: v.ownerWhatsapp || '', p_reminders: Boolean(v.reminders), p_assistant: Boolean(v.assistant), p_daily: Boolean(v.daily),
   }),
+  // الهاتف الواحد قد يُستخدم بأكثر من حساب (المالك ثم الموظف): الرمز ينتقل لمن سجّل الدخول الآن.
   saveDeviceToken: async (shop, token) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from('device_tokens').upsert({ token, user_id: user.id, shop_id: shop, platform: 'android', updated_at: new Date().toISOString() });
+    try { localStorage.setItem('miqass-push-token', token); } catch { /* ignore */ }
+    await rpc('claim_device_token', { p_token: token, p_shop: shop });
+  },
+  releaseDeviceToken: async () => {
+    let token = ''; try { token = localStorage.getItem('miqass-push-token') || ''; } catch { /* ignore */ }
+    if (token) await supabase.rpc('release_device_token', { p_token: token });
   },
   publicShop: slug => rpc('public_shop', { p_slug: slug }),
   publicBook: v => rpc('public_book', {
@@ -226,7 +241,7 @@ export const errorText = error => {
   if (/coupon_invalid/.test(message)) return L('كود الخصم غير صحيح', 'Invalid discount code');
   if (/coupon_expired/.test(message)) return L('انتهت صلاحية كود الخصم', 'This discount code has expired');
   if (/coupon_used_up/.test(message)) return L('استُخدم كود الخصم بالحد الأقصى', 'This discount code has reached its limit');
-  if (/already_booked/.test(message)) return L('لديك موعد محجوز في هذا اليوم — للتعديل تواصل مع الصالون', 'You already have a booking on this day — contact the salon to change it');
+  if (/already_booked/.test(message)) return L('لديك موعد قائم بالفعل — لا يمكن حجز موعد ثانٍ. للتعديل أو الإلغاء تواصل مع الصالون', 'You already have an upcoming booking — contact the salon to change or cancel it');
   if (/too_many/.test(message)) return L('وصلت للحد الأقصى من الحجوزات اليوم، تواصل مع الصالون', 'You\'ve reached today\'s booking limit — please contact the salon');
   if (/shop_unavailable/.test(message)) return L('الحجز الأونلاين غير متاح حالياً لهذا الصالون', 'Online booking is currently unavailable for this salon');
   if (/grace_already_given/.test(message)) return L('سبق منح مهلة لهذه الفترة — جدّد الاشتراك أو أوقف الصالون', 'A grace period was already granted for this term — renew the subscription or suspend the salon');

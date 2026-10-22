@@ -160,7 +160,7 @@ function Gate() {
   const license = licenseState(shop, anchor);
   // حساب الموظف موقوف: لا نحمّل بيانات الصالون أصلاً.
   if (license.status === 'member_suspended') return <Lock shop={shop} data={null} license={license} shops={shops} switchShop={id => { prefs.set('shop', id); setShopId(id); }} />;
-  const account = session?.user ? { email: session.user.email || '', name: session.user.user_metadata?.name || '' } : null;
+  const account = session?.user ? { id: session.user.id, email: session.user.email || '', name: session.user.user_metadata?.name || '' } : null;
   return <>{addingScreen}<Shell key={shop.id} account={account} shop={shop} shops={shops} license={license} admin={admin} theme={theme} notice={error}
     reloadShops={loadShops} addBranch={() => setAdding(true)} switchShop={id => { prefs.set('shop', id); setShopId(id); }} /></>;
 }
@@ -174,7 +174,7 @@ function Shell({ account, shop, shops, license, admin, theme, notice, reloadShop
     toastRef.current?.(text, 'success', { label: L('فتح', 'Open'), run: () => goRef.current?.('appointments', { open: a.id }) });
   }, []);
   // تغييرات رفضها الخادم (صلاحيات) لا تبقى عالقة: نُبلغ بها مرة واحدة.
-  onRemoteBookings.rejected = list => toastRef.current?.(L(`تعذّر حفظ ${list.length} تغيير على السحابة — لا تملك صلاحية`, `${list.length} change(s) could not be saved to the cloud — permission denied`), 'error');
+  onRemoteBookings.rejected = list => toastRef.current?.(L(`رُفض ${list.length} تغيير: غير مسموح (موعد ثانٍ لعميل لديه موعد قائم، أو موعد حجزه غيرك). أُعيدت البيانات كما هي على الخادم`, `${list.length} change(s) were rejected: not allowed (a second booking for a client with an upcoming one, or an appointment someone else booked). Restored from the server`), 'error');
   const toastRef = useRef(null);
   const goRef = useRef(null);
   const { data, setData, sync, syncNow } = useShopData(shop, onRemoteBookings);

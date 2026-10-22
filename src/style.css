@@ -338,6 +338,7 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .action-row .btn { flex: 1; min-width: 120px; }
 
 .toast { position: fixed; z-index: 60; inset-inline: 16px; bottom: calc(var(--tab-h) + var(--safe-b) + 14px); margin: 0 auto; max-width: 440px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 16px; background: var(--ink); color: var(--bg); font-weight: 600; box-shadow: var(--shadow-lg); animation: toast-in .42s var(--ease-spring); }
+:root[data-theme='dark'] .toast { background: var(--surface-3); color: var(--ink); border: 1px solid var(--line-strong); }
 .toast { background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); }
 :root[data-theme='dark'] .toast { background: var(--surface-3); }
 .toast-error { background: var(--red); color: #fff; }
@@ -421,8 +422,8 @@ input.toggle:checked::after { inset-inline-start: 23px; }
 .service-card b { color: var(--accent-ink); font-size: 15px; }
 .service-card.active { border-color: var(--accent); background: var(--accent-soft); }
 .service-card .check { position: absolute; top: 8px; inset-inline-end: 8px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; }
-.summary-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--ink); color: var(--bg); font-weight: 600; }
-.summary-bar strong { font-size: 17px; }
+.summary-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--ink); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); font-weight: 600; }
+.summary-bar strong { font-size: 17px; color: var(--accent-ink); }
 .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
 .time { min-height: 46px; border-radius: 13px; background: var(--surface-2); border: 1.5px solid var(--line); font-weight: 700; font-size: 14px; }
 .time.active { background: var(--accent); border-color: var(--accent); color: #fff; }

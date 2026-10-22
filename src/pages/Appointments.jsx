@@ -3,7 +3,7 @@ import {
   ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
   Globe, Hourglass, ListPlus, MapPin, MessageCircle, Smartphone, Package, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { CLIENT_SOURCES, bookedAs, PHONE_ERROR, validPhone,
+import { CLIENT_SOURCES, activeBookingOf, bookedAs, canModifyAppointment, PHONE_ERROR, validPhone,
   addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, packageServices, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortAppointments, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
@@ -149,7 +149,8 @@ function SourceIcon({ source }) {
 }
 
 export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
-  const { data, patch, toast, logMessage, isManager, role, setData } = useApp();
+  const { data, patch, toast, logMessage, isManager, role, setData, account } = useApp();
+  const own = canModifyAppointment(a, role, account?.id);
   const [checkout, setCheckout] = useState(false);
   const [suggest, setSuggest] = useState(null);
   const client = data.clients.find(c => c.id === a.clientId);
@@ -211,7 +212,7 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
   const total = appointmentTotal(a);
   return <Sheet title={a.clientId ? clientName(data.clients, a.clientId) : L('موعد', 'Appointment')} subtitle={`${dateLabel(a.date)} · ${timeLabel(a.time)}`} onClose={onClose}
     footer={a.status !== 'cancelled' && a.status !== 'no_show' && <div className="action-grid">
-      {a.status === 'pending' && <Button variant="secondary" icon={Check} onClick={() => setStatus('confirmed', L('تم تأكيد الموعد', 'Appointment confirmed'))}>{L('تأكيد', 'Confirm')}</Button>}
+      {a.status === 'pending' && own && <Button variant="secondary" icon={Check} onClick={() => setStatus('confirmed', L('تم تأكيد الموعد', 'Appointment confirmed'))}>{L('تأكيد', 'Confirm')}</Button>}
       {['pending', 'confirmed'].includes(a.status) && <Button variant="secondary" icon={UserRoundCheck} onClick={() => setStatus('arrived', L('تم تسجيل الوصول', 'Checked in'))}>{L('وصل', 'Arrived')}</Button>}
       {a.status !== 'completed' && <Button icon={CheckCircle2} onClick={() => setStatus('completed', L('تم إنهاء الموعد', 'Appointment completed'))}>{L('إنهاء', 'Complete')}</Button>}
       {a.status === 'completed' && balanceDue(a) > 0 && role !== 'staff' && <Button icon={WalletCards} onClick={() => setCheckout(true)}>{L('تحصيل', 'Collect')} {money(balanceDue(a))}</Button>}
@@ -245,7 +246,8 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
         <Button variant="ghost" icon={Phone} onClick={() => openExternal(`tel:${phoneDigits(client.phone)}`)}>{L('اتصال', 'Call')}</Button>
         {needsDeposit(a) && <Button variant="ghost" icon={WalletCards} onClick={() => setCheckout(true)}>{L('استلام العربون', 'Take deposit')}</Button>}
       </div>}
-      {a.status !== 'cancelled' && a.status !== 'completed' && <div className="action-row">
+      {!own && a.status !== 'cancelled' && a.status !== 'completed' && <small className="muted center">{L('حجزه غيرك — يمكنك تسجيل الوصول والإنهاء فقط. للتعديل أو الإلغاء راجع صاحب الصالون.', 'Booked by someone else — you can only check in and complete it. Ask the salon owner to edit or cancel.')}</small>}
+      {own && a.status !== 'cancelled' && a.status !== 'completed' && <div className="action-row">
         <Button variant="ghost" icon={Pencil} onClick={onEdit}>{L('تعديل', 'Edit')}</Button>
         <Button variant="ghost" icon={UserX} onClick={() => setStatus('no_show', L(`تم تسجيل عدم الحضور`, 'Marked as no-show'))}>{L('لم يحضر', 'No-show')}</Button>
         <Button variant="danger-ghost" icon={Ban} onClick={() => setStatus('cancelled', L('تم إلغاء الموعد', 'Appointment cancelled'))}>{L('إلغاء', 'Cancel')}</Button>
@@ -259,12 +261,14 @@ export function AppointmentSheet({ appointment: a, onClose, onEdit }) {
 /* ───────────── معالج الحجز: ٤ خطوات بسيطة ───────────── */
 
 export function BookingWizard({ initial, onClose, onDone }) {
-  const { data, setData, toast, vocab, role, staffMember } = useApp();
+  const { data, setData, toast, vocab, role, staffMember, account } = useApp();
   const edit = initial.edit;
   const walkIn = Boolean(initial.walkIn);
   const nowTime = () => { const d = new Date(); const m = d.getHours() * 60 + d.getMinutes(); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60 - (m % 5)).padStart(2, '0')}`; };
   const [step, setStep] = useState(edit ? 1 : initial.clientId ? 1 : 0);
   const [clientId, setClientId] = useState(edit?.clientId || initial.clientId || '');
+  // موعد قائم آخر لنفس العميل يمنع الحجز (تعديل موعده الحالي مسموح).
+  const existing = edit && clientId === edit.clientId ? null : activeBookingOf(data.appointments, clientId, edit?.id);
   const [serviceIds, setServiceIds] = useState(edit ? (edit.items || []).map(i => i.serviceId) : []);
   const [staffId, setStaffId] = useState(edit?.staffId || (role === 'staff' ? staffMember?.id || '' : ''));
   const [date, setDate] = useState(edit?.date || (initial.date && initial.date > localISO() ? initial.date : localISO()));
@@ -317,10 +321,11 @@ export function BookingWizard({ initial, onClose, onDone }) {
 
   const save = (force = false) => {
     if (!time) { setError(L('اختر وقت الموعد', 'Choose an appointment time')); return; }
+    if (existing) { setStep(0); return; }
     const record = {
       ...(edit || {}), id: edit?.id || uid(), clientId, items, staffId, date, time, duration, price: gross, location,
       address: location === 'home' ? address : '', travel: location === 'home' ? 30 : 0, notes: notes.trim(), deposit: finalDeposit,
-      status: edit?.status || (walkIn ? 'arrived' : 'confirmed'), payments: edit?.payments || [], discount: bundleOn ? bundleDiscount : (edit?.bundleId ? 0 : edit?.discount || 0), bundleId: bundleOn ? bundle.id : '', source: edit?.source || (walkIn ? 'walkin' : 'app'), createdAt: edit?.createdAt || localISO(),
+      status: edit?.status || (walkIn ? 'arrived' : 'confirmed'), payments: edit?.payments || [], discount: bundleOn ? bundleDiscount : (edit?.bundleId ? 0 : edit?.discount || 0), bundleId: bundleOn ? bundle.id : '', source: edit?.source || (walkIn ? 'walkin' : 'app'), createdAt: edit?.createdAt || localISO(), ...(edit ? {} : { createdBy: account?.id || '' }),
       ...(walkIn ? { arrivedAt: new Date().toISOString() } : {}),
     };
     // الصالون فيه أكثر من موظف: التعارض يُعرض فقط إذا لم يبق أحد متاح، مع خيار التعديل أو التجاهل.
@@ -335,7 +340,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
   const keys = walkIn ? ['client', 'services', 'confirm'] : ['client', 'services', 'time', 'confirm'];
   const key = keys[step];
   const steps = walkIn ? [vocab.client, L('الخدمات', 'Services'), L('تأكيد', 'Confirm')] : [vocab.client, L('الخدمات', 'Services'), L('الوقت', 'Time'), L('تأكيد', 'Confirm')];
-  const canNext = { client: Boolean(clientId), services: serviceIds.length > 0, time: Boolean(time), confirm: true }[key];
+  const canNext = { client: Boolean(clientId) && !existing, services: serviceIds.length > 0, time: Boolean(time), confirm: true }[key];
   const last = step === keys.length - 1;
   return <Sheet title={edit ? L('تعديل الموعد', 'Edit appointment') : walkIn ? L('زبون حاضر الآن', 'Walk-in client') : L('حجز جديد', 'New booking')} onClose={onClose} size="lg"
     footer={<>
@@ -345,7 +350,8 @@ export function BookingWizard({ initial, onClose, onDone }) {
     </>}>
     <Steps steps={steps} current={step} />
 
-    {key === 'client' && <ClientPicker walkIn={walkIn} value={clientId} onChange={id => { setClientId(id); setStep(1); }} />}
+    {key === 'client' && existing && <Alert tone="orange" icon={CalendarOff}>{L(`${clientName(data.clients, clientId)} لديه موعد قائم ${dateLabel(existing.date, { weekday: 'long', day: 'numeric', month: 'long' })} الساعة ${timeLabel(existing.time)} (${statusText[existing.status]}). لا يمكن حجز موعد ثانٍ له — عدّل موعده الحالي أو ألغِه أولاً.`, `${clientName(data.clients, clientId)} already has an appointment on ${dateLabel(existing.date, { weekday: 'long', day: 'numeric', month: 'long' })} at ${timeLabel(existing.time)} (${statusText[existing.status]}). Edit or cancel it before booking another.`)}</Alert>}
+    {key === 'client' && <ClientPicker walkIn={walkIn} value={clientId} onChange={id => { setClientId(id); if (!activeBookingOf(data.appointments, id, edit?.id)) setStep(1); }} />}
 
     {key === 'services' && <div className="stack">
       {/* الباقات التي تجمع أكثر من خدمة: ضغطة واحدة تختار كل خدماتها */}
@@ -362,7 +368,7 @@ export function BookingWizard({ initial, onClose, onDone }) {
           <strong>{s.name}</strong><small>{num(s.duration)} {L('دقيقة', 'min')}</small><b>{money(s.price)}</b>
         </button>;
       })}</div>
-      {items.length > 0 && <div className="summary-bar"><span>{L(`${items.length} خدمات`, `${items.length} ${items.length === 1 ? 'service' : 'services'}`)} · {num(duration)} {L('دقيقة', 'min')}</span><strong>{bundleDiscount > 0 && <s className="muted">{money(gross)}</s>} {money(total)}</strong></div>}
+      {items.length > 0 && <div className="summary-bar"><span>{L(items.length === 1 ? 'خدمة واحدة' : items.length === 2 ? 'خدمتان' : `${num(items.length)} خدمات`, `${items.length} ${items.length === 1 ? 'service' : 'services'}`)} · {num(duration)} {L('دقيقة', 'min')}</span><strong>{bundleDiscount > 0 && <s className="muted">{money(gross)}</s>} {money(total)}</strong></div>}
       {pkg && <Alert tone="green" icon={Check}>{L(<>لدى {client.name} باقة «{pkg.name}» — متبقٍ {pkg.total - pkg.used} جلسات (تُخصم عند الدفع)</>, <>{client.name} has the “{pkg.name}” package — {pkg.total - pkg.used} {pkg.total - pkg.used === 1 ? 'session' : 'sessions'} left (deducted at checkout)</>)}</Alert>}
     </div>}
 

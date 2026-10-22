@@ -3,7 +3,7 @@ import {
   BellRing, Boxes, CalendarCheck2, CalendarOff, CalendarPlus, Cake, CircleDollarSign, Clock3, Lightbulb, ListChecks,
   ListPlus, MessageCircle, Receipt, Share2, UsersRound, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { clientName, addDays, businessDay, shortName, staffOnDay, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
+import { canModifyAppointment, clientName, addDays, businessDay, shortName, staffOnDay, amountPaid, balanceDue, dateLabel, isPaid, localISO, money, num, serviceNames, sortAppointments, timeLabel, uid } from '../data.js';
 import { incomeIn, todayInsights } from '../smart.js';
 import { Avatar, Badge, Button, Empty, Row, Section, Stat, Tile, useApp } from '../ui.jsx';
 import { AppointmentSheet, BookingWizard } from './Appointments.jsx';
@@ -92,8 +92,8 @@ export default function Home() {
           <Row leading={<span className="time-chip">{timeLabel(a.time)}</span>} title={clientName(data.clients, a.clientId)} subtitle={`${dateLabel(a.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${serviceNames(a)}`} onClick={() => setOpenId(a.id)} />
           <div className="row-buttons">
             <Button size="sm" variant="secondary" icon={UserRoundCheck} onClick={() => { patch('appointments', a.id, { status: 'arrived', arrivedAt: new Date().toISOString() }); toast(L('سُجّل الحضور', 'Marked arrived')); }}>{L('حضر', 'Arrived')}</Button>
-            <Button size="sm" variant="ghost" icon={UserX} onClick={() => { patch('appointments', a.id, { status: 'no_show' }); toast(L('سُجّل غياب', 'Marked no-show')); }}>{L('لم يحضر', 'No-show')}</Button>
-            {c && <Button size="sm" variant="ghost" icon={ListPlus} onClick={() => toWaitlist(a)}>{L('غياب + انتظار', 'No-show + waitlist')}</Button>}
+            {canModifyAppointment(a, role, account?.id) && <Button size="sm" variant="ghost" icon={UserX} onClick={() => { patch('appointments', a.id, { status: 'no_show' }); toast(L('سُجّل غياب', 'Marked no-show')); }}>{L('لم يحضر', 'No-show')}</Button>}
+            {c && canModifyAppointment(a, role, account?.id) && <Button size="sm" variant="ghost" icon={ListPlus} onClick={() => toWaitlist(a)}>{L('غياب + انتظار', 'No-show + waitlist')}</Button>}
           </div>
         </div>;
       })}</div>
