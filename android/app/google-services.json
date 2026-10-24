@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "892978880346",
+    "project_id": "barber-6dc23",
+    "storage_bucket": "barber-6dc23.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:892978880346:android:3dbcfcd76c1d19a0491d63",
+        "android_client_info": {
+          "package_name": "com.appcraft.miqass"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAViEsMtIomXZeVcd-lLVWk8K7Q7X97VOI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

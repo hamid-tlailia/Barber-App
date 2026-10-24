@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">مِقص</string>
+    <string name="title_activity_main">مِقص</string>
+    <string name="package_name">com.appcraft.miqass</string>
+    <string name="custom_url_scheme">com.appcraft.miqass</string>
+</resources>
