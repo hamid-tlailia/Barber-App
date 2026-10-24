@@ -94,6 +94,9 @@ export async function saveRecord(shopId: string, name: string, id: string, data:
   if (error) throw error;
 }
 
+// رسالة العرض تُحسب بـ3 من الرصيد (نفس الوزن في wa_usage بقاعدة البيانات).
+export const OFFER_WEIGHT = 3;
+
 // رصيد رسائل «واتساب الذكي» المتبقي هذا الشهر (التذكير والعروض والتقرير اليومي). عند تعذّر القراءة لا نوقف الإرسال.
 export async function waQuotaLeft(shopId: string) {
   const { data, error } = await db.rpc('wa_usage', { p_shop: shopId });

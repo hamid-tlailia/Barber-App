@@ -1,6 +1,6 @@
 // إرسال عرض لكل عملاء الصالون عبر واتساب (قالب تسويقي معتمد من Meta) — لإضافة واتساب الذكي فقط.
 // يستدعيها صاحب الصالون أو المدير من التطبيق؛ نتحقق من صلاحيته بحسابه، ومرة واحدة كل 24 ساعة لكل صالون.
-import { collection, db, digits, isoDate, json, localNow, saveRecord, sendTemplate, waConfigFor, waQuotaLeft } from '../_shared/common.ts';
+import { collection, db, digits, isoDate, json, localNow, saveRecord, sendTemplate, OFFER_WEIGHT, waConfigFor, waQuotaLeft } from '../_shared/common.ts';
 
 const TEMPLATE = Deno.env.get('WA_TEMPLATE_OFFER') ?? 'promo_offer';
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type' };
@@ -35,10 +35,11 @@ Deno.serve(async req => {
     if (c.id === 'walk-in' || c.noOffers || digits(c.phone).length < 8 || seen.has(d)) return false;
     seen.add(d); return true;
   }).slice(0, 2000);
-  // كل عميل رسالة من رصيد الشهر: لا نرسل عرضاً لا يكفيه الرصيد (لا إرسال جزئي مربك).
+  // رسالة العرض تسويقية (أغلى عند Meta) فتُحسب بـ OFFER_WEIGHT رسائل من رصيد الشهر. لا نرسل عرضاً لا يكفيه الرصيد (لا إرسال جزئي مربك).
   const left = await waQuotaLeft(shop_id);
-  if (dry_run) return reply({ recipients: recipients.length, left: Number.isFinite(left) ? left : null });
-  if (recipients.length > left) return reply({ error: 'quota_exceeded', left, needed: recipients.length }, 402);
+  const needed = recipients.length * OFFER_WEIGHT;
+  if (dry_run) return reply({ recipients: recipients.length, needed, left: Number.isFinite(left) ? left : null });
+  if (needed > left) return reply({ error: 'quota_exceeded', left, needed }, 402);
 
   const last = campaigns.map(c => c.data.at).filter(Boolean).sort().pop();
   if (last && Date.now() - Date.parse(last) < 24 * 3600000) return reply({ error: 'too_soon', next: new Date(Date.parse(last) + 24 * 3600000).toISOString() }, 429);

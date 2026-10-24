@@ -4,6 +4,7 @@ import { Check, Copy, Image as ImageIcon, MessageCircle, Send, SkipForward, User
 import { fillLines, localISO, salonTemplate, num, uid, validPhone, whatsappLink } from '../data.js';
 import { api, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { isNative } from '../lib/native.js';
+import { OFFER_WEIGHT } from '../lib/license.js';
 import { saveFile } from '../lib/files.js';
 import { Alert, Avatar, Badge, Button, Confirm, Field, Row, Section, Sheet, openExternal, useApp } from '../ui.jsx';
 import { L, isEn } from '../i18n.js';
@@ -25,9 +26,11 @@ export function OfferShare({ offer, onClose }) {
   const [mode, setMode] = useState(null);
   const [waActive, setWaActive] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [usage, setUsage] = useState(null);
   const [error, setError] = useState('');
   const link = bookingUrl(shop.slug);
   const recipients = useMemo(() => offerRecipients(data.clients), [data.clients]);
+  useEffect(() => { if (confirm) api.waUsage(shop.id).then(setUsage).catch(() => setUsage(null)); }, [confirm, shop.id]);
   useEffect(() => { if (cloudEnabled && isManager) api.integration(shop.id).then(row => setWaActive(Boolean(row?.wa_addon))).catch(() => {}); }, [shop.id, isManager]);
   const full = fillLines(salonTemplate(data.settings, 'offer'), { title, offer: text, link });
 
@@ -59,7 +62,7 @@ export function OfferShare({ offer, onClose }) {
         <small className="muted">{L('تنزل صورة مربعة بتصميم الصالون والعرض، ويُنسخ النص تلقائياً. اختر انستغرام أو فيسبوك أو الحالة من قائمة المشاركة.', 'A designed square image is created and the text is copied. Choose Instagram, Facebook or Status from the share menu.')}</small>
       </Section>
     </div>
-    {confirm && <Confirm title={L(`إرسال العرض لـ ${num(recipients.length)} عميل؟`, `Send the offer to ${num(recipients.length)} clients?`)} text={L('يُرسل الآن من رقم الصالون. لا يمكن التراجع بعد الإرسال.', 'It is sent now from the salon number and cannot be undone.')} confirmLabel={L('إرسال', 'Send')} busyLabel={L(`جارٍ الإرسال لـ ${num(recipients.length)} عميل…`, `Sending to ${num(recipients.length)} clients…`)} onClose={() => setConfirm(false)} onConfirm={async () => {
+    {confirm && <Confirm title={L(`إرسال العرض لـ ${num(recipients.length)} عميل؟`, `Send the offer to ${num(recipients.length)} clients?`)} text={L(`يُرسل الآن من رقم الصالون ويستهلك ${num(recipients.length * OFFER_WEIGHT)} من رصيد الرسائل (رسالة العرض = ${OFFER_WEIGHT} رسائل)${usage ? ` · المتبقي ${num(usage.left)}` : ''}. لا يمكن التراجع بعد الإرسال.`, `It is sent now from the salon number and uses ${num(recipients.length * OFFER_WEIGHT)} message credits (each offer = ${OFFER_WEIGHT})${usage ? ` · ${num(usage.left)} left` : ''}. It cannot be undone.`)} confirmLabel={L('إرسال', 'Send')} busyLabel={L(`جارٍ الإرسال لـ ${num(recipients.length)} عميل…`, `Sending to ${num(recipients.length)} clients…`)} onClose={() => setConfirm(false)} onConfirm={async () => {
       try {
         const result = await api.broadcast(shop.id, { title, text: [text, link && L(`للحجز: ${link}`, `Book: ${link}`)].filter(Boolean).join(' — ') });
         toast(L(`أُرسل لـ ${num(result.sent)} عميل${result.failed ? ` · تعذّر ${num(result.failed)}` : ''}`, `Sent to ${num(result.sent)} clients${result.failed ? ` · ${num(result.failed)} failed` : ''}`));

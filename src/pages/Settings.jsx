@@ -433,7 +433,7 @@ function WaUsage({ shopName }) {
   return <div className="stack-sm">
     <div className="row-between"><strong>{L('رسائل هذا الشهر', 'Messages this month')}</strong><span className="muted small">{L(`${num(u.used)} من ${num(u.quota)}`, `${num(u.used)} of ${num(u.quota)}`)}</span></div>
     <Meter value={u.used} max={u.quota} tone={tone} />
-    <small className="muted">{L('كل تذكير أو عرض أو تقرير يومي = رسالة. ردود المساعد داخل المحادثة لا تُحسب. يتجدد الرصيد أول كل شهر.', 'Each reminder, offer or daily report = one message. Assistant replies inside a chat are not counted. Resets on the 1st of each month.')}</small>
+    <small className="muted">{L('كل تذكير أو تقرير يومي = رسالة، ورسالة العرض لكل عميل = 3 رسائل (تسعيرة ميتا للتسويق أعلى). ردود المساعد داخل المحادثة لا تُحسب. يتجدد الرصيد أول كل شهر.', 'Each reminder or daily report = 1 message; each offer message = 3 (Meta charges more for marketing). Assistant replies inside a chat are not counted. Resets on the 1st of each month.')}</small>
     {ratio >= 1 ? <Alert tone="red">{L('نفد رصيد هذا الشهر — توقفت التذكيرات التلقائية. يبقى زر «تذكير واتساب» اليدوي يعمل.', 'This month’s messages are used up — automatic reminders are paused. The manual “WhatsApp reminder” button still works.')}</Alert>
       : ratio >= 0.8 && <Alert tone="orange">{L(`اقترب الرصيد من النفاد — متبقٍ ${num(u.left)} رسالة`, `Running low — ${num(u.left)} messages left`)}</Alert>}
     {ratio >= 0.8 && <Button variant="secondary" icon={MessageSquareText} block onClick={() => openExternal(waExtraLink(shopName))}>{L(`اطلب ${num(WA_EXTRA.messages)} رسالة إضافية · ${num(WA_EXTRA.price)} ر.ق`, `Request ${num(WA_EXTRA.messages)} extra messages · QAR ${num(WA_EXTRA.price)}`)}</Button>}
