@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, Ban, BellRing, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
+  ArrowLeft, ArrowRight, Ban, BellRing, CalendarDays, CalendarOff, CalendarPlus, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
   Globe, Hourglass, ListPlus, MapPin, MessageCircle, Smartphone, Package, Pencil, Phone, ShieldAlert, UserPlus, UserRoundCheck, UserX, WalletCards,
 } from 'lucide-react';
-import { CLIENT_SOURCES, activeBookingOf, bookedAs, canModifyAppointment, checkCoupon, couponDiscount, PHONE_ERROR, validPhone,
+import { CLIENT_SOURCES, activeBookingOf, bookingPaused, bookedAs, canModifyAppointment, checkCoupon, couponDiscount, PHONE_ERROR, validPhone,
   addDays, appointmentTotal, availableSlots, balanceDue, buildItems, bookingClash, appointmentOwner, clientName, dateLabel, dateFor, depositPaid, fillTemplate, shortName, isPaid, isStaffOff, messageFor, packageServices, timeFor,
   localISO, money, needsDeposit, num, phoneDigits, samePhone, serviceNames, sortForDay, statusText, timeLabel, uid, whatsappLink,
 } from '../data.js';
@@ -54,7 +54,7 @@ function StaffChips({ date, value, onChange }) {
 }
 
 export default function Appointments() {
-  const { data, intent, setIntent, role, staffMember, can } = useApp();
+  const { data, intent, setIntent, role, staffMember, can, isManager } = useApp();
   const [date, setDate] = useState(localISO());
   const [staffFilter, setStaffFilter] = useState(role === 'staff' && staffMember ? staffMember.id : 'all');
   const [open, setOpen] = useState(null);
@@ -89,7 +89,18 @@ export default function Appointments() {
   const current = open && data.appointments.find(a => a.id === open);
 
   return <div className="stack">
-    <small className="strip-month">{dateLabel(date, { month: 'long', year: 'numeric' })}</small>
+    {isManager && ['online', 'wa'].filter(c => bookingPaused(data.settings, c)).map(c => <Alert key={c} tone="orange" icon={CalendarOff}>{c === 'online' ? L('الحجز الأونلاين متوقف حالياً', 'Online booking is paused') : L('الحجز عبر واتساب متوقف حالياً', 'WhatsApp booking is paused')}{data.settings[`${c}BookingUntil`] ? L(` — يعود يوم ${dateLabel(data.settings[`${c}BookingUntil`], { day: 'numeric', month: 'long' })}`, ` — reopens ${dateLabel(data.settings[`${c}BookingUntil`], { day: 'numeric', month: 'long' })}`) : ''}</Alert>)}
+    <div className="row-between">
+      <small className="strip-month">{dateLabel(date, { month: 'long', year: 'numeric' })}</small>
+      <span className="row-buttons">
+        {date !== localISO() && <button type="button" className="chip chip-sm" onClick={() => { setDate(localISO()); setStartDay(localISO()); }}>{L('اليوم', 'Today')}</button>}
+        {/* القفز لأي تاريخ (سابق أو قادم) بدل الضغط على الأسهم أسبوعاً بأسبوع */}
+        <label className="chip chip-sm date-jump"><CalendarDays size={16} />{L('اختر تاريخاً', 'Pick a date')}
+          <input type="date" value={date} aria-label={L('اختر تاريخاً', 'Pick a date')} onClick={e => { try { e.currentTarget.showPicker?.(); } catch { /* غير مدعوم */ } }}
+            onChange={e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) { setDate(e.target.value); setStartDay(e.target.value); } }} />
+        </label>
+      </span>
+    </div>
     <div className="day-nav">
       <IconButton icon={PrevChevron} label={L('السابق', 'Previous')} onClick={() => setStartDay(addDays(startDay, -7))} />
       <div className="day-strip">{days.map(d => <button type="button" key={d} className={`day ${d === date ? 'active' : ''} ${d === localISO() ? 'today' : ''}`} onClick={() => setDate(d)}>

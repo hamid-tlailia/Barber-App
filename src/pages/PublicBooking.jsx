@@ -1,7 +1,7 @@
 // صفحة الحجز العامة للعملاء (بدون حساب): الخدمة ← الوقت ← البيانات ← تم.
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CalendarCheck2, Check, MessageCircle, Scissors, ChevronLeft, ChevronRight } from 'lucide-react';
-import { latinDigits, shortName, validPhone, addDays, availableSlots, dateLabel, defaultSettings, localISO, money, num, timeLabel, whatsappLink } from '../data.js';
+import { bookingPaused, latinDigits, shortName, validPhone, addDays, availableSlots, dateLabel, defaultSettings, localISO, money, num, timeLabel, whatsappLink } from '../data.js';
 import { api, cloudEnabled, errorText } from '../lib/sync.js';
 import { Alert, Button, Chips, Empty, Field, Steps } from '../ui.jsx';
 import { L, isEn } from '../i18n.js';
@@ -50,6 +50,15 @@ export default function PublicBooking({ slug }) {
 
   if (shop === undefined) return <div className="splash"><span className="loader" /></div>;
   if (!shop || !shop.active) return <div className="auth"><div className="auth-card"><Empty icon={Scissors} title={L('الحجز غير متاح', 'Booking unavailable')} text={L('تأكد من الرابط أو تواصل مع الصالون مباشرة', 'Check the link or contact the salon directly')} /></div></div>;
+
+  if (bookingPaused(settings, 'online')) {
+    const until = settings.onlineBookingUntil;
+    return <div className="auth"><div className="auth-card stack">
+      <Empty icon={Scissors} title={L(`الحجز الأونلاين في «${shop.name}» متوقف مؤقتاً`, `Online booking at "${shop.name}" is paused`)}
+        text={until ? L(`يعود الحجز يوم ${dateLabel(until, { weekday: 'long', day: 'numeric', month: 'long' })}. للاستفسار تواصل مع الصالون.`, `Booking reopens on ${dateLabel(until, { weekday: 'long', day: 'numeric', month: 'long' })}. Contact the salon for anything urgent.`) : L('تواصل مع الصالون مباشرة لحجز موعد.', 'Please contact the salon directly to book.')} />
+      {shop.phone && <Button block icon={MessageCircle} onClick={() => window.open(whatsappLink(shop.phone, L('مرحباً، أرغب في حجز موعد', 'Hello, I would like to book an appointment')), '_blank')}>{L('تواصل عبر واتساب', 'Message on WhatsApp')}</Button>}
+    </div></div>;
+  }
 
   const book = async () => {
     if (!name.trim() || !validPhone(phone)) { setError(L('أدخل اسمك ورقم جوال صحيحاً (8 أرقام على الأقل)', 'Enter your name and a valid mobile number (at least 8 digits)')); return; }

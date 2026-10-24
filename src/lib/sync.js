@@ -262,6 +262,7 @@ export const errorText = error => {
   if (/coupon_used_up/.test(message)) return L('استُخدم كود الخصم بالحد الأقصى', 'This discount code has reached its limit');
   if (/already_booked/.test(message)) return L('لديك موعد قائم بالفعل — لا يمكن حجز موعد ثانٍ. للتعديل أو الإلغاء تواصل مع الصالون', 'You already have an upcoming booking — contact the salon to change or cancel it');
   if (/too_many/.test(message)) return L('وصلت للحد الأقصى من الحجوزات اليوم، تواصل مع الصالون', 'You\'ve reached today\'s booking limit — please contact the salon');
+  if (/booking_paused/.test(message)) return L('الحجز متوقف مؤقتاً لدى الصالون — تواصل معهم مباشرة', 'The salon has paused bookings for now — please contact them directly');
   if (/shop_unavailable/.test(message)) return L('الحجز الأونلاين غير متاح حالياً لهذا الصالون', 'Online booking is currently unavailable for this salon');
   if (/grace_already_given/.test(message)) return L('سبق منح مهلة لهذه الفترة — جدّد الاشتراك أو أوقف الصالون', 'A grace period was already granted for this term — renew the subscription or suspend the salon');
   if (/not_subscribed/.test(message)) return L('المهلة للمشتركين فقط — للتجربة استخدم تمديد التجربة', 'Grace periods are for subscribers only — for trials, use trial extension');

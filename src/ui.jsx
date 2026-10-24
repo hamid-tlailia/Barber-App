@@ -297,13 +297,19 @@ export function Confirm({ title, text, confirmLabel = L('تأكيد', 'Confirm')
   </Sheet>;
 }
 
+// أعمدة بعرض أدنى ثابت: عند كثرة الأيام يُمرَّر المخطط أفقياً ويبدأ عند أحدث يوم، وكل رقم داخل شارة مستقلة.
 export function Bars({ data, format = v => v }) {
   const max = Math.max(1, ...data.map(d => d.value));
-  return <div className="bars">{data.map(d => <div key={d.label} className="bar" title={`${d.label}: ${format(d.value)}`}>
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) el.scrollLeft = getComputedStyle(el).direction === 'rtl' ? -el.scrollWidth : el.scrollWidth;
+  }, [data.length]);
+  return <div className="bars" ref={ref}><div className="bars-track">{data.map(d => <div key={d.label} className="bar" title={`${d.label}: ${format(d.value)}`}>
     <span className="bar-value">{d.value ? format(d.value) : ''}</span>
     <span className="bar-fill" style={{ height: `${Math.max(3, (d.value / max) * 100)}%` }} />
     <span className="bar-label">{d.label}</span>
-  </div>)}</div>;
+  </div>)}</div></div>;
 }
 
 export function Meter({ value, max, tone = 'accent' }) {

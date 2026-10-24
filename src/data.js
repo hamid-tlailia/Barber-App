@@ -14,6 +14,12 @@ export const localISO = (date = new Date()) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// هل الحجز عبر هذه القناة متوقف الآن؟ (نفس booking_paused في قاعدة البيانات)
+export const bookingPaused = (settings, channel, today = localISO()) => {
+  const until = settings?.[`${channel}BookingUntil`] || '';
+  return Boolean(settings?.[`${channel}BookingOff`]) && (!until || today < until);
+};
+
 // «يوم العمل» للحسابات (الدفعات، المصروفات، الصندوق) حسب ساعات كل صالون:
 // صالون يغلق بعد منتصف الليل (مثلاً 16:00–02:00) تُحسب دفعات ما بعد 12 على اليوم الذي بدأ فيه،
 // حتى منتصف المسافة بين الإغلاق والفتح (09:00 في المثال). الصالون العادي و«24 ساعة» ينتهي يومه عند منتصف الليل.
@@ -107,6 +113,8 @@ export const defaultSettings = (kind = 'men') => ({
   loyaltyPer: 10,
   noShowDepositPercent: 30,
   bookingEnabled: true,
+  // إيقاف الحجز مؤقتاً: online = رابط الحجز، wa = واتساب. Until = تاريخ العودة التلقائية (فارغ = حتى إعادة التشغيل يدوياً).
+  onlineBookingOff: false, onlineBookingUntil: '', waBookingOff: false, waBookingUntil: '',
   hideClientPhotosFromStaff: kind !== 'men',
   autoCancelLate: true,
   recoveryDays: kind === 'women' ? 45 : 30,

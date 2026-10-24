@@ -3,7 +3,7 @@ import {
   Bell, Bot, Check, Clock3, Copy, CreditCard, DatabaseBackup, Download, Gift, History, Link2, LogOut, MessageSquareText, Package,
   Plus, QrCode, RotateCcw, Scissors, Share2, ShieldCheck, SlidersHorizontal, Store, TicketPercent, Trash2, Upload,
 } from 'lucide-react';
-import { PHONE_ERROR, fillLines, salonTemplate, validPhone, clientName, dateLabel, findDuplicate, packageServices, amountPaid, normalCode, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
+import { PHONE_ERROR, addDays, bookingPaused, fillLines, salonTemplate, validPhone, clientName, dateLabel, findDuplicate, packageServices, amountPaid, normalCode, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
 import { WA_EXTRA, addonLink, addons, buyLink, deletionLink, plans, waExtraLink } from '../lib/license.js';
 import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Meter, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
@@ -368,6 +368,28 @@ function GiftCards({ onClose }) {
   </Sheet>;
 }
 
+// إيقاف الحجز عبر قناة (online = رابط الحجز، wa = واتساب) حتى إشعار آخر أو حتى تاريخ عودة. يفرضه الخادم أيضاً.
+function BookingPause({ channel }) {
+  const { data, setData, toast } = useApp();
+  const s = data.settings;
+  const paused = bookingPaused(s, channel);
+  const until = paused ? s[`${channel}BookingUntil`] || '' : '';
+  const today = localISO();
+  const save = patch => setData(prev => ({ ...prev, settings: { ...prev.settings, ...patch } }));
+  const name = channel === 'online' ? L('الحجز الأونلاين', 'Online booking') : L('الحجز عبر واتساب', 'WhatsApp booking');
+  return <div className="stack-sm">
+    <Toggle checked={!paused} label={channel === 'online' ? L('استقبال الحجز الأونلاين', 'Accept online bookings') : L('الحجز عبر واتساب', 'Booking via WhatsApp')}
+      hint={channel === 'online' ? L('أوقفه مؤقتاً في الإجازات أو الأيام المزدحمة', 'Pause it during holidays or busy days') : L('عند إيقافه يبقى المساعد يرد على الأسئلة لكنه لا يحجز', 'When paused, the assistant still answers questions but does not book')}
+      onChange={on => { save({ [`${channel}BookingOff`]: !on, [`${channel}BookingUntil`]: '' }); toast(on ? L(`تم تشغيل ${name}`, `${name} is on`) : L(`تم إيقاف ${name}`, `${name} is paused`)); }} />
+    {paused && <>
+      <Field label={L('يعود الحجز تلقائياً يوم (اختياري)', 'Reopen automatically on (optional)')} hint={L('اتركه فارغاً ليبقى متوقفاً حتى تعيد تشغيله', 'Leave empty to keep it paused until you turn it back on')}>
+        <input type="date" min={addDays(today, 1)} value={until} onChange={e => save({ [`${channel}BookingUntil`]: e.target.value })} />
+      </Field>
+      <Alert tone="orange">{until ? L(`${name} متوقف — يعود يوم ${dateLabel(until, { weekday: 'long', day: 'numeric', month: 'long' })}`, `${name} is paused — reopens on ${dateLabel(until, { weekday: 'long', day: 'numeric', month: 'long' })}`) : L(`${name} متوقف حتى تعيد تشغيله`, `${name} is paused until you turn it back on`)}</Alert>
+    </>}
+  </div>;
+}
+
 function BookingSettings({ onClose }) {
   const { shop, data, reloadShops, toast, setData } = useApp();
   const suggested = (shop.slug || data.shopName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `salon-${Math.random().toString(36).slice(2, 6)}`;
@@ -388,6 +410,7 @@ function BookingSettings({ onClose }) {
       <Field label={L('اسم الرابط', 'Link name')} hint={L('بالإنجليزية — مثال: miqass-doha', 'In English — e.g. miqass-doha')}><input dir="ltr" value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} /></Field>
       <Alert>{error}</Alert>
       <Button block icon={Check} onClick={save}>{shop.slug ? L('تحديث الرابط', 'Update link') : L('تفعيل الحجز الأونلاين', 'Enable online booking')}</Button>
+      {shop.slug && <BookingPause channel="online" />}
       <small className="muted">{L(`الحجوزات الأونلاين تصل «بانتظار التأكيد» وتظهر فوراً على كل الأجهزة. حماية تلقائية: ${num(3)} حجوزات كحد أقصى للرقم يومياً.`, `Online bookings arrive as "Pending confirmation" and appear instantly on all devices. Built-in protection: max ${num(3)} bookings per phone number per day.`)}</small>
     </div>
   </Sheet>;
@@ -470,6 +493,7 @@ export function WhatsAppSettings({ onClose }) {
       {v.aiAddon
         ? <Toggle checked={v.assistant} onChange={on => setV({ ...v, assistant: on })} label={L('المساعد الذكي (AI)', 'AI assistant')} hint={L('يرد على العملاء ويحجز ويجيب عن الأسعار بالعربي 24/7', 'Replies to clients, books appointments and answers price questions in Arabic 24/7')} />
         : <AddonOffer id="ai" shopName={shopName} />}
+      {v.aiAddon && v.assistant && <BookingPause channel="wa" />}
     </div>}
   </Sheet>;
 }

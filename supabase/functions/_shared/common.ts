@@ -104,6 +104,12 @@ export async function waQuotaLeft(shopId: string) {
   return Number(data.left ?? 0);
 }
 
+// إيقاف الحجز مؤقتاً من صاحب الصالون (online = رابط الحجز، wa = واتساب). مثل booking_paused في قاعدة البيانات.
+export function bookingPaused(settings: Record<string, any>, channel: 'online' | 'wa') {
+  const until = String(settings?.[`${channel}BookingUntil`] || '');
+  return Boolean(settings?.[`${channel}BookingOff`]) && (!until || isoDate(localNow()) < until);
+}
+
 export async function logMessage(shopId: string, kind: string, clientId: string, appointmentId = '') {
   const id = crypto.randomUUID();
   await saveRecord(shopId, 'messages', id, { id, kind, clientId, appointmentId, at: isoDate(localNow()), channel: 'whatsapp-api' });

@@ -1,7 +1,7 @@
 // استقبال رسائل واتساب: ردود التذكير (1 تأكيد / 2 إلغاء) + المساعد الذكي للحجز بالعربي.
 import Anthropic from 'npm:@anthropic-ai/sdk@0.133.0';
 import {
-  addDays, availableSlots, collection, conflicts, dateAr, db, digits, isStaffOff, isoDate, isoTime, json, localNow, samePhone,
+  addDays, bookingPaused, availableSlots, collection, conflicts, dateAr, db, digits, isStaffOff, isoDate, isoTime, json, localNow, samePhone,
   saveRecord, sendText, settingsOf, timeAr, type WaConfig, waConfigFor,
 } from '../_shared/common.ts';
 
@@ -202,6 +202,8 @@ async function runTool(shopId: string, from: string, name: string, input: Record
   const today = isoDate(localNow());
   // العميل لديه موعد قائم (اليوم أو لاحقاً): لا حجز ثانٍ (مثل التطبيق ورابط الحجز؛ والخادم يفرض ذلك أيضاً).
   const sameDayOf = (_date?: string) => client && appointments.find(a => a.data.clientId === client.id && a.data.date >= today && ['pending', 'confirmed', 'arrived', 'in_service'].includes(a.data.status));
+  // صاحب الصالون أوقف الحجز عبر واتساب: يبقى المساعد يجيب عن الأسئلة ولا يحجز.
+  const pausedNote = bookingPaused(settings, 'wa') ? `الحجز عبر واتساب متوقف حالياً بقرار من الصالون${settings.waBookingUntil ? ` ويعود يوم ${dateAr(settings.waBookingUntil)}` : ''}. لا تحجز ولا تقترح أوقاتاً: اعتذر بلطف واطلب من العميل التواصل مع الصالون مباشرة.` : '';
   const sameDayNote = (a: Rec) => `لدى العميل موعد قائم ${a.data.date === today ? 'اليوم' : `يوم ${a.data.date}`} الساعة ${timeAr(a.data.time)} (${(a.data.items ?? []).map((i: any) => i.name).join(' + ')}). لا يمكن حجز موعد ثانٍ قبل انتهاء موعده الحالي: أخبره بموعده، وإن أراد تغييره فليتواصل مع الصالون لتعديله أو إلغائه.`;
 
   if (name === 'list_services') {
@@ -213,6 +215,7 @@ async function runTool(shopId: string, from: string, name: string, input: Record
     });
   }
   if (name === 'find_available_times') {
+    if (pausedNote) return pausedNote;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || input.date < today || input.date > addDays(today, 60)) return 'تاريخ غير صالح — يجب أن يكون خلال الشهرين القادمين.';
     const chosen = items(input.service_ids, input.staff_id || '');
     if (!chosen.length) return 'لم يتم العثور على الخدمات. استخدم list_services للحصول على المعرّفات.';
@@ -223,6 +226,7 @@ async function runTool(shopId: string, from: string, name: string, input: Record
     return slots.length ? JSON.stringify({ date: input.date, times: slots.slice(0, 24).map(timeAr) }) : 'لا توجد أوقات متاحة في هذا اليوم.';
   }
   if (name === 'book_appointment') {
+    if (pausedNote) return pausedNote;
     const chosen = items(input.service_ids, input.staff_id || '');
     const time = toHHMM(input.time);
     if (!chosen.length || !time || input.date < today) return 'بيانات الحجز غير مكتملة.';
@@ -299,7 +303,8 @@ async function assistant(brain: Brain, shopId: string, config: WaConfig, from: s
   const system = `أنت موظف الاستقبال الرقمي لـ«${shop?.name}» (${shop?.kind === 'women' ? 'صالون نسائي' : shop?.kind === 'mixed' ? 'صالون للرجال والسيدات' : 'صالون حلاقة رجالي'}) في قطر.
 تتحدث بالعربية الخليجية المهذبة وباختصار مناسب لواتساب (٣ أسطر غالباً). العملة ريال قطري.
 اللغة: رد دائماً بنفس لغة رسالة العميل؛ إذا كتب بالإنجليزية فرد بإنجليزية مهذبة وبسيطة (العملة QAR).${prefersEn ? ' هذا العميل يفضّل الإنجليزية — ابدأ بالإنجليزية.' : ''}
-مهامك: الإجابة عن الخدمات والأسعار، اقتراح أوقات متاحة، الحجز، عرض أو إلغاء مواعيد العميل.
+مهامك: الإجابة عن الخدمات والأسعار، اقتراح أوقات متاحة، الحجز، عرض أو إلغاء مواعيد العميل.${bookingPaused(settings, 'wa') ? `
+تنبيه: الحجز عبر واتساب متوقف الآن${settings.waBookingUntil ? ` حتى ${dateAr(settings.waBookingUntil)}` : ''}. أجب عن الأسئلة والأسعار فقط، ولا تحجز ولا تعرض أوقاتاً؛ اطلب من العميل التواصل مع الصالون${shop?.phone ? ` على ${shop.phone}` : ''}.` : ''}
 قواعد: استخدم الأدوات دائماً للأسعار والأوقات ولا تخمّن. قبل book_appointment اعرض ملخص الحجز واطلب تأكيداً صريحاً. اقترح ٣ أوقات كحد أقصى.
 إذا طلب العميل شيئاً خارج الحجز أو اشتكى، اعتذر بلطف وأخبره أن فريق الصالون سيتواصل معه${shop?.phone ? ` أو يمكنه الاتصال على ${shop.phone}` : ''}.
 ساعات العمل: ${settings.hours?.allDay ? 'مفتوح 24 ساعة طوال الأسبوع' : `${timeAr(settings.hours?.open ?? '09:00')} – ${timeAr(settings.hours?.close ?? '22:00')}`}.
