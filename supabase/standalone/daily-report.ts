@@ -96,6 +96,13 @@ export async function saveRecord(shopId: string, name: string, id: string, data:
   if (error) throw error;
 }
 
+// رصيد رسائل «واتساب الذكي» المتبقي هذا الشهر (التذكير والعروض والتقرير اليومي). عند تعذّر القراءة لا نوقف الإرسال.
+export async function waQuotaLeft(shopId: string) {
+  const { data, error } = await db.rpc('wa_usage', { p_shop: shopId });
+  if (error || !data) { console.error('wa_usage', error?.message); return Infinity; }
+  return Number(data.left ?? 0);
+}
+
 export async function logMessage(shopId: string, kind: string, clientId: string, appointmentId = '') {
   const id = crypto.randomUUID();
   await saveRecord(shopId, 'messages', id, { id, kind, clientId, appointmentId, at: isoDate(localNow()), channel: 'whatsapp-api' });
@@ -199,6 +206,7 @@ Deno.serve(async req => {
     if (!activeShop) continue;
     const config = await waConfigFor(shop.shop_id);
     if (!config) continue;
+    if (await waQuotaLeft(shop.shop_id) <= 0) { failures.push(`${shop.shop_id}: quota`); continue; }
     const [appointments, sales, staff] = await Promise.all(['appointments', 'sales', 'staff'].map(c => collection(shop.shop_id, c)));
     const day = appointments.map(r => r.data).filter(a => a.date === today);
     const income = appointments.flatMap(r => r.data.payments ?? []).filter((p: any) => p.at === today && p.kind !== 'tip' && !['gift', 'package'].includes(p.method)).reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
@@ -219,6 +227,8 @@ Deno.serve(async req => {
     ].filter(Boolean).join(' · ');
     try {
       await sendTemplate(config, shop.owner_whatsapp, TEMPLATE, [(shop as any).shops?.name ?? '', report]);
+      // يُحسب من رصيد الشهر مثل باقي رسائل الصالون.
+      await db.from('wa_outbox').insert({ shop_id: shop.shop_id, phone: shop.owner_whatsapp, kind: 'report' });
       sent++;
     } catch (e) { failures.push(`${shop.shop_id}: ${(e as Error).message}`); }
   }

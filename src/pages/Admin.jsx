@@ -5,10 +5,10 @@ import {
 } from 'lucide-react';
 import { defaultSettings, num, roleText, whatsappLink, LOCALE } from '../data.js';
 import { api, bookingUrl, errorText } from '../lib/sync.js';
-import { plans } from '../lib/license.js';
+import { WA_EXTRA, WA_INCLUDED, plans } from '../lib/license.js';
 import { prefs } from '../lib/store.js';
 import { notifyNow } from '../lib/native.js';
-import { Alert, Badge, Button, Confirm, Empty, Field, Row, SearchBox, Section, Segmented, Sheet, Stat, Toggle, openExternal, useApp } from '../ui.jsx';
+import { Alert, Badge, Button, Chips, Confirm, Empty, Field, NumInput, Row, SearchBox, Section, Segmented, Sheet, Stat, Toggle, openExternal, useApp } from '../ui.jsx';
 import { L, isEn } from '../i18n.js';
 
 const DAY = 86400000;
@@ -243,6 +243,10 @@ function SecretInput({ value, onChange, placeholder }) {
 function Addons({ shopId, onSaved }) {
   const [v, setV] = useState(null);
   const [error, setError] = useState('');
+  // رصيد رسائل واتساب الشهري للصالون (500 مشمولة، ويُرفع عند شراء رسائل إضافية).
+  const [usage, setUsage] = useState(null);
+  const [quota, setQuota] = useState(WA_INCLUDED);
+  useEffect(() => { api.waUsage(shopId).then(u => { setUsage(u); setQuota(u.quota); }).catch(() => setUsage(null)); }, [shopId]);
   useEffect(() => {
     setV(null);
     api.admin.integration(shopId).then(row => setV({
@@ -253,7 +257,11 @@ function Addons({ shopId, onSaved }) {
   const save = async () => {
     setError('');
     // الحقل الفارغ يعني حذف المفتاح المحفوظ.
-    try { await api.admin.setIntegration(shopId, { ...v, clearToken: !v.token && !v.tokenHidden, clearAiKey: !v.aiKey && !v.keyHidden }); onSaved(); } catch (e) { setError(errorText(e)); }
+    try {
+      await api.admin.setIntegration(shopId, { ...v, clearToken: !v.token && !v.tokenHidden, clearAiKey: !v.aiKey && !v.keyHidden });
+      if (usage && Number(quota) !== usage.quota) { await api.admin.setWaQuota(shopId, quota); setUsage({ ...usage, quota: Number(quota), left: Math.max(0, Number(quota) - usage.used) }); }
+      onSaved();
+    } catch (e) { setError(errorText(e)); }
   };
   if (!v) return error ? <Alert>{error}</Alert> : <div className="loader" />;
   return <Section title={L('الإضافات المدفوعة', 'Paid add-ons')}>
@@ -264,6 +272,12 @@ function Addons({ shopId, onSaved }) {
           <input dir="ltr" value={v.phoneNumberId} onChange={e => setV({ ...v, phoneNumberId: e.target.value.trim() })} />
         </Field>
         {v.phoneNumberId && <Field label={L('Access Token لرقم الصالون', "Access Token for the salon's number")}><SecretInput value={v.token} onChange={token => setV({ ...v, token })} /></Field>}
+        {usage && <Field label={L('حد الرسائل الشهري', 'Monthly message limit')} hint={L(`استُخدم ${num(usage.used)} هذا الشهر · المشمول ${num(WA_INCLUDED)} — كل ${num(WA_EXTRA.messages)} إضافية بـ${num(WA_EXTRA.price)} ر.ق`, `${num(usage.used)} used this month · ${num(WA_INCLUDED)} included — each extra ${num(WA_EXTRA.messages)} for QAR ${num(WA_EXTRA.price)}`)}>
+          <div className="stack-sm">
+            <Chips items={[500, 1000, 1500, 2000, 3000].map(n => ({ id: n, label: num(n) }))} value={Number(quota)} onChange={setQuota} />
+            <NumInput min="0" value={quota} onChange={e => setQuota(Number(e.target.value))} />
+          </div>
+        </Field>}
         <Toggle checked={v.aiAddon} onChange={on => setV({ ...v, aiAddon: on })} label={L('المساعد الذكي (AI)', 'AI assistant')} hint={L('يرد ويحجز في واتساب 24/7', 'Replies and books on WhatsApp 24/7')} />
         {v.aiAddon && <>
           <Field label={L('مزوّد الذكاء الاصطناعي', 'AI provider')}>

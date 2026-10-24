@@ -736,3 +736,5 @@ input:not([type='checkbox']):not([type='radio']):not(.toggle):not([type='file'])
 
 /* السعر قبل الخصم في ملخص الحجز: أصغر من السعر النهائي */
 .confirm-card b s { font-size: .62em; font-weight: 600; margin-inline-end: 6px; }
+
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

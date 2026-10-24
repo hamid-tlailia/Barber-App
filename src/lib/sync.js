@@ -159,7 +159,11 @@ export const api = {
   // عرض لكل العملاء عبر واتساب (إضافة واتساب الذكي) — dry_run يعيد عدد المستلمين فقط.
   broadcast: async (shop, payload) => {
     const { data, error } = await supabase.functions.invoke('broadcast', { body: { shop_id: shop, ...payload } });
-    if (error) throw new Error((await error.context?.json?.().catch(() => null))?.error || error.message);
+    if (error) {
+      const body = await error.context?.json?.().catch(() => null);
+      // رصيد الرسائل لا يكفي: نمرر الأرقام لتظهر في الرسالة.
+      throw new Error(body?.error === 'quota_exceeded' ? `quota_exceeded ${body.left} ${body.needed}` : body?.error || error.message);
+    }
     return data;
   },
   registerDevice: (shop, device) => rpc('register_device', { p_shop: shop, p_device: device }),
@@ -185,6 +189,7 @@ export const api = {
   },
   testPush: shop => rpc('send_test_push', { p_shop: shop }),
   vapidPublicKey: () => rpc('vapid_public_key'),
+  waUsage: shop => rpc('wa_usage', { p_shop: shop }),
   saveIntegration: (shop, v) => rpc('save_integration', {
     p_shop: shop, p_owner_whatsapp: v.ownerWhatsapp || '', p_reminders: Boolean(v.reminders), p_assistant: Boolean(v.assistant), p_daily: Boolean(v.daily),
   }),
@@ -223,6 +228,7 @@ export const api = {
     overview: shop => rpc('admin_shop_overview', { p_shop: shop }),
     templates: shop => rpc('admin_get_templates', { p_shop: shop }),
     setTemplates: (shop, templates) => rpc('admin_set_templates', { p_shop: shop, p_templates: templates }),
+    setWaQuota: (shop, quota) => rpc('admin_set_wa_quota', { p_shop: shop, p_quota: Number(quota) || 0 }),
     setIntegration: (shop, v) => rpc('admin_set_integration', {
       p_shop: shop, p_wa_addon: Boolean(v.waAddon), p_ai_addon: Boolean(v.aiAddon), p_phone_number_id: v.phoneNumberId || '',
       p_token: v.token || '', p_ai_key: v.aiKey || '', p_clear_token: Boolean(v.clearToken), p_clear_ai_key: Boolean(v.clearAiKey), p_ai_provider: v.aiProvider || 'anthropic',
@@ -245,6 +251,10 @@ export const errorText = error => {
   if (/phone_taken/.test(message)) return L('هذا الرقم مسجّل لصالون آخر — إن كان صالونك فسجّل الدخول بحسابه، أو تواصل معنا', 'This number is registered to another salon — if it is yours, sign in with that account or contact us');
   if (/phone_required/.test(message)) return L('أدخل رقم واتساب صحيحاً للصالون (8 أرقام على الأقل)', 'Enter a valid salon WhatsApp number (at least 8 digits)');
   if (/reason_required/.test(message)) return L('اكتب سبب الحذف', 'Please write the reason for deletion');
+  if (/quota_exceeded/.test(message)) {
+    const [, left = '0', needed = '0'] = message.match(/quota_exceeded (\d+) (\d+)/) || [];
+    return L(`رصيد رسائل هذا الشهر لا يكفي: المتبقي ${left} والعرض يحتاج ${needed} — اطلب رسائل إضافية`, `Not enough messages left this month: ${left} left, the offer needs ${needed} — request extra messages`);
+  }
   if (/too_soon/.test(message)) return L('أُرسلت حملة خلال آخر 24 ساعة — حماية لرقمك من الحظر، جرّب غداً', 'A campaign was sent in the last 24 hours — to protect your number, try again tomorrow');
   if (/addon_required/.test(message)) return L('الإرسال الجماعي يحتاج اشتراك واتساب الذكي', 'Bulk sending requires the Smart WhatsApp add-on');
   if (/coupon_invalid/.test(message)) return L('كود الخصم غير صحيح', 'Invalid discount code');

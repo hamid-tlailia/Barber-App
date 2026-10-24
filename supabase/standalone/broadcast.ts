@@ -96,6 +96,13 @@ export async function saveRecord(shopId: string, name: string, id: string, data:
   if (error) throw error;
 }
 
+// رصيد رسائل «واتساب الذكي» المتبقي هذا الشهر (التذكير والعروض والتقرير اليومي). عند تعذّر القراءة لا نوقف الإرسال.
+export async function waQuotaLeft(shopId: string) {
+  const { data, error } = await db.rpc('wa_usage', { p_shop: shopId });
+  if (error || !data) { console.error('wa_usage', error?.message); return Infinity; }
+  return Number(data.left ?? 0);
+}
+
 export async function logMessage(shopId: string, kind: string, clientId: string, appointmentId = '') {
   const id = crypto.randomUUID();
   await saveRecord(shopId, 'messages', id, { id, kind, clientId, appointmentId, at: isoDate(localNow()), channel: 'whatsapp-api' });
@@ -212,7 +219,10 @@ Deno.serve(async req => {
     if (c.id === 'walk-in' || c.noOffers || digits(c.phone).length < 8 || seen.has(d)) return false;
     seen.add(d); return true;
   }).slice(0, 2000);
-  if (dry_run) return reply({ recipients: recipients.length });
+  // كل عميل رسالة من رصيد الشهر: لا نرسل عرضاً لا يكفيه الرصيد (لا إرسال جزئي مربك).
+  const left = await waQuotaLeft(shop_id);
+  if (dry_run) return reply({ recipients: recipients.length, left: Number.isFinite(left) ? left : null });
+  if (recipients.length > left) return reply({ error: 'quota_exceeded', left, needed: recipients.length }, 402);
 
   const last = campaigns.map(c => c.data.at).filter(Boolean).sort().pop();
   if (last && Date.now() - Date.parse(last) < 24 * 3600000) return reply({ error: 'too_soon', next: new Date(Date.parse(last) + 24 * 3600000).toISOString() }, 429);

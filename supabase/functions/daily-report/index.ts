@@ -1,6 +1,6 @@
 // تقرير نهاية اليوم لصاحب الصالون عبر واتساب. يُستدعى كل ساعة من pg_cron، ويُرسل لكل صالون عند ساعة إغلاقه
 // (23:00 للصالون المفتوح 24 ساعة). استدعاء يدوي بـ {"force": true} يرسل للجميع فوراً للتجربة.
-import { addDays, authorizedCron, reportSchedule, collection, db, json, localNow, sendTemplate, timeAr, waConfigFor } from '../_shared/common.ts';
+import { addDays, authorizedCron, reportSchedule, collection, db, json, localNow, sendTemplate, timeAr, waConfigFor, waQuotaLeft } from '../_shared/common.ts';
 
 const TEMPLATE = Deno.env.get('WA_TEMPLATE_REPORT') ?? 'daily_report';
 const money = (v: number) => `${Math.round(v).toLocaleString('en-US')} ر.ق`;
@@ -22,6 +22,7 @@ Deno.serve(async req => {
     if (!activeShop) continue;
     const config = await waConfigFor(shop.shop_id);
     if (!config) continue;
+    if (await waQuotaLeft(shop.shop_id) <= 0) { failures.push(`${shop.shop_id}: quota`); continue; }
     const [appointments, sales, staff] = await Promise.all(['appointments', 'sales', 'staff'].map(c => collection(shop.shop_id, c)));
     const day = appointments.map(r => r.data).filter(a => a.date === today);
     const income = appointments.flatMap(r => r.data.payments ?? []).filter((p: any) => p.at === today && p.kind !== 'tip' && !['gift', 'package'].includes(p.method)).reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
@@ -42,6 +43,8 @@ Deno.serve(async req => {
     ].filter(Boolean).join(' · ');
     try {
       await sendTemplate(config, shop.owner_whatsapp, TEMPLATE, [(shop as any).shops?.name ?? '', report]);
+      // يُحسب من رصيد الشهر مثل باقي رسائل الصالون.
+      await db.from('wa_outbox').insert({ shop_id: shop.shop_id, phone: shop.owner_whatsapp, kind: 'report' });
       sent++;
     } catch (e) { failures.push(`${shop.shop_id}: ${(e as Error).message}`); }
   }

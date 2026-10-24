@@ -94,6 +94,13 @@ export async function saveRecord(shopId: string, name: string, id: string, data:
   if (error) throw error;
 }
 
+// رصيد رسائل «واتساب الذكي» المتبقي هذا الشهر (التذكير والعروض والتقرير اليومي). عند تعذّر القراءة لا نوقف الإرسال.
+export async function waQuotaLeft(shopId: string) {
+  const { data, error } = await db.rpc('wa_usage', { p_shop: shopId });
+  if (error || !data) { console.error('wa_usage', error?.message); return Infinity; }
+  return Number(data.left ?? 0);
+}
+
 export async function logMessage(shopId: string, kind: string, clientId: string, appointmentId = '') {
   const id = crypto.randomUUID();
   await saveRecord(shopId, 'messages', id, { id, kind, clientId, appointmentId, at: isoDate(localNow()), channel: 'whatsapp-api' });

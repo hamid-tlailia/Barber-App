@@ -47,8 +47,13 @@ export const plans = [
 ];
 
 // إضافات اختيارية فوق الباقة الأساسية — اشتراك منفصل بسعر واضح للعميل.
+// رصيد «واتساب الذكي» الشهري: كل تذكير أو عرض أو تقرير يومي = رسالة. ردود المساعد داخل المحادثة لا تُحسب.
+export const WA_INCLUDED = 500;
+export const WA_EXTRA = { messages: 500, price: 29 };
+export const waExtraLink = shopName => `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(L(`مرحباً، أرغب في إضافة ${WA_EXTRA.messages} رسالة واتساب (${WA_EXTRA.price} ر.ق) لصالون «${shopName || ''}» في تطبيق مِقص.`, `Hello, I would like to add ${WA_EXTRA.messages} WhatsApp messages (QAR ${WA_EXTRA.price}) for "${shopName || ''}" in the Miqass app.`))}`;
+
 export const addons = [
-  { id: 'wa', name: L('واتساب الذكي', 'Smart WhatsApp'), monthly: 49, yearly: 490, points: L(['تذكير تلقائي لكل عميل قبل موعده', 'العميل يرد 1 للتأكيد أو 2 للإلغاء ويتحدث الجدول وحده', 'تقرير يومي لك كل ليلة: الدخل والمواعيد والغياب'], ['Automatic reminder to every client before their appointment', 'Clients reply 1 to confirm or 2 to cancel, and the schedule updates itself', 'A nightly report for you: revenue, appointments and no-shows']) },
+  { id: 'wa', name: L('واتساب الذكي', 'Smart WhatsApp'), monthly: 49, yearly: 490, points: L(['تذكير تلقائي لكل عميل قبل موعده', 'العميل يرد 1 للتأكيد أو 2 للإلغاء ويتحدث الجدول وحده', 'تقرير يومي لك كل ليلة: الدخل والمواعيد والغياب', `يشمل ${WA_INCLUDED} رسالة شهرياً — وكل ${WA_EXTRA.messages} رسالة إضافية بـ${WA_EXTRA.price} ر.ق`], ['Automatic reminder to every client before their appointment', 'Clients reply 1 to confirm or 2 to cancel, and the schedule updates itself', 'A nightly report for you: revenue, appointments and no-shows', `Includes ${WA_INCLUDED} messages a month — each extra ${WA_EXTRA.messages} for QAR ${WA_EXTRA.price}`]) },
   { id: 'ai', name: L('المساعد الذكي (AI)', 'AI Assistant'), monthly: 99, yearly: 990, requires: 'wa', points: L(['يرد على عملائك في واتساب 24/7 بالعربي', 'يجيب عن الأسعار ويقترح الأوقات ويحجز مباشرة', 'لا تفوتك حجوزات الليل وأوقات الانشغال'], ['Replies to your clients on WhatsApp 24/7', 'Answers price questions, suggests times and books directly', 'Never miss late-night or busy-hour bookings']) },
 ];
 

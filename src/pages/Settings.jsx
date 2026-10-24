@@ -5,8 +5,8 @@ import {
 } from 'lucide-react';
 import { PHONE_ERROR, fillLines, salonTemplate, validPhone, clientName, dateLabel, findDuplicate, packageServices, amountPaid, normalCode, digitStyle, setDigitStyle, localISO, money, normalizeData, num, roleText, statusText, timeLabel, uid, LOCALE } from '../data.js';
 import { api, auth, bookingUrl, cloudEnabled, errorText } from '../lib/sync.js';
-import { addonLink, addons, buyLink, deletionLink, plans } from '../lib/license.js';
-import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
+import { WA_EXTRA, addonLink, addons, buyLink, deletionLink, plans, waExtraLink } from '../lib/license.js';
+import { Alert, Avatar, Badge, Button, Chips, Confirm, Empty, Field, Meter, Row, Section, Segmented, Select, Sheet, Toggle, download, openExternal, useApp, NumInput } from '../ui.jsx';
 import { exportAll } from './Lock.jsx';
 import { OfferShare } from './Offer.jsx';
 import { isNative, notifyNow, pushState, pushSupported, webPush } from '../lib/native.js';
@@ -422,6 +422,24 @@ function AddonOffer({ id, shopName }) {
   </div>;
 }
 
+// رصيد رسائل الشهر: التذكير والعروض والتقرير اليومي. عند نفاده تتوقف التذكيرات التلقائية حتى الشهر التالي أو شراء رسائل إضافية.
+function WaUsage({ shopName }) {
+  const { shop } = useApp();
+  const [u, setU] = useState(null);
+  useEffect(() => { api.waUsage(shop.id).then(setU).catch(() => setU(null)); }, [shop.id]);
+  if (!u) return null;
+  const ratio = u.quota ? u.used / u.quota : 1;
+  const tone = ratio >= 1 ? 'red' : ratio >= 0.8 ? 'orange' : 'green';
+  return <div className="stack-sm">
+    <div className="row-between"><strong>{L('رسائل هذا الشهر', 'Messages this month')}</strong><span className="muted small">{L(`${num(u.used)} من ${num(u.quota)}`, `${num(u.used)} of ${num(u.quota)}`)}</span></div>
+    <Meter value={u.used} max={u.quota} tone={tone} />
+    <small className="muted">{L('كل تذكير أو عرض أو تقرير يومي = رسالة. ردود المساعد داخل المحادثة لا تُحسب. يتجدد الرصيد أول كل شهر.', 'Each reminder, offer or daily report = one message. Assistant replies inside a chat are not counted. Resets on the 1st of each month.')}</small>
+    {ratio >= 1 ? <Alert tone="red">{L('نفد رصيد هذا الشهر — توقفت التذكيرات التلقائية. يبقى زر «تذكير واتساب» اليدوي يعمل.', 'This month’s messages are used up — automatic reminders are paused. The manual “WhatsApp reminder” button still works.')}</Alert>
+      : ratio >= 0.8 && <Alert tone="orange">{L(`اقترب الرصيد من النفاد — متبقٍ ${num(u.left)} رسالة`, `Running low — ${num(u.left)} messages left`)}</Alert>}
+    {ratio >= 0.8 && <Button variant="secondary" icon={MessageSquareText} block onClick={() => openExternal(waExtraLink(shopName))}>{L(`اطلب ${num(WA_EXTRA.messages)} رسالة إضافية · ${num(WA_EXTRA.price)} ر.ق`, `Request ${num(WA_EXTRA.messages)} extra messages · QAR ${num(WA_EXTRA.price)}`)}</Button>}
+  </div>;
+}
+
 export function WhatsAppSettings({ onClose }) {
   const { shop, data, toast } = useApp();
   const [v, setV] = useState(null);
@@ -445,6 +463,7 @@ export function WhatsAppSettings({ onClose }) {
       <AddonOffer id="ai" shopName={shopName} />
     </div> : <div className="stack">
       <Alert tone="green" icon={Check}>{L('اشتراك إضافي مفعّل لصالونك ✓ — يمكنك تشغيل أو إيقاف كل ميزة حسب حاجتك.', 'Add-on active for your salon ✓ — turn each feature on or off as you need.')}</Alert>
+      <WaUsage shopName={shopName} />
       <Toggle checked={v.reminders} onChange={on => setV({ ...v, reminders: on })} label={L('تذكير تلقائي قبل كل موعد', 'Automatic reminder before every appointment')} hint={L('العميل يرد 1 للتأكيد أو 2 للإلغاء — ويتحدث الجدول تلقائياً', 'Client replies 1 to confirm or 2 to cancel — the schedule updates automatically')} />
       <Toggle checked={v.daily} onChange={on => setV({ ...v, daily: on })} label={L('تقرير يومي لصاحب المحل', 'Daily report for the salon owner')} hint={L('الدخل، المواعيد، الغياب، الأفضل أداءً — كل ليلة', 'Revenue, appointments, no-shows, top performers — every night')} />
       {v.daily && <Field label={L('رقم واتساب لاستلام التقرير', 'WhatsApp number to receive the report')}><input type="tel" dir="ltr" value={v.ownerWhatsapp} onChange={e => setV({ ...v, ownerWhatsapp: e.target.value })} placeholder="974XXXXXXXX" /></Field>}
